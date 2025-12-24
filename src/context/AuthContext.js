@@ -91,18 +91,9 @@ export const AuthProvider = ({ children }) => {
     // Start setup
     setupAuth();
 
-    // Safety timeout - if loading takes more than 5 seconds, stop loading anyway
-    const safetyTimeout = setTimeout(() => {
-      if (loading) {
-        console.log('Safety timeout reached, stopping loading');
-        setLoading(false);
-      }
-    }, 5000);
-
     return () => {
       if (unsubscribe) unsubscribe();
       if (timeoutId) clearTimeout(timeoutId);
-      clearTimeout(safetyTimeout);
     };
   }, []);
 
@@ -353,7 +344,7 @@ const getErrorMessage = (error) => {
     case 'auth/network-request-failed':
       return 'Network error. Please check your internet connection.';
     case 'auth/invalid-credential':
-      return 'Invalid email or password. Please check and try again.';
+      return 'Invalid email or password. If you don\'t have an account, please sign up first.';
     case 'auth/popup-closed-by-user':
       return 'Sign-in was cancelled.';
     default:

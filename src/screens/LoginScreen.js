@@ -64,7 +64,19 @@ export default function LoginScreen({ navigation }) {
         [{ text: 'OK' }]
       );
     } else {
-      Alert.alert('❌ Login Failed', result.error);
+      // Check if it's a credential error - offer to sign up
+      if (result.error && result.error.includes("don't have an account")) {
+        Alert.alert(
+          '❌ Login Failed',
+          result.error,
+          [
+            { text: 'Sign Up', onPress: () => navigation.navigate('Signup') },
+            { text: 'Try Again', style: 'cancel' }
+          ]
+        );
+      } else {
+        Alert.alert('❌ Login Failed', result.error);
+      }
     }
   };
 
