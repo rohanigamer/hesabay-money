@@ -10,8 +10,11 @@ import {
   Alert,
   Platform,
   Animated,
+  Share,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { ThemeContext } from '../context/ThemeContext';
 import { useCurrency } from '../context/CurrencyContext';
 import { Storage } from '../utils/Storage';
@@ -37,6 +40,8 @@ export default function TransactionScreen({ navigation }) {
   const [deleteData, setDeleteData] = useState(null);
   const [customerSearch, setCustomerSearch] = useState('');
   const [newCustomerData, setNewCustomerData] = useState({ name: '', number: '' });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showExportModal, setShowExportModal] = useState(false);
 
   const headerAnim = useRef(new Animated.Value(0)).current;
   const cardsAnim = useRef(new Animated.Value(0)).current;
@@ -180,10 +185,21 @@ export default function TransactionScreen({ navigation }) {
     (c.number && c.number.includes(customerSearch))
   );
 
+  // Filter transactions by search
+  const filteredTransactions = transactions.filter(t => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      t.description?.toLowerCase().includes(query) ||
+      t.customerName?.toLowerCase().includes(query) ||
+      t.amount?.toString().includes(query)
+    );
+  });
+
   // Group transactions by date
   const groupedTransactions = () => {
     const groups = {};
-    transactions.forEach(t => {
+    filteredTransactions.forEach(t => {
       const dateKey = new Date(t.createdAt).toDateString();
       if (!groups[dateKey]) {
         groups[dateKey] = { date: t.createdAt, items: [] };
@@ -191,6 +207,79 @@ export default function TransactionScreen({ navigation }) {
       groups[dateKey].items.push(t);
     });
     return Object.values(groups);
+  };
+
+  // Export to PDF (text format)
+  const exportToPDF = async () => {
+    try {
+      const report = generateTextReport();
+      await Share.share({
+        message: report,
+        title: 'Transactions Report',
+      });
+      setShowExportModal(false);
+    } catch (error) {
+      Alert.alert('Error', 'Could not export report');
+    }
+  };
+
+  // Export to CSV
+  const exportToCSV = async () => {
+    try {
+      let csv = 'Date,Time,Type,Amount,Description,Customer\n';
+      transactions.forEach(t => {
+        const date = new Date(t.createdAt);
+        const dateStr = date.toLocaleDateString();
+        const timeStr = date.toLocaleTimeString();
+        const type = (t.type === 'income' || t.type === 'credit') ? 'Income' : 'Expense';
+        const amount = t.amount;
+        const desc = (t.description || '').replace(/,/g, ' ');
+        const customer = (t.customerName || '').replace(/,/g, ' ');
+        csv += `${dateStr},${timeStr},${type},${amount},${desc},${customer}\n`;
+      });
+
+      if (Platform.OS === 'web') {
+        // For web, use Share
+        await Share.share({ message: csv, title: 'Transactions.csv' });
+      } else {
+        // For mobile, save and share file
+        const fileUri = FileSystem.documentDirectory + 'transactions.csv';
+        await FileSystem.writeAsStringAsync(fileUri, csv);
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(fileUri);
+        } else {
+          Alert.alert('Exported', 'File saved to: ' + fileUri);
+        }
+      }
+      setShowExportModal(false);
+    } catch (error) {
+      console.error('Export error:', error);
+      Alert.alert('Error', 'Could not export CSV');
+    }
+  };
+
+  // Generate text report
+  const generateTextReport = () => {
+    let report = `=== TRANSACTIONS REPORT ===\n`;
+    report += `Generated: ${new Date().toLocaleString()}\n\n`;
+    report += `--- SUMMARY ---\n`;
+    report += `Total Income: ${format(stats.totalIncome)}\n`;
+    report += `Total Expenses: ${format(stats.totalExpenses)}\n`;
+    report += `Net Balance: ${format(stats.totalBalance)}\n`;
+    report += `Total Transactions: ${transactions.length}\n\n`;
+    report += `--- TRANSACTIONS ---\n\n`;
+    
+    transactions.forEach((t, i) => {
+      const type = (t.type === 'income' || t.type === 'credit') ? 'IN' : 'OUT';
+      report += `${i + 1}. ${formatDateTime(t.createdAt)}\n`;
+      report += `   ${type}: ${format(t.amount)}\n`;
+      report += `   ${t.description || 'No description'}`;
+      if (t.customerName) report += ` (${t.customerName})`;
+      report += `\n\n`;
+    });
+    
+    return report;
   };
 
   return (
@@ -207,6 +296,31 @@ export default function TransactionScreen({ navigation }) {
           ]}
         >
           <Text style={[styles.title, { color: colors.text }]}>Transactions</Text>
+          <TouchableOpacity 
+            style={[styles.exportBtn, { backgroundColor: colors.accent }]} 
+            onPress={() => setShowExportModal(true)}
+          >
+            <Ionicons name="download-outline" size={18} color="#fff" />
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* Search Bar */}
+        <Animated.View style={{ opacity: headerAnim }}>
+          <View style={[styles.transSearchBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Ionicons name="search" size={18} color={colors.textTertiary} />
+            <TextInput
+              style={[styles.transSearchInput, { color: colors.text }]}
+              placeholder="Search transactions..."
+              placeholderTextColor={colors.textTertiary}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Ionicons name="close-circle" size={18} color={colors.textTertiary} />
+              </TouchableOpacity>
+            )}
+          </View>
         </Animated.View>
 
         {/* Balance Card */}
@@ -628,6 +742,52 @@ export default function TransactionScreen({ navigation }) {
         </View>
       </Modal>
 
+      {/* Export Modal */}
+      <Modal visible={showExportModal} animationType="fade" transparent onRequestClose={() => setShowExportModal(false)}>
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowExportModal(false)} />
+          <View style={[styles.exportModalContent, { backgroundColor: colors.background }]}>
+            <View style={styles.modalHandle} />
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Export Transactions</Text>
+            
+            <TouchableOpacity 
+              style={[styles.exportOption, { backgroundColor: colors.backgroundSecondary }]} 
+              onPress={exportToCSV}
+            >
+              <View style={[styles.exportIconBox, { backgroundColor: '#4CAF50' }]}>
+                <Ionicons name="document-text-outline" size={24} color="#fff" />
+              </View>
+              <View style={styles.exportOptionText}>
+                <Text style={[styles.exportOptionTitle, { color: colors.text }]}>Export as CSV</Text>
+                <Text style={[styles.exportOptionDesc, { color: colors.textSecondary }]}>Excel compatible spreadsheet</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.exportOption, { backgroundColor: colors.backgroundSecondary }]} 
+              onPress={exportToPDF}
+            >
+              <View style={[styles.exportIconBox, { backgroundColor: '#FF5722' }]}>
+                <Ionicons name="newspaper-outline" size={24} color="#fff" />
+              </View>
+              <View style={styles.exportOptionText}>
+                <Text style={[styles.exportOptionTitle, { color: colors.text }]}>Share Report</Text>
+                <Text style={[styles.exportOptionDesc, { color: colors.textSecondary }]}>Text format summary</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.cancelExportBtn, { borderColor: colors.border }]} 
+              onPress={() => setShowExportModal(false)}
+            >
+              <Text style={{ color: colors.text, fontWeight: '600' }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <BottomNavigation navigation={navigation} />
     </View>
   );
@@ -636,8 +796,11 @@ export default function TransactionScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { padding: 16, paddingTop: Platform.OS === 'ios' ? 60 : 50, paddingBottom: 180 },
-  header: { marginBottom: 20 },
+  header: { marginBottom: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { fontSize: 34, fontWeight: '700', letterSpacing: -0.5 },
+  exportBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
+  transSearchBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, marginBottom: 16, borderWidth: 1, gap: 10 },
+  transSearchInput: { flex: 1, fontSize: 15, padding: 0 },
   balanceCard: { marginBottom: 24, padding: 20 },
   balanceContent: { alignItems: 'center' },
   balanceLabel: { fontSize: 13, fontWeight: '500', marginBottom: 4 },
@@ -723,4 +886,12 @@ const styles = StyleSheet.create({
   avatar: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   avatarText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   noResults: { paddingVertical: 40, alignItems: 'center' },
+  
+  exportModalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: Platform.OS === 'ios' ? 40 : 24 },
+  exportOption: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 12, marginBottom: 12 },
+  exportIconBox: { width: 48, height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 14 },
+  exportOptionText: { flex: 1 },
+  exportOptionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 2 },
+  exportOptionDesc: { fontSize: 13 },
+  cancelExportBtn: { paddingVertical: 14, borderRadius: 12, borderWidth: 1, alignItems: 'center', marginTop: 4 },
 });

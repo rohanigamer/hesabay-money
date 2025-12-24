@@ -14,6 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { ThemeContext } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import PasswordStrength from '../components/PasswordStrength';
 
 export default function SignupScreen({ navigation }) {
   const { colors } = useContext(ThemeContext);
@@ -210,6 +211,7 @@ export default function SignupScreen({ navigation }) {
                 />
               </TouchableOpacity>
             </View>
+            <PasswordStrength password={password} colors={colors} />
           </View>
 
           {/* Confirm Password */}

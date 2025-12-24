@@ -15,6 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { ThemeContext } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import PasswordStrength from '../components/PasswordStrength';
 
 export default function LoginScreen({ navigation }) {
   const { colors } = useContext(ThemeContext);
