@@ -18,7 +18,7 @@ import { useAuth } from '../context/AuthContext';
 
 export default function LoginScreen({ navigation }) {
   const { colors } = useContext(ThemeContext);
-  const { signIn, signInWithGoogle, continueAsGuest, forgotPassword } = useAuth();
+  const { signIn, signInWithGoogle, continueAsGuest, forgotPassword, firebaseInitialized } = useAuth();
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -148,6 +148,14 @@ export default function LoginScreen({ navigation }) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Connection Status */}
+        {!firebaseInitialized && (
+          <View style={[styles.connectionBanner, { backgroundColor: colors.accent + '20' }]}>
+            <ActivityIndicator size="small" color={colors.accent} />
+            <Text style={[styles.connectionText, { color: colors.accent }]}>Connecting to server...</Text>
+          </View>
+        )}
+
         {/* Header */}
         <View style={styles.header}>
           <View style={[styles.iconCircle, { backgroundColor: colors.accent + '15' }]}>
@@ -357,6 +365,8 @@ const styles = StyleSheet.create({
   guestBtnText: { fontSize: 15, fontWeight: '500' },
   
   guestNote: { fontSize: 12, textAlign: 'center', marginTop: 8 },
+  connectionBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12, marginBottom: 20, gap: 10 },
+  connectionText: { fontSize: 14, fontWeight: '500' },
   
   signupRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 24 },
   signupText: { fontSize: 14 },

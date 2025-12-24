@@ -1,13 +1,9 @@
-// Production Firebase Configuration - Works on Web + Mobile
+// Firebase Configuration - Works on Web + Mobile (Expo)
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { 
-  getAuth, 
-  GoogleAuthProvider,
-  signInWithCredential
-} from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import { Platform } from 'react-native';
 
+// Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyAfKYr27AqnL-vbcz7tzN_VBZQTa3N_-uA",
   authDomain: "hesabay-money.firebaseapp.com",
@@ -18,42 +14,56 @@ const firebaseConfig = {
   measurementId: "G-77PHLRBP0Z"
 };
 
-let app = null;
-let auth = null;
-let db = null;
-let googleProvider = null;
+// Initialize Firebase
+let app;
+let auth;
+let db;
+let googleProvider;
+let firebaseReady = false;
 
-try {
-  // Initialize Firebase App (only once)
-  if (getApps().length === 0) {
-    app = initializeApp(firebaseConfig);
-    console.log('✅ Firebase app initialized');
-  } else {
-    app = getApp();
-    console.log('✅ Firebase app already exists');
+const initializeFirebase = () => {
+  try {
+    // Check if already initialized
+    if (getApps().length === 0) {
+      app = initializeApp(firebaseConfig);
+    } else {
+      app = getApp();
+    }
+
+    // Initialize Auth
+    auth = getAuth(app);
+    
+    // Initialize Firestore
+    db = getFirestore(app);
+    
+    // Initialize Google Provider
+    googleProvider = new GoogleAuthProvider();
+    
+    firebaseReady = true;
+    console.log('Firebase initialized successfully');
+    
+    return true;
+  } catch (error) {
+    console.error('Firebase init error:', error);
+    firebaseReady = false;
+    return false;
   }
+};
 
-  // Use standard getAuth for all platforms
-  // This works for both web and React Native with Expo
-  auth = getAuth(app);
-  console.log('✅ Firebase auth initialized');
+// Initialize immediately
+initializeFirebase();
 
-  // Initialize Firestore
-  db = getFirestore(app);
-  console.log('✅ Firestore initialized');
-  
-  // Initialize Google Provider
-  googleProvider = new GoogleAuthProvider();
+// Helper to check if Firebase is ready
+const isFirebaseReady = () => firebaseReady;
 
-} catch (error) {
-  console.error('❌ Firebase error:', error.message);
-}
-
+// Re-export for use
 export { 
   app, 
   auth, 
   db, 
   googleProvider, 
   GoogleAuthProvider, 
-  signInWithCredential 
+  signInWithCredential,
+  isFirebaseReady,
+  initializeFirebase
 };

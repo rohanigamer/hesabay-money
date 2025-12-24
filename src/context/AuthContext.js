@@ -9,56 +9,69 @@ import {
   updateProfile,
   sendEmailVerification,
   sendPasswordResetEmail,
-  signInWithPopup,
-  signInWithCredential,
-  GoogleAuthProvider
+  signInWithPopup
 } from 'firebase/auth';
-import { auth, googleProvider } from '../config/firebase';
-import firebaseSync from '../services/FirebaseSync';
+import { auth, googleProvider, isFirebaseReady, initializeFirebase } from '../config/firebase';
 
 export const AuthContext = createContext();
-
-// Helper to show confirmation dialog
-const showConfirmation = (title, message, onOk) => {
-  Alert.alert(title, message, [{ text: 'OK', onPress: onOk }]);
-};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [firebaseInitialized, setFirebaseInitialized] = useState(false);
 
+  // Initialize Firebase and set up auth listener
   useEffect(() => {
-    if (!auth) {
-      console.log('Firebase auth not available');
-      setLoading(false);
-      return;
-    }
+    let unsubscribe = null;
 
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        setUser(firebaseUser);
-        setCurrentUserId(firebaseUser.uid);
-        
-        // Load data from Firebase for this user
-        try {
-          await firebaseSync.mergeWithLocal();
-        } catch (e) {
-          console.log('Could not sync from Firebase:', e);
-        }
-      } else {
-        setUser(null);
-        setCurrentUserId(null);
+    const setupAuth = () => {
+      // Try to initialize Firebase if not ready
+      if (!isFirebaseReady()) {
+        initializeFirebase();
       }
-      setLoading(false);
-    });
 
-    return () => unsubscribe();
+      // Check if auth is available
+      if (!auth) {
+        console.log('Auth not available, retrying...');
+        // Retry after a short delay
+        setTimeout(setupAuth, 500);
+        return;
+      }
+
+      setFirebaseInitialized(true);
+
+      // Set up auth state listener
+      unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+        if (firebaseUser) {
+          setUser(firebaseUser);
+          setCurrentUserId(firebaseUser.uid);
+          
+          // Try to merge with Firebase data
+          try {
+            const { firebaseSync } = await import('../services/FirebaseSync');
+            await firebaseSync.mergeWithLocal();
+          } catch (e) {
+            console.log('Sync error:', e);
+          }
+        } else {
+          setUser(null);
+          setCurrentUserId(null);
+        }
+        setLoading(false);
+      });
+    };
+
+    setupAuth();
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   // Sign up with email verification
   const signUp = async (email, password, name) => {
     if (!auth) {
-      return { success: false, error: 'Firebase not initialized. Please restart the app.' };
+      return { success: false, error: 'Please wait, connecting to server...' };
     }
 
     try {
@@ -73,42 +86,24 @@ export const AuthProvider = ({ children }) => {
       return { 
         success: true, 
         user: userCredential.user,
-        message: 'Account created! Please check your email to verify your account.'
+        message: 'Account created! Please check your email to verify.'
       };
     } catch (error) {
       console.error('Sign up error:', error);
-      let errorMessage = 'Sign up failed. Please try again.';
-      
-      switch (error.code) {
-        case 'auth/email-already-in-use':
-          errorMessage = 'This email is already registered. Please sign in instead.';
-          break;
-        case 'auth/invalid-email':
-          errorMessage = 'Please enter a valid email address.';
-          break;
-        case 'auth/weak-password':
-          errorMessage = 'Password should be at least 6 characters.';
-          break;
-        case 'auth/network-request-failed':
-          errorMessage = 'Network error. Please check your internet connection.';
-          break;
-        default:
-          errorMessage = error.message;
-      }
-      
-      return { success: false, error: errorMessage };
+      return { success: false, error: getErrorMessage(error) };
     }
   };
 
   // Sign in
   const signIn = async (email, password) => {
     if (!auth) {
-      return { success: false, error: 'Firebase not initialized. Please restart the app.' };
+      return { success: false, error: 'Please wait, connecting to server...' };
     }
 
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       
+      // Check email verification
       if (!userCredential.user.emailVerified) {
         await sendEmailVerification(userCredential.user);
         return { 
@@ -120,11 +115,12 @@ export const AuthProvider = ({ children }) => {
       
       setCurrentUserId(userCredential.user.uid);
       
-      // Sync data from Firebase
+      // Sync data
       try {
+        const { firebaseSync } = await import('../services/FirebaseSync');
         await firebaseSync.mergeWithLocal();
       } catch (e) {
-        console.log('Could not sync:', e);
+        console.log('Sync error:', e);
       }
       
       return { 
@@ -134,39 +130,14 @@ export const AuthProvider = ({ children }) => {
       };
     } catch (error) {
       console.error('Sign in error:', error);
-      let errorMessage = 'Sign in failed. Please try again.';
-      
-      switch (error.code) {
-        case 'auth/user-not-found':
-          errorMessage = 'No account found with this email. Please sign up first.';
-          break;
-        case 'auth/wrong-password':
-          errorMessage = 'Incorrect password. Please try again.';
-          break;
-        case 'auth/invalid-email':
-          errorMessage = 'Please enter a valid email address.';
-          break;
-        case 'auth/too-many-requests':
-          errorMessage = 'Too many failed attempts. Please try again later.';
-          break;
-        case 'auth/network-request-failed':
-          errorMessage = 'Network error. Please check your internet connection.';
-          break;
-        case 'auth/invalid-credential':
-          errorMessage = 'Invalid email or password. Please check and try again.';
-          break;
-        default:
-          errorMessage = error.message;
-      }
-      
-      return { success: false, error: errorMessage };
+      return { success: false, error: getErrorMessage(error) };
     }
   };
 
   // Forgot password
   const forgotPassword = async (email) => {
     if (!auth) {
-      return { success: false, error: 'Firebase not initialized.' };
+      return { success: false, error: 'Please wait, connecting to server...' };
     }
 
     if (!email) {
@@ -177,24 +148,11 @@ export const AuthProvider = ({ children }) => {
       await sendPasswordResetEmail(auth, email);
       return { 
         success: true, 
-        message: 'Password reset email sent! Please check your inbox.' 
+        message: 'Password reset email sent! Check your inbox.' 
       };
     } catch (error) {
       console.error('Forgot password error:', error);
-      let errorMessage = 'Failed to send reset email.';
-      
-      switch (error.code) {
-        case 'auth/user-not-found':
-          errorMessage = 'No account found with this email.';
-          break;
-        case 'auth/invalid-email':
-          errorMessage = 'Please enter a valid email address.';
-          break;
-        default:
-          errorMessage = error.message;
-      }
-      
-      return { success: false, error: errorMessage };
+      return { success: false, error: getErrorMessage(error) };
     }
   };
 
@@ -214,11 +172,12 @@ export const AuthProvider = ({ children }) => {
 
   // Log out
   const logOut = async () => {
-    // Sync data before logout
+    // Sync before logout
     try {
+      const { firebaseSync } = await import('../services/FirebaseSync');
       await firebaseSync.syncAllData();
     } catch (e) {
-      console.log('Could not sync before logout:', e);
+      console.log('Sync error:', e);
     }
 
     if (!auth) {
@@ -240,7 +199,7 @@ export const AuthProvider = ({ children }) => {
   // Google Sign-In
   const signInWithGoogle = async () => {
     if (!auth || !googleProvider) {
-      return { success: false, error: 'Google Sign-In not available. Please use email/password.' };
+      return { success: false, error: 'Please wait, connecting to server...' };
     }
 
     try {
@@ -248,7 +207,6 @@ export const AuthProvider = ({ children }) => {
         const result = await signInWithPopup(auth, googleProvider);
         setCurrentUserId(result.user.uid);
         
-        // Check if new user
         const isNewUser = result._tokenResponse?.isNewUser;
         
         return { 
@@ -256,28 +214,25 @@ export const AuthProvider = ({ children }) => {
           user: result.user,
           isNewUser: isNewUser,
           message: isNewUser 
-            ? `Welcome! Your account has been created with ${result.user.email}` 
+            ? `Welcome! Account created with ${result.user.email}` 
             : `Welcome back, ${result.user.displayName || 'User'}!`
         };
       } else {
-        // Mobile - Google Sign-In requires native SDK setup
+        // Mobile - Show message
         return { 
           success: false, 
-          error: 'Google Sign-In on Android requires additional configuration.\n\nPlease use Email/Password login or Continue as Guest.',
+          error: 'Google Sign-In on mobile requires additional setup.\n\nPlease use Email/Password or Continue as Guest.',
           showAlternatives: true
         };
       }
     } catch (error) {
       console.error('Google Sign-In error:', error);
       
-      let errorMessage = 'Google Sign-In failed. Please try again.';
       if (error.code === 'auth/popup-closed-by-user') {
-        errorMessage = 'Sign-in was cancelled.';
-      } else if (error.code === 'auth/network-request-failed') {
-        errorMessage = 'Network error. Please check your internet connection.';
+        return { success: false, error: 'Sign-in was cancelled.' };
       }
       
-      return { success: false, error: errorMessage };
+      return { success: false, error: getErrorMessage(error) };
     }
   };
 
@@ -295,13 +250,18 @@ export const AuthProvider = ({ children }) => {
     return { 
       success: true, 
       user: guestUser,
-      message: 'You are now using the app as a guest. Your data will be stored locally on this device only.'
+      message: 'You are using the app as a guest. Data is stored locally on this device only.'
     };
   };
 
   // Sync data manually
   const syncData = async () => {
-    return await firebaseSync.syncAllData();
+    try {
+      const { firebaseSync } = await import('../services/FirebaseSync');
+      return await firebaseSync.syncAllData();
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
   };
 
   return (
@@ -315,11 +275,40 @@ export const AuthProvider = ({ children }) => {
       continueAsGuest,
       forgotPassword,
       resendVerificationEmail,
-      syncData
+      syncData,
+      firebaseInitialized
     }}>
       {children}
     </AuthContext.Provider>
   );
+};
+
+// Helper function to get user-friendly error messages
+const getErrorMessage = (error) => {
+  const code = error.code || '';
+  
+  switch (code) {
+    case 'auth/email-already-in-use':
+      return 'This email is already registered. Please sign in instead.';
+    case 'auth/invalid-email':
+      return 'Please enter a valid email address.';
+    case 'auth/weak-password':
+      return 'Password should be at least 6 characters.';
+    case 'auth/user-not-found':
+      return 'No account found with this email. Please sign up first.';
+    case 'auth/wrong-password':
+      return 'Incorrect password. Please try again.';
+    case 'auth/too-many-requests':
+      return 'Too many failed attempts. Please try again later.';
+    case 'auth/network-request-failed':
+      return 'Network error. Please check your internet connection.';
+    case 'auth/invalid-credential':
+      return 'Invalid email or password. Please check and try again.';
+    case 'auth/popup-closed-by-user':
+      return 'Sign-in was cancelled.';
+    default:
+      return error.message || 'An error occurred. Please try again.';
+  }
 };
 
 export const useAuth = () => useContext(AuthContext);
