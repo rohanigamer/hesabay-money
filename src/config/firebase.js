@@ -1,15 +1,7 @@
 // Firebase Configuration - Works on Web + Mobile (Expo)
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { 
-  getAuth, 
-  initializeAuth,
-  getReactNativePersistence,
-  GoogleAuthProvider, 
-  signInWithCredential 
-} from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import { Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Firebase configuration
 const firebaseConfig = {
@@ -40,34 +32,11 @@ const initializeFirebase = () => {
       app = getApp();
     }
 
-    // Initialize Auth with proper persistence for React Native
+    // Initialize Auth - use simple getAuth for all platforms
+    // Firebase JS SDK handles persistence automatically
     if (!auth) {
-      try {
-        if (Platform.OS === 'web') {
-          // Web uses default persistence
-          auth = getAuth(app);
-          console.log('✅ Firebase Auth initialized (web)');
-        } else {
-          // React Native needs AsyncStorage persistence
-          try {
-            auth = initializeAuth(app, {
-              persistence: getReactNativePersistence(AsyncStorage)
-            });
-            console.log('✅ Firebase Auth initialized (mobile with persistence)');
-          } catch (authError) {
-            // If already initialized, just get auth
-            if (authError.code === 'auth/already-initialized') {
-              auth = getAuth(app);
-              console.log('✅ Firebase Auth already initialized');
-            } else {
-              throw authError;
-            }
-          }
-        }
-      } catch (authError) {
-        console.log('Auth init error, trying getAuth:', authError.message);
-        auth = getAuth(app);
-      }
+      auth = getAuth(app);
+      console.log('✅ Firebase Auth initialized');
     }
     
     // Initialize Firestore

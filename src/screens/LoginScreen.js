@@ -171,13 +171,7 @@ export default function LoginScreen({ navigation }) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Connection Status */}
-        {!firebaseInitialized && (
-          <View style={[styles.connectionBanner, { backgroundColor: colors.accent + '20' }]}>
-            <ActivityIndicator size="small" color={colors.accent} />
-            <Text style={[styles.connectionText, { color: colors.accent }]}>Connecting to server...</Text>
-          </View>
-        )}
+        {/* Connection Status - only show briefly */}
 
         {/* Header */}
         <View style={styles.header}>

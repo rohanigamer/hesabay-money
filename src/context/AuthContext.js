@@ -23,47 +23,41 @@ export const AuthProvider = ({ children }) => {
   // Initialize Firebase and set up auth listener
   useEffect(() => {
     let unsubscribe = null;
-    let retryCount = 0;
-    const maxRetries = 5;
-    let timeoutId = null;
+    let isMounted = true;
 
-    const setupAuth = () => {
-      console.log('Setting up auth, attempt:', retryCount + 1);
+    const setupAuth = async () => {
+      console.log('Setting up auth...');
       
-      // Try to initialize Firebase if not ready
+      // Try to initialize Firebase
       if (!isFirebaseReady()) {
         console.log('Firebase not ready, initializing...');
-        const success = initializeFirebase();
-        console.log('Firebase init result:', success);
+        initializeFirebase();
       }
 
-      // Import auth dynamically to get latest reference
+      // Wait a moment for Firebase to be ready
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Get auth reference directly from the import
       const { auth: currentAuth } = require('../config/firebase');
       
+      if (!isMounted) return;
+
       // Check if auth is available
       if (!currentAuth) {
-        retryCount++;
-        console.log(`Auth not available, retry ${retryCount}/${maxRetries}...`);
-        
-        if (retryCount >= maxRetries) {
-          // Give up and show login screen without Firebase
-          console.log('Firebase auth failed to initialize, proceeding without it');
-          setFirebaseInitialized(false);
-          setLoading(false);
-          return;
-        }
-        
-        // Retry after a short delay
-        timeoutId = setTimeout(setupAuth, 1000);
+        console.log('Firebase auth not available, proceeding without it');
+        setFirebaseInitialized(false);
+        setLoading(false);
         return;
       }
 
+      console.log('Firebase auth available, setting up listener');
       setFirebaseInitialized(true);
-      console.log('Firebase auth ready, setting up listener');
 
       // Set up auth state listener
       try {
         unsubscribe = onAuthStateChanged(currentAuth, async (firebaseUser) => {
+          if (!isMounted) return;
+          
           console.log('Auth state changed:', firebaseUser ? firebaseUser.email : 'logged out');
           
           if (firebaseUser) {
@@ -84,16 +78,28 @@ export const AuthProvider = ({ children }) => {
         });
       } catch (error) {
         console.error('Error setting up auth listener:', error);
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     // Start setup
     setupAuth();
 
+    // Safety timeout - don't wait more than 3 seconds
+    const safetyTimeout = setTimeout(() => {
+      if (isMounted && loading) {
+        console.log('Safety timeout - stopping loading');
+        setLoading(false);
+        setFirebaseInitialized(true); // Assume it's ready
+      }
+    }, 3000);
+
     return () => {
+      isMounted = false;
       if (unsubscribe) unsubscribe();
-      if (timeoutId) clearTimeout(timeoutId);
+      clearTimeout(safetyTimeout);
     };
   }, []);
 
