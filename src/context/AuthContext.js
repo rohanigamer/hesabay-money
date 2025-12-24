@@ -145,39 +145,23 @@ export const AuthProvider = ({ children }) => {
       
       if (isWeb) {
         const { auth } = await import('../config/firebase');
-        const { signInWithEmailAndPassword, sendEmailVerification } = await import('firebase/auth');
+        const { signInWithEmailAndPassword } = await import('firebase/auth');
         
         userCredential = await signInWithEmailAndPassword(auth, email, password);
-        
-        if (!userCredential.user.emailVerified) {
-          await sendEmailVerification(userCredential.user);
-          return { 
-            success: false, 
-            error: 'Please verify your email first. A new verification email has been sent.',
-            needsVerification: true
-          };
-        }
       } else {
         userCredential = await firebaseAuthREST.signInWithEmailAndPassword(email, password);
-        
-        if (!userCredential.user.emailVerified) {
-          await firebaseAuthREST.sendEmailVerification(userCredential.user);
-          return { 
-            success: false, 
-            error: 'Please verify your email first. A new verification email has been sent.',
-            needsVerification: true
-          };
-        }
       }
       
       setCurrentUserId(userCredential.user.uid);
       
-      // Sync data
+      // Load and merge Firebase data with local data
+      console.log('📥 Loading user data from Firebase...');
       try {
         const { firebaseSync } = await import('../services/FirebaseSync');
         await firebaseSync.mergeWithLocal();
+        console.log('✅ User data loaded successfully');
       } catch (e) {
-        console.log('Sync error:', e);
+        console.error('⚠️ Error loading user data:', e);
       }
       
       return { 
