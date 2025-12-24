@@ -1,6 +1,6 @@
-// Production Firebase - Works on ALL platforms
-import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, PhoneAuthProvider, signInWithCredential } from 'firebase/auth';
+// Production Firebase - Safe initialization
+import { initializeApp, getApps } from 'firebase/app';
+import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -13,13 +13,27 @@ const firebaseConfig = {
   measurementId: "G-77PHLRBP0Z"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const googleProvider = new GoogleAuthProvider();
+let app = null;
+let auth = null;
+let db = null;
+let googleProvider = null;
 
-console.log('Firebase initialized successfully');
+try {
+  // Check if Firebase is already initialized
+  if (getApps().length === 0) {
+    app = initializeApp(firebaseConfig);
+  } else {
+    app = getApps()[0];
+  }
+  
+  auth = getAuth(app);
+  db = getFirestore(app);
+  googleProvider = new GoogleAuthProvider();
+  
+  console.log('Firebase initialized successfully');
+} catch (error) {
+  console.error('Firebase initialization error:', error);
+  // App will work in offline mode
+}
 
-export { auth, db, googleProvider, GoogleAuthProvider, PhoneAuthProvider, signInWithCredential };
-
+export { auth, db, googleProvider, GoogleAuthProvider };

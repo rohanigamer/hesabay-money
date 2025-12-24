@@ -1,14 +1,14 @@
 import React, { useContext } from 'react';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
 import { ThemeProvider, ThemeContext } from './src/context/ThemeContext';
 import { LanguageProvider } from './src/context/LanguageContext';
 import { CurrencyProvider } from './src/context/CurrencyContext';
-import { AuthProvider } from './src/context/AuthContext';
+import { AuthProvider, useAuth } from './src/context/AuthContext';
 
 // Screens
-import AuthCheckScreen from './src/screens/AuthCheckScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import SignupScreen from './src/screens/SignupScreen';
 import PhoneLoginScreen from './src/screens/PhoneLoginScreen';
@@ -29,8 +29,18 @@ const forNoAnimation = () => ({
   },
 });
 
-function AppContent() {
+function AppNavigator() {
   const { colors } = useContext(ThemeContext);
+  const { loading } = useAuth();
+
+  // Show loading screen while checking auth state
+  if (loading) {
+    return (
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.accent} />
+      </View>
+    );
+  }
 
   return (
     <NavigationContainer
@@ -94,16 +104,30 @@ function AppContent() {
   );
 }
 
+function AppContent() {
+  return (
+    <AuthProvider>
+      <AppNavigator />
+    </AuthProvider>
+  );
+}
+
 export default function App() {
   return (
     <ThemeProvider>
       <LanguageProvider>
         <CurrencyProvider>
-          <AuthProvider>
-            <AppContent />
-          </AuthProvider>
+          <AppContent />
         </CurrencyProvider>
       </LanguageProvider>
     </ThemeProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});

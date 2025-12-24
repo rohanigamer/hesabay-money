@@ -1,49 +1,58 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import { Platform } from 'react-native';
+import { Platform, Alert } from 'react-native';
 import { setCurrentUserId } from '../utils/Storage';
-import { 
-  createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword, 
-  signOut, 
-  onAuthStateChanged,
-  updateProfile,
-  signInWithPopup,
-  signInWithPhoneNumber
-} from 'firebase/auth';
-import { auth, googleProvider, GoogleAuthProvider, signInWithCredential } from '../config/firebase';
-import * as Google from 'expo-auth-session/providers/google';
-import * as WebBrowser from 'expo-web-browser';
 
-WebBrowser.maybeCompleteAuthSession();
+// Safe Firebase imports
+let auth = null;
+let googleProvider = null;
+let firebaseAuth = null;
+
+try {
+  const firebase = require('../config/firebase');
+  auth = firebase.auth;
+  googleProvider = firebase.googleProvider;
+  firebaseAuth = require('firebase/auth');
+} catch (error) {
+  console.warn('Firebase not available, running in offline mode');
+}
 
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [recaptchaVerifier, setRecaptchaVerifier] = useState(null);
-  
-  // Google Sign-In for mobile
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    webClientId: '350936013602-f84b5dochl4gk80temmacabe1sr9batc.apps.googleusercontent.com',
-  });
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      setCurrentUserId(user?.uid || null);
+    // If Firebase auth is not available, use guest mode
+    if (!auth || !firebaseAuth) {
+      console.log('Firebase not available, using guest mode');
       setLoading(false);
-    });
+      return;
+    }
 
-    return unsubscribe;
+    try {
+      const unsubscribe = firebaseAuth.onAuthStateChanged(auth, (firebaseUser) => {
+        setUser(firebaseUser);
+        setCurrentUserId(firebaseUser?.uid || null);
+        setLoading(false);
+      });
+
+      return unsubscribe;
+    } catch (error) {
+      console.error('Auth state listener error:', error);
+      setLoading(false);
+    }
   }, []);
 
   const signUp = async (email, password, name) => {
+    if (!auth || !firebaseAuth) {
+      return { success: false, error: 'Firebase not available. Please try again later.' };
+    }
+    
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await firebaseAuth.createUserWithEmailAndPassword(auth, email, password);
       
-      // Update profile with name
-      await updateProfile(userCredential.user, {
+      await firebaseAuth.updateProfile(userCredential.user, {
         displayName: name
       });
       
@@ -56,8 +65,12 @@ export const AuthProvider = ({ children }) => {
   };
 
   const signIn = async (email, password) => {
+    if (!auth || !firebaseAuth) {
+      return { success: false, error: 'Firebase not available. Please try again later.' };
+    }
+    
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await firebaseAuth.signInWithEmailAndPassword(auth, email, password);
       setCurrentUserId(userCredential.user.uid);
       return { success: true, user: userCredential.user };
     } catch (error) {
@@ -67,8 +80,14 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logOut = async () => {
+    if (!auth || !firebaseAuth) {
+      setUser(null);
+      setCurrentUserId(null);
+      return { success: true };
+    }
+    
     try {
-      await signOut(auth);
+      await firebaseAuth.signOut(auth);
       setCurrentUserId(null);
       return { success: true };
     } catch (error) {
@@ -78,69 +97,25 @@ export const AuthProvider = ({ children }) => {
   };
 
   const signInWithGoogle = async () => {
-    try {
-      if (Platform.OS === 'web') {
-        // Web: Use Firebase popup
-        const result = await signInWithPopup(auth, googleProvider);
-        setCurrentUserId(result.user.uid);
-        return { success: true, user: result.user };
-      } else {
-        // Mobile: Use expo-auth-session
-        const result = await promptAsync();
-        
-        if (result?.type === 'success' && result.params.id_token) {
-          // Sign in to Firebase with Google credential
-          const credential = GoogleAuthProvider.credential(result.params.id_token);
-          const userCredential = await signInWithCredential(auth, credential);
-          setCurrentUserId(userCredential.user.uid);
-          return { success: true, user: userCredential.user };
-        }
-        
-        return { success: false, error: 'Google Sign-In was cancelled' };
-      }
-    } catch (error) {
-      console.error('Google Sign-In error:', error);
-      return { success: false, error: error.message || 'Google Sign-In failed' };
-    }
+    // For now, show a message that Google Sign-In requires additional setup
+    Alert.alert(
+      'Google Sign-In',
+      'Google Sign-In requires additional configuration. Please use email/password or continue as guest.',
+      [{ text: 'OK' }]
+    );
+    return { success: false, error: 'Google Sign-In not configured' };
   };
 
-  const setupRecaptcha = (containerId = 'recaptcha-container') => {
-    if (Platform.OS === 'web' && !recaptchaVerifier) {
-      const verifier = new RecaptchaVerifier(auth, containerId, {
-        size: 'invisible',
-        callback: (response) => {
-          console.log('reCAPTCHA solved');
-        }
-      });
-      setRecaptchaVerifier(verifier);
-      return verifier;
-    }
-    return recaptchaVerifier;
-  };
-
-  const sendOTP = async (phoneNumber) => {
-    try {
-      if (Platform.OS === 'web') {
-        const verifier = setupRecaptcha();
-        const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, verifier);
-        return { success: true, confirmationResult };
-      } else {
-        // For mobile, you'll need to use Firebase Phone Auth with native modules
-        // This requires additional setup with expo-firebase-recaptcha
-        return { success: false, error: 'Phone auth on mobile requires additional setup' };
-      }
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  };
-
-  const verifyOTP = async (confirmationResult, code) => {
-    try {
-      const result = await confirmationResult.confirm(code);
-      return { success: true, user: result.user };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
+  const continueAsGuest = () => {
+    const guestUser = {
+      uid: 'guest-user',
+      displayName: 'Guest',
+      email: null,
+      isGuest: true
+    };
+    setUser(guestUser);
+    setCurrentUserId('guest-user');
+    return { success: true, user: guestUser };
   };
 
   return (
@@ -151,9 +126,7 @@ export const AuthProvider = ({ children }) => {
       signIn, 
       logOut, 
       signInWithGoogle,
-      sendOTP,
-      verifyOTP,
-      setupRecaptcha
+      continueAsGuest
     }}>
       {children}
     </AuthContext.Provider>
@@ -161,4 +134,3 @@ export const AuthProvider = ({ children }) => {
 };
 
 export const useAuth = () => useContext(AuthContext);
-

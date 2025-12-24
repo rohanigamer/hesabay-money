@@ -15,11 +15,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { ThemeContext } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 
-import { setCurrentUserId } from '../utils/Storage';
-
 export default function LoginScreen({ navigation }) {
   const { colors } = useContext(ThemeContext);
-  const { signIn, signInWithGoogle } = useAuth();
+  const { signIn, signInWithGoogle, continueAsGuest } = useAuth();
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -163,8 +161,7 @@ export default function LoginScreen({ navigation }) {
           <TouchableOpacity
             style={[styles.guestBtn, { backgroundColor: colors.background, borderColor: colors.border }]}
             onPress={() => {
-              // Set guest user ID
-              setCurrentUserId('guest-user');
+              continueAsGuest();
               navigation.reset({
                 index: 0,
                 routes: [{ name: 'Transaction' }],
