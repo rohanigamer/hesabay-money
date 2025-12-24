@@ -127,6 +127,7 @@ export default function SettingsScreen({ navigation }) {
   };
 
   const handleLogout = () => {
+    console.log('handleLogout called');
     Alert.alert(
       '🚪 Sign Out',
       'Are you sure you want to sign out? Your data is synced to the cloud and will be available when you sign in again.',
@@ -136,11 +137,23 @@ export default function SettingsScreen({ navigation }) {
           text: 'Sign Out', 
           style: 'destructive',
           onPress: async () => {
-            const result = await logOut();
-            if (result.success) {
-              Alert.alert('✅ Signed Out', 'You have been signed out successfully.', [
-                { text: 'OK', onPress: () => navigation.reset({ index: 0, routes: [{ name: 'Login' }] }) }
-              ]);
+            console.log('Sign out confirmed, calling logOut...');
+            try {
+              const result = await logOut();
+              console.log('Logout result:', result);
+              if (result.success) {
+                Alert.alert('✅ Signed Out', 'You have been signed out successfully.', [
+                  { text: 'OK', onPress: () => {
+                    console.log('Navigating to Login...');
+                    navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+                  }}
+                ]);
+              } else {
+                Alert.alert('Error', result.error || 'Could not sign out');
+              }
+            } catch (error) {
+              console.error('Logout error:', error);
+              Alert.alert('Error', 'Could not sign out. Please try again.');
             }
           }
         },

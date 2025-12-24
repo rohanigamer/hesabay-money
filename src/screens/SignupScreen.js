@@ -64,10 +64,17 @@ export default function SignupScreen({ navigation }) {
     const result = await signUp(email.trim().toLowerCase(), password, name.trim());
     setLoading(false);
 
+    console.log('Sign up result:', result);
+
     if (result.success) {
       setStep(2); // Show verification sent screen
     } else {
-      Alert.alert('Sign Up Failed', result.error);
+      console.log('Showing error alert:', result.error);
+      Alert.alert(
+        '❌ Sign Up Failed', 
+        result.error || 'An error occurred. Please try again.',
+        [{ text: 'OK' }]
+      );
     }
   };
 

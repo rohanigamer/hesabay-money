@@ -112,16 +112,26 @@ export const AuthProvider = ({ children }) => {
         await updateProfile(userCredential.user, { displayName: name });
       }
       
+      // Send verification email
       await sendEmailVerification(userCredential.user);
+      
+      // Sign out immediately - user must verify email first
+      await signOut(currentAuth);
+      setUser(null);
+      setCurrentUserId(null);
+      
+      console.log('Account created, verification email sent, user signed out');
       
       return { 
         success: true, 
-        user: userCredential.user,
-        message: 'Account created! Please check your email to verify.'
+        user: null,
+        message: 'Account created! Please check your email to verify before logging in.'
       };
     } catch (error) {
       console.error('Sign up error:', error);
-      return { success: false, error: getErrorMessage(error) };
+      const errorMsg = getErrorMessage(error);
+      console.log('Returning error message:', errorMsg);
+      return { success: false, error: errorMsg };
     }
   };
 
@@ -209,6 +219,7 @@ export const AuthProvider = ({ children }) => {
 
   // Log out
   const logOut = async () => {
+    console.log('LogOut called');
     const { auth: currentAuth } = require('../config/firebase');
     
     // Sync before logout
@@ -220,13 +231,17 @@ export const AuthProvider = ({ children }) => {
     }
 
     if (!currentAuth) {
+      console.log('No auth, clearing user state');
       setUser(null);
       setCurrentUserId(null);
       return { success: true, message: 'Logged out successfully!' };
     }
 
     try {
+      console.log('Signing out from Firebase...');
       await signOut(currentAuth);
+      console.log('Signed out, clearing user state');
+      setUser(null);
       setCurrentUserId(null);
       return { success: true, message: 'Logged out successfully!' };
     } catch (error) {
