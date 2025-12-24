@@ -8,6 +8,7 @@ import {
 } from 'firebase/firestore';
 import NetInfo from '@react-native-community/netinfo';
 import { Storage, getCurrentUserId, setOnDataChange } from '../utils/Storage';
+import { Platform } from 'react-native';
 
 class FirebaseSyncService {
   constructor() {
@@ -41,13 +42,13 @@ class FirebaseSyncService {
     console.log('🔄 Firebase Sync Service initialized');
   }
 
-  // Get user's Firestore path
-  getUserPath() {
+  // Get user ID for Firestore path
+  getUserId() {
     const userId = getCurrentUserId();
     if (!userId || userId === 'guest-user') {
       return null; // Guest users don't sync to Firebase
     }
-    return `users/${userId}`;
+    return userId;
   }
 
   // Sync all data to Firebase
@@ -67,8 +68,8 @@ class FirebaseSyncService {
       return { success: false, error: 'Offline', pending: true };
     }
     
-    const userPath = this.getUserPath();
-    if (!userPath) {
+    const userId = this.getUserId();
+    if (!userId) {
       return { success: false, error: 'Guest user - no sync' };
     }
 
@@ -86,14 +87,15 @@ class FirebaseSyncService {
       const customers = await Storage.getCustomers();
       const transactions = await Storage.getTransactions();
       
-      // Save to Firestore
-      const dataRef = doc(db, userPath, 'data');
-      await setDoc(dataRef, {
+      // Save to Firestore - use "users" collection with userId as document ID
+      // Path: users/{userId} (2 segments - valid document reference)
+      const userDocRef = doc(db, 'users', userId);
+      await setDoc(userDocRef, {
         customers: customers,
         transactions: transactions,
         lastSyncedAt: serverTimestamp(),
         deviceInfo: {
-          platform: require('react-native').Platform.OS,
+          platform: Platform.OS,
           syncTime: new Date().toISOString()
         }
       }, { merge: true });
@@ -122,12 +124,13 @@ class FirebaseSyncService {
     const netState = await NetInfo.fetch();
     if (!netState.isConnected) return null;
     
-    const userPath = this.getUserPath();
-    if (!userPath) return null;
+    const userId = this.getUserId();
+    if (!userId) return null;
 
     try {
-      const dataRef = doc(db, userPath, 'data');
-      const snapshot = await getDoc(dataRef);
+      // Path: users/{userId} (2 segments - valid document reference)
+      const userDocRef = doc(db, 'users', userId);
+      const snapshot = await getDoc(userDocRef);
       
       if (snapshot.exists()) {
         const data = snapshot.data();
@@ -155,10 +158,10 @@ class FirebaseSyncService {
     // If local is empty, use Firebase data
     if (localCustomers.length === 0 && firebaseData.customers.length > 0) {
       // Directly save without triggering sync (to avoid loop)
-      const key = `${getCurrentUserId()}_customers`;
       const AsyncStorage = require('@react-native-async-storage/async-storage').default;
       const SecureStore = require('expo-secure-store');
-      const Platform = require('react-native').Platform;
+      const userId = getCurrentUserId();
+      const key = `${userId}_customers`;
       
       try {
         if (Platform.OS === 'web') {
@@ -173,10 +176,10 @@ class FirebaseSyncService {
     }
     
     if (localTransactions.length === 0 && firebaseData.transactions.length > 0) {
-      const key = `${getCurrentUserId()}_transactions`;
       const AsyncStorage = require('@react-native-async-storage/async-storage').default;
       const SecureStore = require('expo-secure-store');
-      const Platform = require('react-native').Platform;
+      const userId = getCurrentUserId();
+      const key = `${userId}_transactions`;
       
       try {
         if (Platform.OS === 'web') {
