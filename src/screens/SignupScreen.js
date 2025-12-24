@@ -267,15 +267,17 @@ export default function SignupScreen({ navigation }) {
             <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
           </View>
 
-          {/* Google Sign Up */}
-          <TouchableOpacity
-            style={[styles.socialBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={handleGoogleSignIn}
-            disabled={loading}
-          >
-            <Ionicons name="logo-google" size={20} color="#EA4335" />
-            <Text style={[styles.socialBtnText, { color: colors.text }]}>Sign up with Google</Text>
-          </TouchableOpacity>
+          {/* Google Sign Up - Web Only */}
+          {Platform.OS === 'web' && (
+            <TouchableOpacity
+              style={[styles.socialBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              onPress={handleGoogleSignIn}
+              disabled={loading}
+            >
+              <Ionicons name="logo-google" size={20} color="#EA4335" />
+              <Text style={[styles.socialBtnText, { color: colors.text }]}>Sign up with Google</Text>
+            </TouchableOpacity>
+          )}
 
           {/* Login Link */}
           <View style={styles.loginRow}>

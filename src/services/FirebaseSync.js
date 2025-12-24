@@ -1,14 +1,9 @@
 // Firebase Sync Service - Handles offline/online data synchronization
-import { db } from '../config/firebase';
-import { 
-  doc, 
-  setDoc, 
-  getDoc, 
-  serverTimestamp 
-} from 'firebase/firestore';
+// Works with both Firebase SDK (web) and REST API (mobile)
 import NetInfo from '@react-native-community/netinfo';
 import { Storage, getCurrentUserId, setOnDataChange } from '../utils/Storage';
 import { Platform } from 'react-native';
+import { isWeb, firebaseConfig } from '../config/firebase';
 
 class FirebaseSyncService {
   constructor() {
@@ -16,6 +11,7 @@ class FirebaseSyncService {
     this.syncPending = false;
     this.syncInProgress = false;
     this.initialized = false;
+    this.currentUserToken = null;
   }
 
   initialize() {
@@ -42,22 +38,33 @@ class FirebaseSyncService {
     console.log('🔄 Firebase Sync Service initialized');
   }
 
-  // Get user ID for Firestore path
-  getUserId() {
+  // Get user ID and token for Firestore
+  async getUserAuth() {
     const userId = getCurrentUserId();
     if (!userId || userId === 'guest-user') {
       return null; // Guest users don't sync to Firebase
     }
-    return userId;
+    
+    // Get user token (needed for REST API on mobile)
+    if (!isWeb) {
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      try {
+        const savedUser = await AsyncStorage.getItem('@firebase_auth_user');
+        if (savedUser) {
+          const user = JSON.parse(savedUser);
+          return { userId, token: user.idToken };
+        }
+      } catch (error) {
+        console.error('Error getting user token:', error);
+      }
+      return null;
+    }
+    
+    return { userId, token: null };
   }
 
   // Sync all data to Firebase
   async syncAllData() {
-    if (!db) {
-      console.log('Firebase DB not available');
-      return { success: false, error: 'Firebase not initialized' };
-    }
-
     // Check network status
     const netState = await NetInfo.fetch();
     this.isOnline = netState.isConnected && netState.isInternetReachable;
@@ -68,9 +75,9 @@ class FirebaseSyncService {
       return { success: false, error: 'Offline', pending: true };
     }
     
-    const userId = this.getUserId();
-    if (!userId) {
-      return { success: false, error: 'Guest user - no sync' };
+    const userAuth = await this.getUserAuth();
+    if (!userAuth) {
+      return { success: false, error: 'No authenticated user' };
     }
 
     // Prevent concurrent syncs
@@ -87,18 +94,23 @@ class FirebaseSyncService {
       const customers = await Storage.getCustomers();
       const transactions = await Storage.getTransactions();
       
-      // Save to Firestore - use "users" collection with userId as document ID
-      // Path: users/{userId} (2 segments - valid document reference)
-      const userDocRef = doc(db, 'users', userId);
-      await setDoc(userDocRef, {
+      const dataToSync = {
         customers: customers,
         transactions: transactions,
-        lastSyncedAt: serverTimestamp(),
+        lastSyncedAt: new Date().toISOString(),
         deviceInfo: {
           platform: Platform.OS,
           syncTime: new Date().toISOString()
         }
-      }, { merge: true });
+      };
+
+      if (isWeb) {
+        // Web: Use Firebase SDK
+        await this.syncWithSDK(userAuth.userId, dataToSync);
+      } else {
+        // Mobile: Use REST API
+        await this.syncWithREST(userAuth.userId, userAuth.token, dataToSync);
+      }
       
       console.log('✅ Data synced to Firebase');
       this.syncInProgress = false;
@@ -117,34 +129,179 @@ class FirebaseSyncService {
     }
   }
 
+  // Sync using Firebase SDK (web)
+  async syncWithSDK(userId, data) {
+    const { db } = await import('../config/firebase');
+    const { doc, setDoc } = await import('firebase/firestore');
+    
+    if (!db) {
+      throw new Error('Firebase Firestore not available');
+    }
+    
+    const userDocRef = doc(db, 'users', userId);
+    await setDoc(userDocRef, data, { merge: true });
+  }
+
+  // Sync using REST API (mobile)
+  async syncWithREST(userId, token, data) {
+    if (!token) {
+      throw new Error('No auth token available');
+    }
+
+    const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/users/${userId}`;
+    
+    // Convert data to Firestore format
+    const firestoreData = {
+      fields: {
+        customers: { arrayValue: { values: data.customers.map(c => ({ mapValue: { fields: this.convertToFirestoreFields(c) } })) } },
+        transactions: { arrayValue: { values: data.transactions.map(t => ({ mapValue: { fields: this.convertToFirestoreFields(t) } })) } },
+        lastSyncedAt: { stringValue: data.lastSyncedAt },
+        deviceInfo: { mapValue: { fields: this.convertToFirestoreFields(data.deviceInfo) } }
+      }
+    };
+
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(firestoreData)
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'Firestore sync failed');
+    }
+  }
+
+  // Convert JavaScript object to Firestore field format
+  convertToFirestoreFields(obj) {
+    const fields = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (value === null || value === undefined) {
+        fields[key] = { nullValue: null };
+      } else if (typeof value === 'string') {
+        fields[key] = { stringValue: value };
+      } else if (typeof value === 'number') {
+        fields[key] = { doubleValue: value };
+      } else if (typeof value === 'boolean') {
+        fields[key] = { booleanValue: value };
+      } else if (Array.isArray(value)) {
+        fields[key] = { 
+          arrayValue: { 
+            values: value.map(v => 
+              typeof v === 'object' ? 
+              { mapValue: { fields: this.convertToFirestoreFields(v) } } : 
+              { stringValue: String(v) }
+            ) 
+          } 
+        };
+      } else if (typeof value === 'object') {
+        fields[key] = { mapValue: { fields: this.convertToFirestoreFields(value) } };
+      }
+    }
+    return fields;
+  }
+
+  // Convert Firestore field format to JavaScript object
+  convertFromFirestoreFields(fields) {
+    const obj = {};
+    for (const [key, value] of Object.entries(fields)) {
+      if (value.stringValue !== undefined) {
+        obj[key] = value.stringValue;
+      } else if (value.doubleValue !== undefined) {
+        obj[key] = value.doubleValue;
+      } else if (value.integerValue !== undefined) {
+        obj[key] = parseInt(value.integerValue);
+      } else if (value.booleanValue !== undefined) {
+        obj[key] = value.booleanValue;
+      } else if (value.arrayValue) {
+        obj[key] = (value.arrayValue.values || []).map(v => {
+          if (v.mapValue) return this.convertFromFirestoreFields(v.mapValue.fields);
+          if (v.stringValue !== undefined) return v.stringValue;
+          return null;
+        });
+      } else if (value.mapValue) {
+        obj[key] = this.convertFromFirestoreFields(value.mapValue.fields);
+      } else if (value.nullValue !== undefined) {
+        obj[key] = null;
+      }
+    }
+    return obj;
+  }
+
   // Load data from Firebase (for new device login)
   async loadFromFirebase() {
-    if (!db) return null;
-
     const netState = await NetInfo.fetch();
     if (!netState.isConnected) return null;
     
-    const userId = this.getUserId();
-    if (!userId) return null;
+    const userAuth = await this.getUserAuth();
+    if (!userAuth) return null;
 
     try {
-      // Path: users/{userId} (2 segments - valid document reference)
-      const userDocRef = doc(db, 'users', userId);
-      const snapshot = await getDoc(userDocRef);
-      
-      if (snapshot.exists()) {
-        const data = snapshot.data();
-        console.log('📥 Loaded data from Firebase');
-        return {
-          customers: data.customers || [],
-          transactions: data.transactions || []
-        };
+      if (isWeb) {
+        return await this.loadWithSDK(userAuth.userId);
+      } else {
+        return await this.loadWithREST(userAuth.userId, userAuth.token);
       }
-      return null;
     } catch (error) {
       console.error('Error loading from Firebase:', error);
       return null;
     }
+  }
+
+  // Load using Firebase SDK (web)
+  async loadWithSDK(userId) {
+    const { db } = await import('../config/firebase');
+    const { doc, getDoc } = await import('firebase/firestore');
+    
+    if (!db) return null;
+    
+    const userDocRef = doc(db, 'users', userId);
+    const snapshot = await getDoc(userDocRef);
+    
+    if (snapshot.exists()) {
+      const data = snapshot.data();
+      console.log('📥 Loaded data from Firebase (SDK)');
+      return {
+        customers: data.customers || [],
+        transactions: data.transactions || []
+      };
+    }
+    return null;
+  }
+
+  // Load using REST API (mobile)
+  async loadWithREST(userId, token) {
+    if (!token) return null;
+
+    const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/users/${userId}`;
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) return null; // Document doesn't exist yet
+      throw new Error('Failed to load from Firestore');
+    }
+
+    const data = await response.json();
+    console.log('📥 Loaded data from Firebase (REST)');
+    
+    const fields = data.fields || {};
+    return {
+      customers: fields.customers?.arrayValue?.values?.map(v => 
+        this.convertFromFirestoreFields(v.mapValue?.fields || {})
+      ) || [],
+      transactions: fields.transactions?.arrayValue?.values?.map(v => 
+        this.convertFromFirestoreFields(v.mapValue?.fields || {})
+      ) || []
+    };
   }
 
   // Merge Firebase data with local data (used on login)
@@ -157,7 +314,6 @@ class FirebaseSyncService {
 
     // If local is empty, use Firebase data
     if (localCustomers.length === 0 && firebaseData.customers.length > 0) {
-      // Directly save without triggering sync (to avoid loop)
       const AsyncStorage = require('@react-native-async-storage/async-storage').default;
       const SecureStore = require('expo-secure-store');
       const userId = getCurrentUserId();
@@ -169,7 +325,7 @@ class FirebaseSyncService {
         } else {
           await SecureStore.setItemAsync(key, JSON.stringify(firebaseData.customers));
         }
-        console.log('📥 Loaded customers from Firebase');
+        console.log('📥 Merged customers from Firebase');
       } catch (e) {
         console.log('Error saving customers:', e);
       }
@@ -187,7 +343,7 @@ class FirebaseSyncService {
         } else {
           await SecureStore.setItemAsync(key, JSON.stringify(firebaseData.transactions));
         }
-        console.log('📥 Loaded transactions from Firebase');
+        console.log('📥 Merged transactions from Firebase');
       } catch (e) {
         console.log('Error saving transactions:', e);
       }

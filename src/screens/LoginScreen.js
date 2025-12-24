@@ -261,15 +261,17 @@ export default function LoginScreen({ navigation }) {
             <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
           </View>
 
-          {/* Google Sign In */}
-          <TouchableOpacity
-            style={[styles.socialBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={handleGoogleSignIn}
-            disabled={loading}
-          >
-            <Ionicons name="logo-google" size={20} color="#EA4335" />
-            <Text style={[styles.socialBtnText, { color: colors.text }]}>Continue with Google</Text>
-          </TouchableOpacity>
+          {/* Google Sign In - Web Only */}
+          {Platform.OS === 'web' && (
+            <TouchableOpacity
+              style={[styles.socialBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              onPress={handleGoogleSignIn}
+              disabled={loading}
+            >
+              <Ionicons name="logo-google" size={20} color="#EA4335" />
+              <Text style={[styles.socialBtnText, { color: colors.text }]}>Continue with Google</Text>
+            </TouchableOpacity>
+          )}
 
           {/* Continue as Guest */}
           <TouchableOpacity
