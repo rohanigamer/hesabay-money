@@ -1,48 +1,26 @@
-name: Build Android APK
+name: Build Info
 
 on:
   push:
     branches: [main]
-  workflow_dispatch:
 
 jobs:
-  build:
+  info:
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          
-      - name: Install dependencies
-        run: npm install --legacy-peer-deps
-        
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-          
-      - name: Setup Expo
-        run: npm install -g expo-cli eas-cli
-        
-      - name: Prebuild Android
-        run: npx expo prebuild --platform android --clean
-        
-      - name: Make gradlew executable
-        run: chmod +x android/gradlew
-        
-      - name: Build APK
+      - name: Build Instructions
         run: |
-          cd android
-          ./gradlew assembleRelease
-          
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: hesabay-money-apk
-          path: android/app/build/outputs/apk/release/*.apk
+          echo "============================================"
+          echo "  HESABAY MONEY - BUILD OPTIONS"
+          echo "============================================"
+          echo ""
+          echo "Option 1: Use Codemagic (FREE - 500 min/month)"
+          echo "  1. Go to https://codemagic.io"
+          echo "  2. Sign in with GitHub"
+          echo "  3. Add this repo"
+          echo "  4. Build automatically detects codemagic.yaml"
+          echo ""
+          echo "Option 2: Use EAS Build (30 free builds/month)"
+          echo "  Run: eas build --platform android --profile preview"
+          echo ""
+          echo "============================================"

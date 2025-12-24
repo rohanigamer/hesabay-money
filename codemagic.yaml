@@ -1,37 +1,39 @@
 workflows:
-  react-native-android:
-    name: Hesabay Money Android Build
+  android-build:
+    name: Android APK Build
     max_build_duration: 60
     instance_type: mac_mini_m1
     
     environment:
       node: 18
-      npm: 9
+      java: 17
       
     scripts:
       - name: Install dependencies
         script: |
-          npm install
+          npm install --legacy-peer-deps
           
-      - name: Install Expo CLI
-        script: |
-          npm install -g expo-cli eas-cli
-          
-      - name: Build Android APK
+      - name: Expo prebuild
         script: |
           npx expo prebuild --platform android --clean
+          
+      - name: Set Android SDK location
+        script: |
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
+          
+      - name: Build APK
+        script: |
           cd android
+          chmod +x gradlew
           ./gradlew assembleRelease
           
     artifacts:
       - android/app/build/outputs/**/*.apk
-      - android/app/build/outputs/**/*.aab
       
     publishing:
       email:
         recipients:
-          - rohanigamer@gmail.com
+          - rohanigamerrg@gmail.com
         notify:
           success: true
           failure: true
-
