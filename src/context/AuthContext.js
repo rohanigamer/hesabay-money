@@ -11,7 +11,7 @@ import {
   sendPasswordResetEmail,
   signInWithPopup
 } from 'firebase/auth';
-import { auth, googleProvider, isFirebaseReady, initializeFirebase, db } from '../config/firebase';
+import { auth, googleProvider, isFirebaseReady, initializeFirebase, getInitError, db } from '../config/firebase';
 
 export const AuthContext = createContext();
 
@@ -24,82 +24,106 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     let unsubscribe = null;
     let isMounted = true;
+    let checkInterval = null;
 
     const setupAuth = async () => {
-      console.log('Setting up auth...');
+      console.log('🔄 AuthContext: Setting up auth...');
       
-      // Try to initialize Firebase
+      // Try to initialize Firebase if not ready
       if (!isFirebaseReady()) {
-        console.log('Firebase not ready, initializing...');
-        initializeFirebase();
-      }
-
-      // Wait a moment for Firebase to be ready
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Get auth reference directly from the import
-      const { auth: currentAuth } = require('../config/firebase');
-      
-      if (!isMounted) return;
-
-      // Check if auth is available
-      if (!currentAuth) {
-        console.log('Firebase auth not available, proceeding without it');
-        setFirebaseInitialized(false);
-        setLoading(false);
-        return;
-      }
-
-      console.log('Firebase auth available, setting up listener');
-      setFirebaseInitialized(true);
-
-      // Set up auth state listener
-      try {
-        unsubscribe = onAuthStateChanged(currentAuth, async (firebaseUser) => {
-          if (!isMounted) return;
-          
-          console.log('Auth state changed:', firebaseUser ? firebaseUser.email : 'logged out');
-          
-          if (firebaseUser) {
-            setUser(firebaseUser);
-            setCurrentUserId(firebaseUser.uid);
-            
-            // Try to merge with Firebase data (non-blocking)
-            setTimeout(() => {
-              import('../services/FirebaseSync').then(({ firebaseSync }) => {
-                firebaseSync.mergeWithLocal().catch(e => console.log('Sync error:', e));
-              }).catch(e => console.log('Import error:', e));
-            }, 100);
-          } else {
-            setUser(null);
-            setCurrentUserId(null);
-          }
-          setLoading(false);
-        });
-      } catch (error) {
-        console.error('Error setting up auth listener:', error);
-        if (isMounted) {
-          setLoading(false);
+        console.log('🔄 AuthContext: Firebase not ready, calling initializeFirebase...');
+        const initResult = initializeFirebase();
+        console.log('🔄 AuthContext: Init result:', initResult);
+        
+        if (!initResult) {
+          const error = getInitError();
+          console.error('❌ AuthContext: Firebase init failed with error:', error);
         }
       }
+
+      // Wait for Firebase to be ready (with polling)
+      let attempts = 0;
+      const maxAttempts = 30; // 30 attempts * 100ms = 3 seconds max
+      
+      checkInterval = setInterval(() => {
+        attempts++;
+        console.log(`🔄 AuthContext: Checking Firebase ready... (attempt ${attempts}/${maxAttempts})`);
+        
+        if (isFirebaseReady()) {
+          console.log('✅ AuthContext: Firebase is ready!');
+          clearInterval(checkInterval);
+          checkInterval = null;
+          
+          if (!isMounted) return;
+          
+          // Get auth reference
+          const { auth: currentAuth } = require('../config/firebase');
+          
+          if (!currentAuth) {
+            console.error('❌ AuthContext: Auth is NULL even though Firebase says it\'s ready!');
+            setFirebaseInitialized(false);
+            setLoading(false);
+            return;
+          }
+
+          console.log('✅ AuthContext: Auth object confirmed, setting up listener');
+          setFirebaseInitialized(true);
+
+          // Set up auth state listener
+          try {
+            unsubscribe = onAuthStateChanged(currentAuth, async (firebaseUser) => {
+              if (!isMounted) return;
+              
+              console.log('🔔 Auth state changed:', firebaseUser ? `${firebaseUser.email} (verified: ${firebaseUser.emailVerified})` : 'logged out');
+              
+              if (firebaseUser) {
+                setUser(firebaseUser);
+                setCurrentUserId(firebaseUser.uid);
+                
+                // Try to merge with Firebase data (non-blocking)
+                setTimeout(() => {
+                  import('../services/FirebaseSync').then(({ firebaseSync }) => {
+                    firebaseSync.mergeWithLocal().catch(e => console.log('Sync error:', e));
+                  }).catch(e => console.log('Import error:', e));
+                }, 100);
+              } else {
+                setUser(null);
+                setCurrentUserId(null);
+              }
+              setLoading(false);
+            });
+          } catch (error) {
+            console.error('❌ Error setting up auth listener:', error);
+            if (isMounted) {
+              setLoading(false);
+            }
+          }
+        } else if (attempts >= maxAttempts) {
+          console.error('⏱️ AuthContext: Timeout waiting for Firebase to be ready');
+          clearInterval(checkInterval);
+          checkInterval = null;
+          
+          const error = getInitError();
+          if (error) {
+            console.error('❌ AuthContext: Firebase init error was:', error);
+          }
+          
+          if (isMounted) {
+            setFirebaseInitialized(false);
+            setLoading(false);
+          }
+        }
+      }, 100);
     };
 
     // Start setup
     setupAuth();
 
-    // Safety timeout - don't wait more than 3 seconds
-    const safetyTimeout = setTimeout(() => {
-      if (isMounted && loading) {
-        console.log('Safety timeout - stopping loading');
-        setLoading(false);
-        setFirebaseInitialized(true); // Assume it's ready
-      }
-    }, 3000);
-
     return () => {
+      console.log('🧹 AuthContext: Cleanup');
       isMounted = false;
       if (unsubscribe) unsubscribe();
-      clearTimeout(safetyTimeout);
+      if (checkInterval) clearInterval(checkInterval);
     };
   }, []);
 
