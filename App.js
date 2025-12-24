@@ -11,7 +11,6 @@ import { AuthProvider, useAuth } from './src/context/AuthContext';
 // Screens
 import LoginScreen from './src/screens/LoginScreen';
 import SignupScreen from './src/screens/SignupScreen';
-import PhoneLoginScreen from './src/screens/PhoneLoginScreen';
 import TransactionScreen from './src/screens/TransactionScreen';
 import CustomersScreen from './src/screens/CustomersScreen';
 import CustomerDetailScreen from './src/screens/CustomerDetailScreen';
@@ -77,7 +76,6 @@ function AppNavigator() {
       >
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="Signup" component={SignupScreen} />
-        <Stack.Screen name="PhoneLogin" component={PhoneLoginScreen} />
         <Stack.Screen name="Transaction" component={TransactionScreen} />
         <Stack.Screen name="Customers" component={CustomersScreen} />
         <Stack.Screen

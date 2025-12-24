@@ -10,6 +10,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemeContext } from '../context/ThemeContext';
@@ -17,32 +18,83 @@ import { useAuth } from '../context/AuthContext';
 
 export default function LoginScreen({ navigation }) {
   const { colors } = useContext(ThemeContext);
-  const { signIn, signInWithGoogle, continueAsGuest } = useAuth();
+  const { signIn, signInWithGoogle, continueAsGuest, forgotPassword } = useAuth();
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [forgotPasswordModal, setForgotPasswordModal] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+    if (!email.trim()) {
+      Alert.alert('Error', 'Please enter your email address');
+      return;
+    }
+    if (!password) {
+      Alert.alert('Error', 'Please enter your password');
       return;
     }
 
     setLoading(true);
-    const result = await signIn(email, password);
+    const result = await signIn(email.trim().toLowerCase(), password);
     setLoading(false);
 
     if (result.success) {
-      // Navigate to app
       navigation.reset({
         index: 0,
         routes: [{ name: 'Transaction' }],
       });
+    } else if (result.needsVerification) {
+      Alert.alert(
+        'Email Not Verified',
+        result.error,
+        [{ text: 'OK' }]
+      );
     } else {
       Alert.alert('Login Failed', result.error);
     }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!resetEmail.trim()) {
+      Alert.alert('Error', 'Please enter your email address');
+      return;
+    }
+
+    setLoading(true);
+    const result = await forgotPassword(resetEmail.trim().toLowerCase());
+    setLoading(false);
+
+    if (result.success) {
+      Alert.alert('Success', result.message);
+      setForgotPasswordModal(false);
+      setResetEmail('');
+    } else {
+      Alert.alert('Error', result.error);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    const result = await signInWithGoogle();
+    setLoading(false);
+    
+    if (result.success) {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Transaction' }],
+      });
+    }
+  };
+
+  const handleGuestLogin = () => {
+    continueAsGuest();
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Transaction' }],
+    });
   };
 
   return (
@@ -106,6 +158,19 @@ export default function LoginScreen({ navigation }) {
             </View>
           </View>
 
+          {/* Forgot Password */}
+          <TouchableOpacity 
+            style={styles.forgotPassword}
+            onPress={() => {
+              setResetEmail(email);
+              setForgotPasswordModal(true);
+            }}
+          >
+            <Text style={[styles.forgotPasswordText, { color: colors.accent }]}>
+              Forgot Password?
+            </Text>
+          </TouchableOpacity>
+
           {/* Login Button */}
           <TouchableOpacity
             style={[styles.loginBtn, { backgroundColor: colors.accent }]}
@@ -128,45 +193,18 @@ export default function LoginScreen({ navigation }) {
 
           {/* Google Sign In */}
           <TouchableOpacity
-            style={[styles.googleBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={async () => {
-              setLoading(true);
-              const result = await signInWithGoogle();
-              setLoading(false);
-              if (result.success) {
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'Transaction' }],
-                });
-              } else if (result.error) {
-                Alert.alert('Google Sign-In Failed', result.error);
-              }
-            }}
+            style={[styles.socialBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={handleGoogleSignIn}
             disabled={loading}
           >
             <Ionicons name="logo-google" size={20} color="#EA4335" />
-            <Text style={[styles.googleBtnText, { color: colors.text }]}>Continue with Google</Text>
-          </TouchableOpacity>
-
-          {/* Phone Login */}
-          <TouchableOpacity
-            style={[styles.phoneBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={() => navigation.navigate('PhoneLogin')}
-          >
-            <Ionicons name="call-outline" size={20} color={colors.accent} />
-            <Text style={[styles.phoneBtnText, { color: colors.text }]}>Continue with Phone</Text>
+            <Text style={[styles.socialBtnText, { color: colors.text }]}>Continue with Google</Text>
           </TouchableOpacity>
 
           {/* Continue as Guest */}
           <TouchableOpacity
-            style={[styles.guestBtn, { backgroundColor: colors.background, borderColor: colors.border }]}
-            onPress={() => {
-              continueAsGuest();
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'Transaction' }],
-              });
-            }}
+            style={[styles.guestBtn, { borderColor: colors.border }]}
+            onPress={handleGuestLogin}
           >
             <Ionicons name="person-outline" size={20} color={colors.textSecondary} />
             <Text style={[styles.guestBtnText, { color: colors.textSecondary }]}>Continue as Guest</Text>
@@ -183,6 +221,56 @@ export default function LoginScreen({ navigation }) {
           </View>
         </View>
       </ScrollView>
+
+      {/* Forgot Password Modal */}
+      <Modal
+        visible={forgotPasswordModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setForgotPasswordModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Reset Password</Text>
+            <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+              Enter your email address and we'll send you a link to reset your password.
+            </Text>
+            
+            <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border, marginTop: 20 }]}>
+              <Ionicons name="mail-outline" size={20} color={colors.textTertiary} />
+              <TextInput
+                style={[styles.input, { color: colors.text }]}
+                placeholder="your@email.com"
+                placeholderTextColor={colors.textTertiary}
+                value={resetEmail}
+                onChangeText={setResetEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalBtn, { backgroundColor: colors.border }]}
+                onPress={() => setForgotPasswordModal(false)}
+              >
+                <Text style={[styles.modalBtnText, { color: colors.text }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtn, { backgroundColor: colors.accent }]}
+                onPress={handleForgotPassword}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={[styles.modalBtnText, { color: '#fff' }]}>Send Reset Link</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -197,23 +285,23 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 14, textAlign: 'center', maxWidth: 280 },
   
   form: { width: '100%' },
-  inputGroup: { marginBottom: 20 },
+  inputGroup: { marginBottom: 16 },
   label: { fontSize: 14, fontWeight: '500', marginBottom: 8 },
   inputContainer: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, gap: 12 },
   input: { flex: 1, fontSize: 16 },
   
-  loginBtn: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
+  forgotPassword: { alignSelf: 'flex-end', marginBottom: 20 },
+  forgotPasswordText: { fontSize: 14, fontWeight: '500' },
+  
+  loginBtn: { paddingVertical: 16, borderRadius: 12, alignItems: 'center' },
   loginBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   
   divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 24 },
   dividerLine: { flex: 1, height: 1 },
   dividerText: { marginHorizontal: 16, fontSize: 14 },
   
-  googleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 12, borderWidth: 1, gap: 12, marginBottom: 12 },
-  googleBtnText: { fontSize: 15, fontWeight: '500' },
-  
-  phoneBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 12, borderWidth: 1, gap: 12, marginBottom: 12 },
-  phoneBtnText: { fontSize: 15, fontWeight: '500' },
+  socialBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 12, borderWidth: 1, gap: 12, marginBottom: 12 },
+  socialBtnText: { fontSize: 15, fontWeight: '500' },
   
   guestBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 12, borderWidth: 1, gap: 12 },
   guestBtnText: { fontSize: 15, fontWeight: '500' },
@@ -221,4 +309,13 @@ const styles = StyleSheet.create({
   signupRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 24 },
   signupText: { fontSize: 14 },
   signupLink: { fontSize: 14, fontWeight: '600' },
+
+  // Modal styles
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  modalContent: { width: '100%', maxWidth: 400, borderRadius: 16, padding: 24 },
+  modalTitle: { fontSize: 20, fontWeight: '700', marginBottom: 8 },
+  modalSubtitle: { fontSize: 14, lineHeight: 20 },
+  modalButtons: { flexDirection: 'row', gap: 12, marginTop: 24 },
+  modalBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
+  modalBtnText: { fontSize: 15, fontWeight: '600' },
 });

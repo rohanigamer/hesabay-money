@@ -7,9 +7,11 @@ import {
   signOut, 
   onAuthStateChanged,
   updateProfile,
+  sendEmailVerification,
+  sendPasswordResetEmail,
   signInWithPopup
 } from 'firebase/auth';
-import { auth, googleProvider, GoogleAuthProvider, signInWithCredential } from '../config/firebase';
+import { auth, googleProvider } from '../config/firebase';
 
 export const AuthContext = createContext();
 
@@ -38,6 +40,7 @@ export const AuthProvider = ({ children }) => {
     return () => unsubscribe();
   }, []);
 
+  // Sign up with email verification
   const signUp = async (email, password, name) => {
     if (!auth) {
       return { success: false, error: 'Firebase not initialized. Please restart the app.' };
@@ -46,12 +49,19 @@ export const AuthProvider = ({ children }) => {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       
+      // Update profile with name
       if (name) {
         await updateProfile(userCredential.user, { displayName: name });
       }
       
-      setCurrentUserId(userCredential.user.uid);
-      return { success: true, user: userCredential.user };
+      // Send verification email
+      await sendEmailVerification(userCredential.user);
+      
+      return { 
+        success: true, 
+        user: userCredential.user,
+        message: 'Verification email sent! Please check your inbox.'
+      };
     } catch (error) {
       console.error('Sign up error:', error);
       let errorMessage = 'Sign up failed. Please try again.';
@@ -77,6 +87,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Sign in
   const signIn = async (email, password) => {
     if (!auth) {
       return { success: false, error: 'Firebase not initialized. Please restart the app.' };
@@ -84,6 +95,18 @@ export const AuthProvider = ({ children }) => {
 
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      
+      // Check if email is verified
+      if (!userCredential.user.emailVerified) {
+        // Resend verification email
+        await sendEmailVerification(userCredential.user);
+        return { 
+          success: false, 
+          error: 'Please verify your email first. A new verification email has been sent.',
+          needsVerification: true
+        };
+      }
+      
       setCurrentUserId(userCredential.user.uid);
       return { success: true, user: userCredential.user };
     } catch (error) {
@@ -117,6 +140,56 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Forgot password
+  const forgotPassword = async (email) => {
+    if (!auth) {
+      return { success: false, error: 'Firebase not initialized.' };
+    }
+
+    if (!email) {
+      return { success: false, error: 'Please enter your email address.' };
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, email);
+      return { 
+        success: true, 
+        message: 'Password reset email sent! Please check your inbox.' 
+      };
+    } catch (error) {
+      console.error('Forgot password error:', error);
+      let errorMessage = 'Failed to send reset email.';
+      
+      switch (error.code) {
+        case 'auth/user-not-found':
+          errorMessage = 'No account found with this email.';
+          break;
+        case 'auth/invalid-email':
+          errorMessage = 'Please enter a valid email address.';
+          break;
+        default:
+          errorMessage = error.message;
+      }
+      
+      return { success: false, error: errorMessage };
+    }
+  };
+
+  // Resend verification email
+  const resendVerificationEmail = async () => {
+    if (!auth || !auth.currentUser) {
+      return { success: false, error: 'No user logged in.' };
+    }
+
+    try {
+      await sendEmailVerification(auth.currentUser);
+      return { success: true, message: 'Verification email sent!' };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  // Log out
   const logOut = async () => {
     if (!auth) {
       setUser(null);
@@ -134,23 +207,21 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Google Sign-In
   const signInWithGoogle = async () => {
     if (!auth || !googleProvider) {
-      return { success: false, error: 'Google Sign-In not available. Please use email/password.' };
+      return { success: false, error: 'Google Sign-In not available.' };
     }
 
     try {
       if (Platform.OS === 'web') {
-        // Web: Use Firebase popup
         const result = await signInWithPopup(auth, googleProvider);
         setCurrentUserId(result.user.uid);
         return { success: true, user: result.user };
       } else {
-        // Mobile: Google Sign-In requires additional native setup
-        // For now, show a helpful message
         Alert.alert(
           'Google Sign-In',
-          'Google Sign-In on mobile requires additional setup with SHA-1 certificates. Please use email/password login or continue as guest.',
+          'Google Sign-In on mobile requires additional setup. Please use email/password login.',
           [{ text: 'OK' }]
         );
         return { success: false, error: 'Use email/password on mobile' };
@@ -161,12 +232,14 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Continue as guest
   const continueAsGuest = () => {
     const guestUser = {
       uid: 'guest-user',
       displayName: 'Guest',
       email: null,
-      isGuest: true
+      isGuest: true,
+      emailVerified: true
     };
     setUser(guestUser);
     setCurrentUserId('guest-user');
@@ -181,7 +254,9 @@ export const AuthProvider = ({ children }) => {
       signIn, 
       logOut, 
       signInWithGoogle,
-      continueAsGuest
+      continueAsGuest,
+      forgotPassword,
+      resendVerificationEmail
     }}>
       {children}
     </AuthContext.Provider>

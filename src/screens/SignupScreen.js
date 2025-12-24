@@ -25,37 +25,115 @@ export default function SignupScreen({ navigation }) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState(1); // 1: Form, 2: Verification sent
+
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
 
   const handleSignup = async () => {
-    if (!name || !email || !password || !confirmPassword) {
-      Alert.alert('Error', 'Please fill in all fields');
+    // Validation
+    if (!name.trim()) {
+      Alert.alert('Error', 'Please enter your full name');
       return;
     }
-
+    if (!email.trim()) {
+      Alert.alert('Error', 'Please enter your email address');
+      return;
+    }
+    if (!validateEmail(email.trim())) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
+    if (!password) {
+      Alert.alert('Error', 'Please enter a password');
+      return;
+    }
+    if (password.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters');
+      return;
+    }
     if (password !== confirmPassword) {
       Alert.alert('Error', 'Passwords do not match');
       return;
     }
 
-    if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
-      return;
-    }
-
     setLoading(true);
-    const result = await signUp(email, password, name);
+    const result = await signUp(email.trim().toLowerCase(), password, name.trim());
     setLoading(false);
 
     if (result.success) {
-      // Navigate to app
+      setStep(2); // Show verification sent screen
+    } else {
+      Alert.alert('Sign Up Failed', result.error);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    const result = await signInWithGoogle();
+    setLoading(false);
+    
+    if (result.success) {
       navigation.reset({
         index: 0,
         routes: [{ name: 'Transaction' }],
       });
-    } else {
-      Alert.alert('Signup Failed', result.error);
     }
   };
+
+  // Verification sent screen
+  if (step === 2) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={styles.verificationContainer}>
+          <View style={[styles.iconCircle, { backgroundColor: '#4CAF50' + '20' }]}>
+            <Ionicons name="mail-open" size={50} color="#4CAF50" />
+          </View>
+          
+          <Text style={[styles.verificationTitle, { color: colors.text }]}>
+            Verify Your Email
+          </Text>
+          
+          <Text style={[styles.verificationText, { color: colors.textSecondary }]}>
+            We've sent a verification link to:
+          </Text>
+          
+          <Text style={[styles.verificationEmail, { color: colors.accent }]}>
+            {email}
+          </Text>
+          
+          <Text style={[styles.verificationText, { color: colors.textSecondary, marginTop: 20 }]}>
+            Please check your inbox and click the verification link to complete your registration.
+          </Text>
+
+          <View style={styles.verificationNote}>
+            <Ionicons name="information-circle" size={20} color={colors.textTertiary} />
+            <Text style={[styles.noteText, { color: colors.textTertiary }]}>
+              Don't see the email? Check your spam folder.
+            </Text>
+          </View>
+          
+          <TouchableOpacity
+            style={[styles.loginBtn, { backgroundColor: colors.accent, marginTop: 30 }]}
+            onPress={() => navigation.navigate('Login')}
+          >
+            <Text style={styles.loginBtnText}>Go to Login</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.resendBtn}
+            onPress={() => setStep(1)}
+          >
+            <Text style={[styles.resendBtnText, { color: colors.textSecondary }]}>
+              Use a different email
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView 
@@ -65,9 +143,6 @@ export default function SignupScreen({ navigation }) {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <Ionicons name="arrow-back" size={24} color={colors.text} />
-          </TouchableOpacity>
           <View style={[styles.iconCircle, { backgroundColor: colors.accent + '15' }]}>
             <Ionicons name="person-add" size={40} color={colors.accent} />
           </View>
@@ -79,7 +154,7 @@ export default function SignupScreen({ navigation }) {
 
         {/* Form */}
         <View style={styles.form}>
-          {/* Name */}
+          {/* Full Name */}
           <View style={styles.inputGroup}>
             <Text style={[styles.label, { color: colors.textSecondary }]}>Full Name</Text>
             <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -144,17 +219,20 @@ export default function SignupScreen({ navigation }) {
               <Ionicons name="lock-closed-outline" size={20} color={colors.textTertiary} />
               <TextInput
                 style={[styles.input, { color: colors.text }]}
-                placeholder="Re-enter password"
+                placeholder="Confirm your password"
                 placeholderTextColor={colors.textTertiary}
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
               />
+              {confirmPassword && password === confirmPassword && (
+                <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+              )}
             </View>
           </View>
 
-          {/* Signup Button */}
+          {/* Sign Up Button */}
           <TouchableOpacity
             style={[styles.signupBtn, { backgroundColor: colors.accent }]}
             onPress={handleSignup}
@@ -167,6 +245,11 @@ export default function SignupScreen({ navigation }) {
             )}
           </TouchableOpacity>
 
+          {/* Terms */}
+          <Text style={[styles.termsText, { color: colors.textTertiary }]}>
+            By signing up, you agree to our Terms of Service and Privacy Policy
+          </Text>
+
           {/* Divider */}
           <View style={styles.divider}>
             <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
@@ -176,33 +259,12 @@ export default function SignupScreen({ navigation }) {
 
           {/* Google Sign Up */}
           <TouchableOpacity
-            style={[styles.googleBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={async () => {
-              setLoading(true);
-              const result = await signInWithGoogle();
-              setLoading(false);
-              if (result.success) {
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'Transaction' }],
-                });
-              } else if (result.error) {
-                Alert.alert('Google Sign-Up Failed', result.error);
-              }
-            }}
+            style={[styles.socialBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={handleGoogleSignIn}
             disabled={loading}
           >
             <Ionicons name="logo-google" size={20} color="#EA4335" />
-            <Text style={[styles.googleBtnText, { color: colors.text }]}>Sign up with Google</Text>
-          </TouchableOpacity>
-
-          {/* Phone Sign Up */}
-          <TouchableOpacity
-            style={[styles.phoneBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={() => navigation.navigate('PhoneLogin')}
-          >
-            <Ionicons name="call-outline" size={20} color={colors.accent} />
-            <Text style={[styles.phoneBtnText, { color: colors.text }]}>Sign up with Phone</Text>
+            <Text style={[styles.socialBtnText, { color: colors.text }]}>Sign up with Google</Text>
           </TouchableOpacity>
 
           {/* Login Link */}
@@ -222,10 +284,9 @@ export default function SignupScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContent: { flexGrow: 1, padding: 24, paddingTop: Platform.OS === 'ios' ? 60 : 40 },
+  scrollContent: { flexGrow: 1, padding: 24, justifyContent: 'center' },
   
-  header: { alignItems: 'center', marginBottom: 32 },
-  backBtn: { position: 'absolute', left: 0, top: 0, padding: 8 },
+  header: { alignItems: 'center', marginBottom: 30 },
   iconCircle: { width: 80, height: 80, borderRadius: 40, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
   title: { fontSize: 28, fontWeight: '700', marginBottom: 8 },
   subtitle: { fontSize: 14, textAlign: 'center', maxWidth: 280 },
@@ -239,18 +300,28 @@ const styles = StyleSheet.create({
   signupBtn: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
   signupBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   
-  divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 24 },
+  termsText: { fontSize: 12, textAlign: 'center', marginTop: 16, lineHeight: 18 },
+  
+  divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 20 },
   dividerLine: { flex: 1, height: 1 },
   dividerText: { marginHorizontal: 16, fontSize: 14 },
   
-  googleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 12, borderWidth: 1, gap: 12, marginBottom: 12 },
-  googleBtnText: { fontSize: 15, fontWeight: '500' },
+  socialBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 12, borderWidth: 1, gap: 12 },
+  socialBtnText: { fontSize: 15, fontWeight: '500' },
   
-  phoneBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 12, borderWidth: 1, gap: 12 },
-  phoneBtnText: { fontSize: 15, fontWeight: '500' },
-  
-  loginRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 24 },
+  loginRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 20 },
   loginText: { fontSize: 14 },
   loginLink: { fontSize: 14, fontWeight: '600' },
-});
 
+  // Verification screen
+  verificationContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  verificationTitle: { fontSize: 24, fontWeight: '700', marginTop: 24, marginBottom: 12 },
+  verificationText: { fontSize: 15, textAlign: 'center', maxWidth: 300 },
+  verificationEmail: { fontSize: 16, fontWeight: '600', marginTop: 8 },
+  verificationNote: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 24, padding: 16, backgroundColor: 'rgba(128,128,128,0.1)', borderRadius: 12 },
+  noteText: { fontSize: 13, flex: 1 },
+  loginBtn: { paddingVertical: 16, paddingHorizontal: 32, borderRadius: 12, alignItems: 'center', width: '100%' },
+  loginBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  resendBtn: { marginTop: 16 },
+  resendBtnText: { fontSize: 14 },
+});
