@@ -1,6 +1,6 @@
-import React, { useContext } from 'react';
+import React, { useContext, useEffect, useRef } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, CommonActions } from '@react-navigation/native';
 import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
 import { ThemeProvider, ThemeContext } from './src/context/ThemeContext';
@@ -31,8 +31,42 @@ const forNoAnimation = () => ({
 function AppNavigator() {
   const { colors } = useContext(ThemeContext);
   const { loading, user } = useAuth();
+  const navigationRef = useRef(null);
+  const isFirstRender = useRef(true);
 
-  // Show loading screen while checking auth state (max 5 seconds)
+  // Navigate when user state changes (after initial load)
+  useEffect(() => {
+    if (loading) return; // Don't navigate while loading
+    
+    // Skip first render - let initialRouteName handle it
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    // Navigate based on user state
+    if (navigationRef.current) {
+      if (user) {
+        console.log('User logged in, navigating to Transaction');
+        navigationRef.current.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{ name: 'Transaction' }],
+          })
+        );
+      } else {
+        console.log('User logged out, navigating to Login');
+        navigationRef.current.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{ name: 'Login' }],
+          })
+        );
+      }
+    }
+  }, [user, loading]);
+
+  // Show loading screen while checking auth state
   if (loading) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
@@ -48,6 +82,7 @@ function AppNavigator() {
 
   return (
     <NavigationContainer
+      ref={navigationRef}
       theme={{
         dark: colors.background === '#000000',
         colors: {
