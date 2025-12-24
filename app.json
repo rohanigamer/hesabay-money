@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "Hesabay Money",
+    "slug": "hesabay-money",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#007AFF"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.hesabay.money",
+      "buildNumber": "1"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#007AFF"
+      },
+      "package": "com.hesabay.money",
+      "versionCode": 1,
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "0bb751c6-0077-48a0-9674-a12f90571008"
+      }
+    },
+    "plugins": [
+      "expo-localization"
+    ],
+    "scheme": "hesabaymoney",
+    "description": "Manage your finances, customers, and transactions with ease. Track income, expenses, and customer balances offline and online.",
+    "primaryColor": "#007AFF"
+  }
+}

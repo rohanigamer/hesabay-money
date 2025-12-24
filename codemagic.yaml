@@ -1,0 +1,37 @@
+workflows:
+  react-native-android:
+    name: Hesabay Money Android Build
+    max_build_duration: 60
+    instance_type: mac_mini_m1
+    
+    environment:
+      node: 18
+      npm: 9
+      
+    scripts:
+      - name: Install dependencies
+        script: |
+          npm install
+          
+      - name: Install Expo CLI
+        script: |
+          npm install -g expo-cli eas-cli
+          
+      - name: Build Android APK
+        script: |
+          npx expo prebuild --platform android --clean
+          cd android
+          ./gradlew assembleRelease
+          
+    artifacts:
+      - android/app/build/outputs/**/*.apk
+      - android/app/build/outputs/**/*.aab
+      
+    publishing:
+      email:
+        recipients:
+          - rohanigamer@gmail.com
+        notify:
+          success: true
+          failure: true
+
