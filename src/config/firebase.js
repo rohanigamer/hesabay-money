@@ -1,11 +1,6 @@
-// Firebase Configuration - Works on Web + Mobile (Expo)
-// Using Firebase v9 for better React Native compatibility
+// Firebase Configuration - Bulletproof for React Native + Web
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { 
-  getAuth, 
-  GoogleAuthProvider, 
-  signInWithCredential 
-} from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 // Firebase configuration
@@ -19,89 +14,134 @@ const firebaseConfig = {
   measurementId: "G-77PHLRBP0Z"
 };
 
-// Initialize Firebase
+// Global Firebase instances
 let app = null;
 let auth = null;
 let db = null;
 let googleProvider = null;
 let firebaseReady = false;
 let initError = null;
+let initAttempts = 0;
 
+// Initialize Firebase with retry logic
 const initializeFirebase = () => {
-  try {
-    console.log('🔥 Starting Firebase v9 initialization...');
-    
-    // Check if already initialized
-    if (getApps().length === 0) {
-      console.log('🔥 Initializing Firebase app...');
-      app = initializeApp(firebaseConfig);
-      console.log('✅ Firebase app created');
-    } else {
-      console.log('🔥 Firebase app already exists');
-      app = getApp();
-    }
+  return new Promise((resolve) => {
+    initAttempts++;
+    console.log(`🔥 Firebase init attempt #${initAttempts}`);
 
-    // Initialize Auth - Firebase v9 works better with React Native
-    if (!auth) {
-      console.log('🔐 Initializing Firebase Auth...');
-      auth = getAuth(app);
-      console.log('✅ Firebase Auth initialized');
+    try {
+      // Step 1: Initialize Firebase App
+      if (getApps().length === 0) {
+        console.log('📱 Creating new Firebase app...');
+        app = initializeApp(firebaseConfig);
+        console.log('✅ Firebase app created');
+      } else {
+        console.log('📱 Using existing Firebase app');
+        app = getApp();
+      }
+
+      // Step 2: Initialize Auth (with delay for mobile)
+      setTimeout(() => {
+        try {
+          if (!auth) {
+            console.log('🔐 Initializing Auth...');
+            auth = getAuth(app);
+            
+            // Force auth to be ready by accessing a property
+            if (auth && auth.app) {
+              console.log('✅ Auth initialized and verified');
+            } else {
+              throw new Error('Auth object is invalid');
+            }
+          }
+
+          // Step 3: Initialize Firestore
+          if (!db) {
+            console.log('💾 Initializing Firestore...');
+            db = getFirestore(app);
+            console.log('✅ Firestore initialized');
+          }
+
+          // Step 4: Initialize Google Provider
+          if (!googleProvider) {
+            console.log('🔑 Initializing Google Provider...');
+            googleProvider = new GoogleAuthProvider();
+            console.log('✅ Google Provider initialized');
+          }
+
+          firebaseReady = true;
+          initError = null;
+          console.log('🎉 Firebase READY!');
+          console.log('📊 Status:', {
+            app: !!app,
+            auth: !!auth,
+            db: !!db,
+            provider: !!googleProvider
+          });
+          
+          resolve(true);
+        } catch (error) {
+          console.error('❌ Error during auth initialization:', error.message);
+          initError = error;
+          firebaseReady = false;
+          
+          // Retry up to 3 times
+          if (initAttempts < 3) {
+            console.log(`🔄 Retrying in 1 second... (attempt ${initAttempts}/3)`);
+            setTimeout(() => {
+              initializeFirebase().then(resolve);
+            }, 1000);
+          } else {
+            console.error('❌ Failed after 3 attempts');
+            resolve(false);
+          }
+        }
+      }, 200); // 200ms delay to let Firebase register components
+
+    } catch (error) {
+      console.error('❌ Fatal Firebase error:', error.message);
+      console.error('Stack:', error.stack);
+      initError = error;
+      firebaseReady = false;
+      
+      // Retry up to 3 times
+      if (initAttempts < 3) {
+        console.log(`🔄 Retrying in 1 second... (attempt ${initAttempts}/3)`);
+        setTimeout(() => {
+          initializeFirebase().then(resolve);
+        }, 1000);
+      } else {
+        console.error('❌ Failed after 3 attempts');
+        resolve(false);
+      }
     }
-    
-    // Initialize Firestore
-    if (!db) {
-      console.log('💾 Initializing Firestore...');
-      db = getFirestore(app);
-      console.log('✅ Firestore initialized');
-    }
-    
-    // Initialize Google Provider
-    if (!googleProvider) {
-      console.log('🔑 Initializing Google Provider...');
-      googleProvider = new GoogleAuthProvider();
-      console.log('✅ Google Provider initialized');
-    }
-    
-    firebaseReady = true;
-    initError = null;
-    console.log('🎉 Firebase v9 fully initialized and ready!');
-    console.log('📊 Auth:', auth ? 'Available' : 'NULL');
-    console.log('📊 DB:', db ? 'Available' : 'NULL');
-    
-    return true;
-  } catch (error) {
-    console.error('❌ Firebase initialization FAILED:');
-    console.error('Error code:', error.code);
-    console.error('Error message:', error.message);
-    
-    firebaseReady = false;
-    initError = error;
-    return false;
-  }
+  });
 };
-
-// Initialize immediately
-console.log('⏰ Starting immediate Firebase v9 init...');
-try {
-  const result = initializeFirebase();
-  console.log('✅ Immediate init result:', result);
-} catch (e) {
-  console.error('💥 Firebase startup error:', e);
-  console.error('Stack:', e ? e.stack : 'No stack trace');
-  initError = e;
-}
 
 // Helper to check if Firebase is ready
 const isFirebaseReady = () => {
-  const ready = firebaseReady && auth !== null;
-  console.log('isFirebaseReady check:', { firebaseReady, hasAuth: auth !== null, result: ready });
+  const ready = firebaseReady && auth !== null && db !== null;
+  if (!ready) {
+    console.log('❌ Firebase not ready:', {
+      firebaseReady,
+      hasAuth: auth !== null,
+      hasDb: db !== null
+    });
+  }
   return ready;
 };
 
 // Helper to get initialization error
 const getInitError = () => initError;
 
-// Re-export for use
+// Helper to manually retry initialization
+const retryInitialization = async () => {
+  console.log('🔄 Manual retry requested');
+  initAttempts = 0; // Reset attempts
+  return await initializeFirebase();
+};
+
+// Export everything
 export { 
   app, 
   auth, 
@@ -111,5 +151,16 @@ export {
   signInWithCredential,
   isFirebaseReady,
   getInitError,
-  initializeFirebase
+  initializeFirebase,
+  retryInitialization
 };
+
+// Auto-initialize on import
+console.log('⏰ Auto-initializing Firebase...');
+initializeFirebase().then((success) => {
+  if (success) {
+    console.log('✅ Auto-init successful');
+  } else {
+    console.error('❌ Auto-init failed, but app will continue');
+  }
+});

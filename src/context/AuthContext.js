@@ -11,7 +11,7 @@ import {
   sendPasswordResetEmail,
   signInWithPopup
 } from 'firebase/auth';
-import { auth, googleProvider, isFirebaseReady, initializeFirebase, getInitError, db } from '../config/firebase';
+import { auth, googleProvider, isFirebaseReady, initializeFirebase, getInitError, retryInitialization, db } from '../config/firebase';
 
 export const AuthContext = createContext();
 
@@ -25,77 +25,93 @@ export const AuthProvider = ({ children }) => {
     let unsubscribe = null;
     let isMounted = true;
 
-    const setupAuth = () => {
+    const setupAuth = async () => {
       console.log('🔄 AuthContext: Setting up auth...');
       
-      // Try to initialize Firebase if not ready
-      if (!isFirebaseReady()) {
-        console.log('🔄 AuthContext: Firebase not ready, initializing...');
-        const initResult = initializeFirebase();
-        console.log('🔄 AuthContext: Init result:', initResult);
+      // Wait for Firebase to initialize (with multiple retry attempts)
+      let ready = false;
+      let attempts = 0;
+      const maxAttempts = 10; // 10 attempts * 1 second = 10 seconds max
+      
+      while (!ready && attempts < maxAttempts && isMounted) {
+        attempts++;
+        console.log(`🔄 AuthContext: Waiting for Firebase... (attempt ${attempts}/${maxAttempts})`);
         
-        if (!initResult) {
-          const error = getInitError();
-          console.error('❌ AuthContext: Firebase init failed:', error);
+        if (isFirebaseReady()) {
+          ready = true;
+          break;
         }
+        
+        // Try to initialize if not ready
+        if (attempts === 1) {
+          console.log('🔄 AuthContext: Triggering Firebase init...');
+          await initializeFirebase();
+        } else if (attempts === 5) {
+          console.log('🔄 AuthContext: Retrying Firebase init...');
+          await retryInitialization();
+        }
+        
+        // Wait 1 second before next check
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
+      if (!isMounted) return;
+      
+      if (!ready) {
+        console.error('❌ AuthContext: Firebase failed to initialize after all attempts');
+        const error = getInitError();
+        if (error) {
+          console.error('❌ Error details:', error.message);
+        }
+        setFirebaseInitialized(false);
+        setLoading(false);
+        return;
+      }
+      
+      console.log('✅ AuthContext: Firebase is ready!');
+      
+      // Get auth reference
+      const { auth: currentAuth } = require('../config/firebase');
+      
+      if (!currentAuth) {
+        console.error('❌ AuthContext: Auth is NULL even though Firebase says it\'s ready!');
+        setFirebaseInitialized(false);
+        setLoading(false);
+        return;
       }
 
-      // Small delay before checking if Firebase is ready
-      setTimeout(() => {
-        if (!isMounted) return;
-        
-        if (!isFirebaseReady()) {
-          console.error('❌ AuthContext: Firebase still not ready after init');
-          setFirebaseInitialized(false);
-          setLoading(false);
-          return;
-        }
-        
-        console.log('✅ AuthContext: Firebase is ready!');
-        
-        // Get auth reference
-        const { auth: currentAuth } = require('../config/firebase');
-        
-        if (!currentAuth) {
-          console.error('❌ AuthContext: Auth is NULL!');
-          setFirebaseInitialized(false);
-          setLoading(false);
-          return;
-        }
+      console.log('✅ AuthContext: Auth object confirmed, setting up listener');
+      setFirebaseInitialized(true);
 
-        console.log('✅ AuthContext: Auth object confirmed, setting up listener');
-        setFirebaseInitialized(true);
-
-        // Set up auth state listener
-        try {
-          unsubscribe = onAuthStateChanged(currentAuth, async (firebaseUser) => {
-            if (!isMounted) return;
+      // Set up auth state listener
+      try {
+        unsubscribe = onAuthStateChanged(currentAuth, async (firebaseUser) => {
+          if (!isMounted) return;
+          
+          console.log('🔔 Auth state changed:', firebaseUser ? `${firebaseUser.email} (verified: ${firebaseUser.emailVerified})` : 'logged out');
+          
+          if (firebaseUser) {
+            setUser(firebaseUser);
+            setCurrentUserId(firebaseUser.uid);
             
-            console.log('🔔 Auth state changed:', firebaseUser ? `${firebaseUser.email} (verified: ${firebaseUser.emailVerified})` : 'logged out');
-            
-            if (firebaseUser) {
-              setUser(firebaseUser);
-              setCurrentUserId(firebaseUser.uid);
-              
-              // Try to merge with Firebase data (non-blocking)
-              setTimeout(() => {
-                import('../services/FirebaseSync').then(({ firebaseSync }) => {
-                  firebaseSync.mergeWithLocal().catch(e => console.log('Sync error:', e));
-                }).catch(e => console.log('Import error:', e));
-              }, 100);
-            } else {
-              setUser(null);
-              setCurrentUserId(null);
-            }
-            setLoading(false);
-          });
-        } catch (error) {
-          console.error('❌ Error setting up auth listener:', error);
-          if (isMounted) {
-            setLoading(false);
+            // Try to merge with Firebase data (non-blocking)
+            setTimeout(() => {
+              import('../services/FirebaseSync').then(({ firebaseSync }) => {
+                firebaseSync.mergeWithLocal().catch(e => console.log('Sync error:', e));
+              }).catch(e => console.log('Import error:', e));
+            }, 100);
+          } else {
+            setUser(null);
+            setCurrentUserId(null);
           }
+          setLoading(false);
+        });
+      } catch (error) {
+        console.error('❌ Error setting up auth listener:', error);
+        if (isMounted) {
+          setLoading(false);
         }
-      }, 500); // Wait 500ms for Firebase to fully initialize
+      }
     };
 
     // Start setup
