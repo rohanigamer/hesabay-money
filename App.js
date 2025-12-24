@@ -1,5 +1,5 @@
 import React, { useContext } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
@@ -30,13 +30,18 @@ const forNoAnimation = () => ({
 
 function AppNavigator() {
   const { colors } = useContext(ThemeContext);
-  const { loading } = useAuth();
+  const { loading, user } = useAuth();
 
-  // Show loading screen while checking auth state
+  // Show loading screen while checking auth state (max 5 seconds)
   if (loading) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={colors.accent} />
+        <View style={[styles.logoBox, { backgroundColor: colors.accent }]}>
+          <Text style={styles.logoText}>H</Text>
+        </View>
+        <Text style={[styles.appTitle, { color: colors.text }]}>Hesabay Money</Text>
+        <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 24 }} />
+        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading...</Text>
       </View>
     );
   }
@@ -57,7 +62,7 @@ function AppNavigator() {
     >
       <StatusBar style={colors.background === '#ffffff' ? 'dark' : 'light'} />
       <Stack.Navigator
-        initialRouteName="Login"
+        initialRouteName={user ? "Transaction" : "Login"}
         screenOptions={{
           headerShown: false,
           cardStyleInterpolator: forNoAnimation,
@@ -127,5 +132,26 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  logoBox: {
+    width: 80,
+    height: 80,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  logoText: {
+    color: '#fff',
+    fontSize: 40,
+    fontWeight: '700',
+  },
+  appTitle: {
+    fontSize: 24,
+    fontWeight: '600',
+  },
+  loadingText: {
+    fontSize: 14,
+    marginTop: 12,
   },
 });

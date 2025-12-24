@@ -23,6 +23,9 @@ export const AuthProvider = ({ children }) => {
   // Initialize Firebase and set up auth listener
   useEffect(() => {
     let unsubscribe = null;
+    let retryCount = 0;
+    const maxRetries = 5;
+    let timeoutId = null;
 
     const setupAuth = () => {
       // Try to initialize Firebase if not ready
@@ -32,39 +35,65 @@ export const AuthProvider = ({ children }) => {
 
       // Check if auth is available
       if (!auth) {
-        console.log('Auth not available, retrying...');
+        retryCount++;
+        console.log(`Auth not available, retry ${retryCount}/${maxRetries}...`);
+        
+        if (retryCount >= maxRetries) {
+          // Give up and show login screen without Firebase
+          console.log('Firebase auth failed to initialize, proceeding without it');
+          setFirebaseInitialized(false);
+          setLoading(false);
+          return;
+        }
+        
         // Retry after a short delay
-        setTimeout(setupAuth, 500);
+        timeoutId = setTimeout(setupAuth, 500);
         return;
       }
 
       setFirebaseInitialized(true);
+      console.log('Firebase auth ready, setting up listener');
 
       // Set up auth state listener
-      unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-        if (firebaseUser) {
-          setUser(firebaseUser);
-          setCurrentUserId(firebaseUser.uid);
+      try {
+        unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+          console.log('Auth state changed:', firebaseUser ? 'logged in' : 'logged out');
           
-          // Try to merge with Firebase data
-          try {
-            const { firebaseSync } = await import('../services/FirebaseSync');
-            await firebaseSync.mergeWithLocal();
-          } catch (e) {
-            console.log('Sync error:', e);
+          if (firebaseUser) {
+            setUser(firebaseUser);
+            setCurrentUserId(firebaseUser.uid);
+            
+            // Try to merge with Firebase data (non-blocking)
+            import('../services/FirebaseSync').then(({ firebaseSync }) => {
+              firebaseSync.mergeWithLocal().catch(e => console.log('Sync error:', e));
+            }).catch(e => console.log('Import error:', e));
+          } else {
+            setUser(null);
+            setCurrentUserId(null);
           }
-        } else {
-          setUser(null);
-          setCurrentUserId(null);
-        }
+          setLoading(false);
+        });
+      } catch (error) {
+        console.error('Error setting up auth listener:', error);
         setLoading(false);
-      });
+      }
     };
 
+    // Start setup
     setupAuth();
+
+    // Safety timeout - if loading takes more than 5 seconds, stop loading anyway
+    const safetyTimeout = setTimeout(() => {
+      if (loading) {
+        console.log('Safety timeout reached, stopping loading');
+        setLoading(false);
+      }
+    }, 5000);
 
     return () => {
       if (unsubscribe) unsubscribe();
+      if (timeoutId) clearTimeout(timeoutId);
+      clearTimeout(safetyTimeout);
     };
   }, []);
 
