@@ -11,7 +11,7 @@ import {
   sendPasswordResetEmail,
   signInWithPopup
 } from 'firebase/auth';
-import { auth, googleProvider, isFirebaseReady, initializeFirebase } from '../config/firebase';
+import { auth, googleProvider, isFirebaseReady, initializeFirebase, db } from '../config/firebase';
 
 export const AuthContext = createContext();
 
@@ -28,13 +28,20 @@ export const AuthProvider = ({ children }) => {
     let timeoutId = null;
 
     const setupAuth = () => {
+      console.log('Setting up auth, attempt:', retryCount + 1);
+      
       // Try to initialize Firebase if not ready
       if (!isFirebaseReady()) {
-        initializeFirebase();
+        console.log('Firebase not ready, initializing...');
+        const success = initializeFirebase();
+        console.log('Firebase init result:', success);
       }
 
+      // Import auth dynamically to get latest reference
+      const { auth: currentAuth } = require('../config/firebase');
+      
       // Check if auth is available
-      if (!auth) {
+      if (!currentAuth) {
         retryCount++;
         console.log(`Auth not available, retry ${retryCount}/${maxRetries}...`);
         
@@ -47,7 +54,7 @@ export const AuthProvider = ({ children }) => {
         }
         
         // Retry after a short delay
-        timeoutId = setTimeout(setupAuth, 500);
+        timeoutId = setTimeout(setupAuth, 1000);
         return;
       }
 
@@ -56,17 +63,19 @@ export const AuthProvider = ({ children }) => {
 
       // Set up auth state listener
       try {
-        unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-          console.log('Auth state changed:', firebaseUser ? 'logged in' : 'logged out');
+        unsubscribe = onAuthStateChanged(currentAuth, async (firebaseUser) => {
+          console.log('Auth state changed:', firebaseUser ? firebaseUser.email : 'logged out');
           
           if (firebaseUser) {
             setUser(firebaseUser);
             setCurrentUserId(firebaseUser.uid);
             
             // Try to merge with Firebase data (non-blocking)
-            import('../services/FirebaseSync').then(({ firebaseSync }) => {
-              firebaseSync.mergeWithLocal().catch(e => console.log('Sync error:', e));
-            }).catch(e => console.log('Import error:', e));
+            setTimeout(() => {
+              import('../services/FirebaseSync').then(({ firebaseSync }) => {
+                firebaseSync.mergeWithLocal().catch(e => console.log('Sync error:', e));
+              }).catch(e => console.log('Import error:', e));
+            }, 100);
           } else {
             setUser(null);
             setCurrentUserId(null);
@@ -99,12 +108,14 @@ export const AuthProvider = ({ children }) => {
 
   // Sign up with email verification
   const signUp = async (email, password, name) => {
-    if (!auth) {
+    const { auth: currentAuth } = require('../config/firebase');
+    
+    if (!currentAuth) {
       return { success: false, error: 'Please wait, connecting to server...' };
     }
 
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(currentAuth, email, password);
       
       if (name) {
         await updateProfile(userCredential.user, { displayName: name });
@@ -125,12 +136,14 @@ export const AuthProvider = ({ children }) => {
 
   // Sign in
   const signIn = async (email, password) => {
-    if (!auth) {
+    const { auth: currentAuth } = require('../config/firebase');
+    
+    if (!currentAuth) {
       return { success: false, error: 'Please wait, connecting to server...' };
     }
 
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(currentAuth, email, password);
       
       // Check email verification
       if (!userCredential.user.emailVerified) {
@@ -165,7 +178,9 @@ export const AuthProvider = ({ children }) => {
 
   // Forgot password
   const forgotPassword = async (email) => {
-    if (!auth) {
+    const { auth: currentAuth } = require('../config/firebase');
+    
+    if (!currentAuth) {
       return { success: false, error: 'Please wait, connecting to server...' };
     }
 
@@ -174,7 +189,7 @@ export const AuthProvider = ({ children }) => {
     }
 
     try {
-      await sendPasswordResetEmail(auth, email);
+      await sendPasswordResetEmail(currentAuth, email);
       return { 
         success: true, 
         message: 'Password reset email sent! Check your inbox.' 
@@ -187,12 +202,14 @@ export const AuthProvider = ({ children }) => {
 
   // Resend verification email
   const resendVerificationEmail = async () => {
-    if (!auth || !auth.currentUser) {
+    const { auth: currentAuth } = require('../config/firebase');
+    
+    if (!currentAuth || !currentAuth.currentUser) {
       return { success: false, error: 'No user logged in.' };
     }
 
     try {
-      await sendEmailVerification(auth.currentUser);
+      await sendEmailVerification(currentAuth.currentUser);
       return { success: true, message: 'Verification email sent!' };
     } catch (error) {
       return { success: false, error: error.message };
@@ -201,6 +218,8 @@ export const AuthProvider = ({ children }) => {
 
   // Log out
   const logOut = async () => {
+    const { auth: currentAuth } = require('../config/firebase');
+    
     // Sync before logout
     try {
       const { firebaseSync } = await import('../services/FirebaseSync');
@@ -209,14 +228,14 @@ export const AuthProvider = ({ children }) => {
       console.log('Sync error:', e);
     }
 
-    if (!auth) {
+    if (!currentAuth) {
       setUser(null);
       setCurrentUserId(null);
       return { success: true, message: 'Logged out successfully!' };
     }
 
     try {
-      await signOut(auth);
+      await signOut(currentAuth);
       setCurrentUserId(null);
       return { success: true, message: 'Logged out successfully!' };
     } catch (error) {
@@ -227,13 +246,15 @@ export const AuthProvider = ({ children }) => {
 
   // Google Sign-In
   const signInWithGoogle = async () => {
-    if (!auth || !googleProvider) {
+    const { auth: currentAuth, googleProvider: currentProvider } = require('../config/firebase');
+    
+    if (!currentAuth || !currentProvider) {
       return { success: false, error: 'Please wait, connecting to server...' };
     }
 
     try {
       if (Platform.OS === 'web') {
-        const result = await signInWithPopup(auth, googleProvider);
+        const result = await signInWithPopup(currentAuth, currentProvider);
         setCurrentUserId(result.user.uid);
         
         const isNewUser = result._tokenResponse?.isNewUser;
