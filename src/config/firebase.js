@@ -1,15 +1,12 @@
-// Production Firebase Configuration
+// Production Firebase Configuration - Works on Web + Mobile
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getAuth, 
-  initializeAuth,
-  getReactNativePersistence,
   GoogleAuthProvider,
   signInWithCredential
 } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAfKYr27AqnL-vbcz7tzN_VBZQTa3N_-uA",
@@ -27,37 +24,29 @@ let db = null;
 let googleProvider = null;
 
 try {
-  // Initialize Firebase App
+  // Initialize Firebase App (only once)
   if (getApps().length === 0) {
     app = initializeApp(firebaseConfig);
+    console.log('✅ Firebase app initialized');
   } else {
     app = getApp();
+    console.log('✅ Firebase app already exists');
   }
 
-  // Initialize Auth with proper persistence for React Native
-  if (Platform.OS === 'web') {
-    auth = getAuth(app);
-  } else {
-    // For React Native, use AsyncStorage persistence
-    try {
-      auth = initializeAuth(app, {
-        persistence: getReactNativePersistence(AsyncStorage)
-      });
-    } catch (error) {
-      // Auth might already be initialized
-      auth = getAuth(app);
-    }
-  }
+  // Use standard getAuth for all platforms
+  // This works for both web and React Native with Expo
+  auth = getAuth(app);
+  console.log('✅ Firebase auth initialized');
 
   // Initialize Firestore
   db = getFirestore(app);
+  console.log('✅ Firestore initialized');
   
   // Initialize Google Provider
   googleProvider = new GoogleAuthProvider();
 
-  console.log('✅ Firebase initialized successfully');
 } catch (error) {
-  console.error('❌ Firebase initialization error:', error.message);
+  console.error('❌ Firebase error:', error.message);
 }
 
 export { 
