@@ -1,4 +1,5 @@
 // Firebase Configuration - Works on Web + Mobile (Expo)
+// Using Firebase v9 for better React Native compatibility
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getAuth, 
@@ -6,7 +7,6 @@ import {
   signInWithCredential 
 } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import { Platform } from 'react-native';
 
 // Firebase configuration
 const firebaseConfig = {
@@ -27,10 +27,9 @@ let googleProvider = null;
 let firebaseReady = false;
 let initError = null;
 
-const initializeFirebase = async () => {
+const initializeFirebase = () => {
   try {
-    console.log('🔥 Starting Firebase initialization...');
-    console.log('📱 Platform:', Platform.OS);
+    console.log('🔥 Starting Firebase v9 initialization...');
     
     // Check if already initialized
     if (getApps().length === 0) {
@@ -42,23 +41,11 @@ const initializeFirebase = async () => {
       app = getApp();
     }
 
-    // Wait a moment for Firebase to register components on mobile
-    if (Platform.OS !== 'web') {
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-
-    // Initialize Auth - use getAuth for all platforms
-    // Firebase JS SDK v10+ handles persistence automatically
+    // Initialize Auth - Firebase v9 works better with React Native
     if (!auth) {
       console.log('🔐 Initializing Firebase Auth...');
-      
-      try {
-        auth = getAuth(app);
-        console.log('✅ Firebase Auth initialized successfully');
-      } catch (authError) {
-        console.error('⚠️ getAuth failed:', authError.message);
-        throw authError;
-      }
+      auth = getAuth(app);
+      console.log('✅ Firebase Auth initialized');
     }
     
     // Initialize Firestore
@@ -77,15 +64,15 @@ const initializeFirebase = async () => {
     
     firebaseReady = true;
     initError = null;
-    console.log('🎉 Firebase fully initialized and ready!');
-    console.log('📊 Auth object:', auth ? 'Available' : 'NULL');
+    console.log('🎉 Firebase v9 fully initialized and ready!');
+    console.log('📊 Auth:', auth ? 'Available' : 'NULL');
+    console.log('📊 DB:', db ? 'Available' : 'NULL');
     
     return true;
   } catch (error) {
     console.error('❌ Firebase initialization FAILED:');
     console.error('Error code:', error.code);
     console.error('Error message:', error.message);
-    console.error('Full error:', JSON.stringify(error, null, 2));
     
     firebaseReady = false;
     initError = error;
@@ -94,17 +81,15 @@ const initializeFirebase = async () => {
 };
 
 // Initialize immediately
-console.log('⏰ Starting immediate Firebase init...');
-(async () => {
-  try {
-    const result = await initializeFirebase();
-    console.log('Immediate init result:', result);
-  } catch (e) {
-    console.error('💥 Firebase startup error:', e);
-    console.error('Stack:', e.stack);
-    initError = e;
-  }
-})();
+console.log('⏰ Starting immediate Firebase v9 init...');
+try {
+  const result = initializeFirebase();
+  console.log('✅ Immediate init result:', result);
+} catch (e) {
+  console.error('💥 Firebase startup error:', e);
+  console.error('Stack:', e ? e.stack : 'No stack trace');
+  initError = e;
+}
 
 // Helper to check if Firebase is ready
 const isFirebaseReady = () => {
