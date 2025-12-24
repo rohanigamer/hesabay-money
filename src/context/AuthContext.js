@@ -9,11 +9,19 @@ import {
   updateProfile,
   sendEmailVerification,
   sendPasswordResetEmail,
-  signInWithPopup
+  signInWithPopup,
+  signInWithCredential,
+  GoogleAuthProvider
 } from 'firebase/auth';
 import { auth, googleProvider } from '../config/firebase';
+import firebaseSync from '../services/FirebaseSync';
 
 export const AuthContext = createContext();
+
+// Helper to show confirmation dialog
+const showConfirmation = (title, message, onOk) => {
+  Alert.alert(title, message, [{ text: 'OK', onPress: onOk }]);
+};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -26,10 +34,17 @@ export const AuthProvider = ({ children }) => {
       return;
     }
 
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         setUser(firebaseUser);
         setCurrentUserId(firebaseUser.uid);
+        
+        // Load data from Firebase for this user
+        try {
+          await firebaseSync.mergeWithLocal();
+        } catch (e) {
+          console.log('Could not sync from Firebase:', e);
+        }
       } else {
         setUser(null);
         setCurrentUserId(null);
@@ -49,18 +64,16 @@ export const AuthProvider = ({ children }) => {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       
-      // Update profile with name
       if (name) {
         await updateProfile(userCredential.user, { displayName: name });
       }
       
-      // Send verification email
       await sendEmailVerification(userCredential.user);
       
       return { 
         success: true, 
         user: userCredential.user,
-        message: 'Verification email sent! Please check your inbox.'
+        message: 'Account created! Please check your email to verify your account.'
       };
     } catch (error) {
       console.error('Sign up error:', error);
@@ -96,9 +109,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       
-      // Check if email is verified
       if (!userCredential.user.emailVerified) {
-        // Resend verification email
         await sendEmailVerification(userCredential.user);
         return { 
           success: false, 
@@ -108,7 +119,19 @@ export const AuthProvider = ({ children }) => {
       }
       
       setCurrentUserId(userCredential.user.uid);
-      return { success: true, user: userCredential.user };
+      
+      // Sync data from Firebase
+      try {
+        await firebaseSync.mergeWithLocal();
+      } catch (e) {
+        console.log('Could not sync:', e);
+      }
+      
+      return { 
+        success: true, 
+        user: userCredential.user,
+        message: `Welcome back, ${userCredential.user.displayName || 'User'}!`
+      };
     } catch (error) {
       console.error('Sign in error:', error);
       let errorMessage = 'Sign in failed. Please try again.';
@@ -191,16 +214,23 @@ export const AuthProvider = ({ children }) => {
 
   // Log out
   const logOut = async () => {
+    // Sync data before logout
+    try {
+      await firebaseSync.syncAllData();
+    } catch (e) {
+      console.log('Could not sync before logout:', e);
+    }
+
     if (!auth) {
       setUser(null);
       setCurrentUserId(null);
-      return { success: true };
+      return { success: true, message: 'Logged out successfully!' };
     }
 
     try {
       await signOut(auth);
       setCurrentUserId(null);
-      return { success: true };
+      return { success: true, message: 'Logged out successfully!' };
     } catch (error) {
       console.error('Logout error:', error);
       return { success: false, error: error.message };
@@ -210,25 +240,44 @@ export const AuthProvider = ({ children }) => {
   // Google Sign-In
   const signInWithGoogle = async () => {
     if (!auth || !googleProvider) {
-      return { success: false, error: 'Google Sign-In not available.' };
+      return { success: false, error: 'Google Sign-In not available. Please use email/password.' };
     }
 
     try {
       if (Platform.OS === 'web') {
         const result = await signInWithPopup(auth, googleProvider);
         setCurrentUserId(result.user.uid);
-        return { success: true, user: result.user };
+        
+        // Check if new user
+        const isNewUser = result._tokenResponse?.isNewUser;
+        
+        return { 
+          success: true, 
+          user: result.user,
+          isNewUser: isNewUser,
+          message: isNewUser 
+            ? `Welcome! Your account has been created with ${result.user.email}` 
+            : `Welcome back, ${result.user.displayName || 'User'}!`
+        };
       } else {
-        Alert.alert(
-          'Google Sign-In',
-          'Google Sign-In on mobile requires additional setup. Please use email/password login.',
-          [{ text: 'OK' }]
-        );
-        return { success: false, error: 'Use email/password on mobile' };
+        // Mobile - Google Sign-In requires native SDK setup
+        return { 
+          success: false, 
+          error: 'Google Sign-In on Android requires additional configuration.\n\nPlease use Email/Password login or Continue as Guest.',
+          showAlternatives: true
+        };
       }
     } catch (error) {
       console.error('Google Sign-In error:', error);
-      return { success: false, error: error.message || 'Google Sign-In failed' };
+      
+      let errorMessage = 'Google Sign-In failed. Please try again.';
+      if (error.code === 'auth/popup-closed-by-user') {
+        errorMessage = 'Sign-in was cancelled.';
+      } else if (error.code === 'auth/network-request-failed') {
+        errorMessage = 'Network error. Please check your internet connection.';
+      }
+      
+      return { success: false, error: errorMessage };
     }
   };
 
@@ -243,7 +292,16 @@ export const AuthProvider = ({ children }) => {
     };
     setUser(guestUser);
     setCurrentUserId('guest-user');
-    return { success: true, user: guestUser };
+    return { 
+      success: true, 
+      user: guestUser,
+      message: 'You are now using the app as a guest. Your data will be stored locally on this device only.'
+    };
+  };
+
+  // Sync data manually
+  const syncData = async () => {
+    return await firebaseSync.syncAllData();
   };
 
   return (
@@ -256,7 +314,8 @@ export const AuthProvider = ({ children }) => {
       signInWithGoogle,
       continueAsGuest,
       forgotPassword,
-      resendVerificationEmail
+      resendVerificationEmail,
+      syncData
     }}>
       {children}
     </AuthContext.Provider>

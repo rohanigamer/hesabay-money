@@ -1,25 +1,49 @@
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Fallback storage for web (SecureStore doesn't work on web)
-const webStorage = {
-  _storage: {},
+// Use AsyncStorage for web, SecureStore for native
+const storage = {
   async getItemAsync(key) {
-    return this._storage[key] || null;
+    try {
+      if (Platform.OS === 'web') {
+        return await AsyncStorage.getItem(key);
+      }
+      return await SecureStore.getItemAsync(key);
+    } catch (error) {
+      console.log('Storage get error:', error);
+      return null;
+    }
   },
   async setItemAsync(key, value) {
-    this._storage[key] = value;
+    try {
+      if (Platform.OS === 'web') {
+        await AsyncStorage.setItem(key, value);
+      } else {
+        await SecureStore.setItemAsync(key, value);
+      }
+    } catch (error) {
+      console.log('Storage set error:', error);
+    }
   },
   async deleteItemAsync(key) {
-    delete this._storage[key];
+    try {
+      if (Platform.OS === 'web') {
+        await AsyncStorage.removeItem(key);
+      } else {
+        await SecureStore.deleteItemAsync(key);
+      }
+    } catch (error) {
+      console.log('Storage delete error:', error);
+    }
   },
 };
 
-// Use SecureStore on native, webStorage on web
-const storage = Platform.OS === 'web' ? webStorage : SecureStore;
-
 // Get current user ID (set by AuthContext)
 let currentUserId = 'guest-user';
+
+// Sync callback (set by FirebaseSync)
+let onDataChange = null;
 
 export const setCurrentUserId = (userId) => {
   currentUserId = userId || 'guest-user';
@@ -29,6 +53,20 @@ export const getCurrentUserId = () => {
   return currentUserId;
 };
 
+export const setOnDataChange = (callback) => {
+  onDataChange = callback;
+};
+
+// Trigger sync after data changes
+const triggerSync = () => {
+  if (onDataChange && currentUserId !== 'guest-user') {
+    // Delay sync slightly to batch multiple changes
+    setTimeout(() => {
+      onDataChange();
+    }, 1000);
+  }
+};
+
 // User-specific storage keys
 const getUserKey = (key) => {
   return `${currentUserId}_${key}`;
@@ -36,13 +74,13 @@ const getUserKey = (key) => {
 
 const STORAGE_KEYS = {
   PASSCODE: 'app_passcode',
-  AUTH_METHOD: 'auth_method', // 'passcode' | 'passkey' | 'none'
-  THEME: 'app_theme', // 'light' | 'dark' | 'device'
-  LANGUAGE: 'app_language', // 'en' | 'pr' | 'ps'
-  CURRENCY: 'app_currency', // 'USD' | 'EUR' | etc
+  AUTH_METHOD: 'auth_method',
+  THEME: 'app_theme',
+  LANGUAGE: 'app_language',
+  CURRENCY: 'app_currency',
   APP_DATA: 'app_data',
-  CUSTOMERS: 'customers', // Array of customer objects (user-specific)
-  TRANSACTIONS: 'transactions', // Array of transaction objects (user-specific)
+  CUSTOMERS: 'customers',
+  TRANSACTIONS: 'transactions',
 };
 
 export const Storage = {
@@ -101,7 +139,7 @@ export const Storage = {
   async getTheme() {
     try {
       const theme = await storage.getItemAsync(STORAGE_KEYS.THEME);
-      return theme || 'dark'; // Default to dark for liquid glass effect
+      return theme || 'dark';
     } catch (error) {
       console.error('Error getting theme:', error);
       return 'dark';
@@ -197,6 +235,7 @@ export const Storage = {
     try {
       const key = getUserKey(STORAGE_KEYS.CUSTOMERS);
       await storage.setItemAsync(key, JSON.stringify(customers));
+      triggerSync(); // Sync to Firebase
       return true;
     } catch (error) {
       console.error('Error saving customers:', error);
@@ -274,6 +313,7 @@ export const Storage = {
     try {
       const key = getUserKey(STORAGE_KEYS.TRANSACTIONS);
       await storage.setItemAsync(key, JSON.stringify(transactions));
+      triggerSync(); // Sync to Firebase
       return true;
     } catch (error) {
       console.error('Error saving transactions:', error);
@@ -289,10 +329,10 @@ export const Storage = {
         ...transaction,
         createdAt: new Date().toISOString(),
       };
-      transactions.unshift(newTransaction); // Add to beginning
+      transactions.unshift(newTransaction);
       await this.saveTransactions(transactions);
 
-      // Update customer balance if linked to a customer
+      // Update customer balance if linked
       if (transaction.customerId) {
         const customers = await this.getCustomers();
         const customerIndex = customers.findIndex(c => c.id === transaction.customerId);

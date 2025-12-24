@@ -29,11 +29,11 @@ export default function LoginScreen({ navigation }) {
 
   const handleLogin = async () => {
     if (!email.trim()) {
-      Alert.alert('Error', 'Please enter your email address');
+      Alert.alert('Missing Information', 'Please enter your email address');
       return;
     }
     if (!password) {
-      Alert.alert('Error', 'Please enter your password');
+      Alert.alert('Missing Information', 'Please enter your password');
       return;
     }
 
@@ -42,24 +42,34 @@ export default function LoginScreen({ navigation }) {
     setLoading(false);
 
     if (result.success) {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Transaction' }],
-      });
+      // Show success confirmation
+      Alert.alert(
+        '✅ Login Successful',
+        result.message || 'Welcome back!',
+        [{
+          text: 'Continue',
+          onPress: () => {
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Transaction' }],
+            });
+          }
+        }]
+      );
     } else if (result.needsVerification) {
       Alert.alert(
-        'Email Not Verified',
+        '📧 Email Verification Required',
         result.error,
         [{ text: 'OK' }]
       );
     } else {
-      Alert.alert('Login Failed', result.error);
+      Alert.alert('❌ Login Failed', result.error);
     }
   };
 
   const handleForgotPassword = async () => {
     if (!resetEmail.trim()) {
-      Alert.alert('Error', 'Please enter your email address');
+      Alert.alert('Missing Information', 'Please enter your email address');
       return;
     }
 
@@ -68,11 +78,16 @@ export default function LoginScreen({ navigation }) {
     setLoading(false);
 
     if (result.success) {
-      Alert.alert('Success', result.message);
-      setForgotPasswordModal(false);
-      setResetEmail('');
+      Alert.alert(
+        '📧 Email Sent',
+        result.message,
+        [{ text: 'OK', onPress: () => {
+          setForgotPasswordModal(false);
+          setResetEmail('');
+        }}]
+      );
     } else {
-      Alert.alert('Error', result.error);
+      Alert.alert('❌ Error', result.error);
     }
   };
 
@@ -82,19 +97,49 @@ export default function LoginScreen({ navigation }) {
     setLoading(false);
     
     if (result.success) {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Transaction' }],
-      });
+      Alert.alert(
+        result.isNewUser ? '🎉 Account Created' : '✅ Login Successful',
+        result.message,
+        [{
+          text: 'Continue',
+          onPress: () => {
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Transaction' }],
+            });
+          }
+        }]
+      );
+    } else if (result.showAlternatives) {
+      Alert.alert(
+        '⚠️ Google Sign-In Not Available',
+        result.error,
+        [
+          { text: 'Sign Up with Email', onPress: () => navigation.navigate('Signup') },
+          { text: 'Continue as Guest', onPress: handleGuestLogin },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+    } else if (result.error) {
+      Alert.alert('❌ Google Sign-In Failed', result.error);
     }
   };
 
   const handleGuestLogin = () => {
-    continueAsGuest();
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'Transaction' }],
-    });
+    const result = continueAsGuest();
+    Alert.alert(
+      '👤 Guest Mode',
+      result.message,
+      [{
+        text: 'Continue',
+        onPress: () => {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Transaction' }],
+          });
+        }
+      }]
+    );
   };
 
   return (
@@ -108,9 +153,9 @@ export default function LoginScreen({ navigation }) {
           <View style={[styles.iconCircle, { backgroundColor: colors.accent + '15' }]}>
             <Ionicons name="wallet" size={40} color={colors.accent} />
           </View>
-          <Text style={[styles.title, { color: colors.text }]}>Welcome Back</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Hesabay Money</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            Sign in to continue managing your finances
+            Sign in to manage your finances
           </Text>
         </View>
 
@@ -210,6 +255,11 @@ export default function LoginScreen({ navigation }) {
             <Text style={[styles.guestBtnText, { color: colors.textSecondary }]}>Continue as Guest</Text>
           </TouchableOpacity>
 
+          {/* Guest Note */}
+          <Text style={[styles.guestNote, { color: colors.textTertiary }]}>
+            Guest data is stored locally only and won't sync across devices
+          </Text>
+
           {/* Sign Up Link */}
           <View style={styles.signupRow}>
             <Text style={[styles.signupText, { color: colors.textSecondary }]}>
@@ -231,7 +281,7 @@ export default function LoginScreen({ navigation }) {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Reset Password</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>🔑 Reset Password</Text>
             <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
               Enter your email address and we'll send you a link to reset your password.
             </Text>
@@ -264,7 +314,7 @@ export default function LoginScreen({ navigation }) {
                 {loading ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
-                  <Text style={[styles.modalBtnText, { color: '#fff' }]}>Send Reset Link</Text>
+                  <Text style={[styles.modalBtnText, { color: '#fff' }]}>Send Link</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -305,6 +355,8 @@ const styles = StyleSheet.create({
   
   guestBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 12, borderWidth: 1, gap: 12 },
   guestBtnText: { fontSize: 15, fontWeight: '500' },
+  
+  guestNote: { fontSize: 12, textAlign: 'center', marginTop: 8 },
   
   signupRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 24 },
   signupText: { fontSize: 14 },

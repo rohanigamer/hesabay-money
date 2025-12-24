@@ -10,6 +10,7 @@ import {
   Modal,
   Platform,
   Animated,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as LocalAuthentication from 'expo-local-authentication';
@@ -21,15 +22,16 @@ import { useAuth } from '../context/AuthContext';
 import { CURRENCIES } from '../utils/Currency';
 import BottomNavigation from '../components/BottomNavigation';
 import GlassCard from '../components/GlassCard';
-import FirebaseSync from '../services/FirebaseSync';
+import { firebaseSync } from '../services/FirebaseSync';
 
 export default function SettingsScreen({ navigation }) {
   const { colors, theme, changeTheme } = useContext(ThemeContext);
   const { currency, changeCurrency } = useCurrency();
-  const { user, logOut } = useAuth();
+  const { user, logOut, syncData } = useAuth();
   const [authMethod, setAuthMethod] = useState('none');
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [showCurrencyModal, setShowCurrencyModal] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   const headerAnim = useRef(new Animated.Value(0)).current;
   const sectionsAnim = useRef(new Animated.Value(0)).current;
@@ -56,29 +58,93 @@ export default function SettingsScreen({ navigation }) {
     if (enabled) {
       navigation.navigate('PasscodeSetup', { isSettingUp: true, onPasscodeSet: loadSettings });
     } else {
-      Alert.alert('Disable Passcode', 'Are you sure?', [
+      Alert.alert('🔓 Disable Passcode', 'Are you sure you want to disable passcode protection?', [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Disable', style: 'destructive', onPress: async () => { await Storage.deletePasscode(); await Storage.setAuthMethod('none'); loadSettings(); } },
+        { 
+          text: 'Disable', 
+          style: 'destructive', 
+          onPress: async () => { 
+            await Storage.deletePasscode(); 
+            await Storage.setAuthMethod('none'); 
+            loadSettings(); 
+            Alert.alert('✅ Done', 'Passcode has been disabled.');
+          } 
+        },
       ]);
     }
   };
 
   const handleBiometricToggle = async (enabled) => {
     if (enabled) {
-      if (Platform.OS === 'web') return Alert.alert('Error', 'Not available on web');
+      if (Platform.OS === 'web') return Alert.alert('⚠️ Not Available', 'Biometric authentication is not available on web.');
       try {
         const hasHardware = await LocalAuthentication.hasHardwareAsync();
         const isEnrolled = await LocalAuthentication.isEnrolledAsync();
-        if (!hasHardware || !isEnrolled) return Alert.alert('Error', 'Biometric not available');
-        const result = await LocalAuthentication.authenticateAsync({ promptMessage: 'Enable biometric' });
-        if (result.success) { await Storage.setAuthMethod('passkey'); loadSettings(); }
-      } catch { Alert.alert('Error', 'Failed to enable'); }
+        if (!hasHardware || !isEnrolled) return Alert.alert('⚠️ Not Available', 'Your device does not support biometric authentication or has no biometrics enrolled.');
+        const result = await LocalAuthentication.authenticateAsync({ promptMessage: 'Enable biometric authentication' });
+        if (result.success) { 
+          await Storage.setAuthMethod('passkey'); 
+          loadSettings(); 
+          Alert.alert('✅ Enabled', 'Biometric authentication has been enabled.');
+        }
+      } catch { 
+        Alert.alert('❌ Error', 'Failed to enable biometric authentication.'); 
+      }
     } else {
-      Alert.alert('Disable Biometric', 'Are you sure?', [
+      Alert.alert('🔓 Disable Biometric', 'Are you sure you want to disable biometric protection?', [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Disable', style: 'destructive', onPress: async () => { await Storage.setAuthMethod('none'); loadSettings(); } },
+        { 
+          text: 'Disable', 
+          style: 'destructive', 
+          onPress: async () => { 
+            await Storage.setAuthMethod('none'); 
+            loadSettings(); 
+            Alert.alert('✅ Done', 'Biometric authentication has been disabled.');
+          } 
+        },
       ]);
     }
+  };
+
+  const handleManualSync = async () => {
+    if (!user || user.isGuest) {
+      Alert.alert('⚠️ Guest Mode', 'Data sync is not available in guest mode. Please sign in to sync your data to the cloud.');
+      return;
+    }
+
+    setSyncing(true);
+    const result = await firebaseSync.syncAllData();
+    setSyncing(false);
+
+    if (result.success) {
+      Alert.alert('✅ Sync Complete', 'Your data has been synced to the cloud.');
+    } else if (result.pending) {
+      Alert.alert('📴 Offline', 'You are currently offline. Data will sync automatically when you reconnect.');
+    } else {
+      Alert.alert('❌ Sync Failed', result.error || 'Could not sync data. Please try again.');
+    }
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      '🚪 Sign Out',
+      'Are you sure you want to sign out? Your data is synced to the cloud and will be available when you sign in again.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Sign Out', 
+          style: 'destructive',
+          onPress: async () => {
+            const result = await logOut();
+            if (result.success) {
+              Alert.alert('✅ Signed Out', 'You have been signed out successfully.', [
+                { text: 'OK', onPress: () => navigation.reset({ index: 0, routes: [{ name: 'Login' }] }) }
+              ]);
+            }
+          }
+        },
+      ]
+    );
   };
 
   const themeOptions = [
@@ -87,14 +153,14 @@ export default function SettingsScreen({ navigation }) {
     { code: 'device', name: 'System', icon: 'phone-portrait' },
   ];
 
-  const Item = ({ icon, title, subtitle, right, onPress, last }) => (
+  const Item = ({ icon, title, subtitle, right, onPress, last, iconColor }) => (
     <TouchableOpacity
       style={[styles.item, !last && { borderBottomWidth: 0.5, borderBottomColor: colors.border }]}
       onPress={onPress}
       disabled={!onPress}
       activeOpacity={onPress ? 0.6 : 1}
     >
-      <View style={[styles.iconBox, { backgroundColor: colors.accent }]}>
+      <View style={[styles.iconBox, { backgroundColor: iconColor || colors.accent }]}>
         <Ionicons name={icon} size={18} color="#fff" />
       </View>
       <View style={styles.itemInfo}>
@@ -104,6 +170,8 @@ export default function SettingsScreen({ navigation }) {
       {right}
     </TouchableOpacity>
   );
+
+  const isGuest = user?.isGuest;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
@@ -116,7 +184,7 @@ export default function SettingsScreen({ navigation }) {
           {/* Account */}
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Account</Text>
           <GlassCard style={styles.section}>
-            {user ? (
+            {user && !isGuest ? (
               <>
                 <Item
                   icon="person"
@@ -124,22 +192,57 @@ export default function SettingsScreen({ navigation }) {
                   subtitle={user.email}
                 />
                 <Item
+                  icon="cloud-upload"
+                  title="Sync Data"
+                  subtitle="Backup your data to cloud"
+                  onPress={handleManualSync}
+                  iconColor="#34C759"
+                  right={
+                    syncing ? (
+                      <ActivityIndicator size="small" color={colors.accent} />
+                    ) : (
+                      <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+                    )
+                  }
+                />
+                <Item
                   icon="log-out"
                   title="Sign Out"
                   subtitle="Log out from your account"
-                  onPress={async () => {
-                    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-                      { text: 'Cancel', style: 'cancel' },
-                      { 
-                        text: 'Sign Out', 
-                        style: 'destructive',
-                        onPress: async () => {
-                          FirebaseSync.stopRealtimeSync();
-                          await logOut();
-                        }
-                      },
-                    ]);
+                  onPress={handleLogout}
+                  last
+                  iconColor="#FF3B30"
+                  right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
+                />
+              </>
+            ) : isGuest ? (
+              <>
+                <Item
+                  icon="person"
+                  title="Guest Mode"
+                  subtitle="Data stored locally only"
+                />
+                <Item
+                  icon="log-in"
+                  title="Sign In"
+                  subtitle="Sign in to sync your data"
+                  onPress={() => {
+                    Alert.alert(
+                      '⚠️ Switch Account',
+                      'If you sign in, your guest data will remain on this device. Would you like to continue?',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Continue', onPress: () => navigation.navigate('Login') }
+                      ]
+                    );
                   }}
+                  right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
+                />
+                <Item
+                  icon="person-add"
+                  title="Create Account"
+                  subtitle="Sign up to sync across devices"
+                  onPress={() => navigation.navigate('Signup')}
                   last
                   right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
                 />
@@ -164,6 +267,24 @@ export default function SettingsScreen({ navigation }) {
               </>
             )}
           </GlassCard>
+
+          {/* Sync Status (for logged in users) */}
+          {user && !isGuest && (
+            <>
+              <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Data Status</Text>
+              <GlassCard style={[styles.statusCard, { backgroundColor: colors.surface }]}>
+                <View style={styles.statusRow}>
+                  <Ionicons name="cloud-done" size={24} color="#34C759" />
+                  <View style={styles.statusInfo}>
+                    <Text style={[styles.statusTitle, { color: colors.text }]}>Cloud Sync Active</Text>
+                    <Text style={[styles.statusSub, { color: colors.textSecondary }]}>
+                      Data syncs automatically when online
+                    </Text>
+                  </View>
+                </View>
+              </GlassCard>
+            </>
+          )}
 
           {/* Security */}
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Security</Text>
@@ -238,7 +359,11 @@ export default function SettingsScreen({ navigation }) {
               <TouchableOpacity
                 key={opt.code}
                 style={[styles.themeOpt, { backgroundColor: theme === opt.code ? colors.accentLight : colors.backgroundSecondary }]}
-                onPress={() => { changeTheme(opt.code); setShowThemeModal(false); }}
+                onPress={() => { 
+                  changeTheme(opt.code); 
+                  setShowThemeModal(false); 
+                  Alert.alert('✅ Theme Changed', `Theme set to ${opt.name}`);
+                }}
               >
                 <Ionicons name={opt.icon} size={20} color={theme === opt.code ? colors.accent : colors.textSecondary} />
                 <Text style={[styles.themeOptText, { color: colors.text }]}>{opt.name}</Text>
@@ -261,7 +386,11 @@ export default function SettingsScreen({ navigation }) {
                 <TouchableOpacity
                   key={curr.code}
                   style={[styles.themeOpt, { backgroundColor: currency === curr.code ? colors.accentLight : colors.backgroundSecondary }]}
-                  onPress={() => { changeCurrency(curr.code); setShowCurrencyModal(false); }}
+                  onPress={() => { 
+                    changeCurrency(curr.code); 
+                    setShowCurrencyModal(false); 
+                    Alert.alert('✅ Currency Changed', `Currency set to ${curr.name} (${curr.symbol})`);
+                  }}
                 >
                   <Text style={[styles.currencySymbol, { color: currency === curr.code ? colors.accent : colors.textSecondary }]}>
                     {curr.symbol}
@@ -295,6 +424,11 @@ const styles = StyleSheet.create({
   itemInfo: { flex: 1 },
   itemTitle: { fontSize: 16, fontWeight: '500' },
   itemSub: { fontSize: 13, marginTop: 2 },
+  statusCard: { marginBottom: 24, padding: 16 },
+  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  statusInfo: { flex: 1 },
+  statusTitle: { fontSize: 15, fontWeight: '600' },
+  statusSub: { fontSize: 12, marginTop: 2 },
   aboutCard: { padding: 24, alignItems: 'center', marginBottom: 24 },
   logo: { width: 56, height: 56, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
   logoText: { color: '#fff', fontSize: 26, fontWeight: '700' },

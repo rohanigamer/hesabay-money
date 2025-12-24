@@ -1,235 +1,207 @@
+// Firebase Sync Service - Handles offline/online data synchronization
+import { db } from '../config/firebase';
 import { 
-  collection, 
   doc, 
   setDoc, 
   getDoc, 
-  getDocs, 
-  deleteDoc,
-  writeBatch,
-  onSnapshot
+  serverTimestamp 
 } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import { Storage } from '../utils/Storage';
 import NetInfo from '@react-native-community/netinfo';
+import { Storage, getCurrentUserId, setOnDataChange } from '../utils/Storage';
 
 class FirebaseSyncService {
   constructor() {
     this.isOnline = true;
+    this.syncPending = false;
     this.syncInProgress = false;
-    this.unsubscribers = [];
-    
-    // Monitor network status
-    this.setupNetworkListener();
+    this.initialized = false;
   }
 
-  setupNetworkListener() {
+  initialize() {
+    if (this.initialized) return;
+    this.initialized = true;
+    
+    // Setup network listener
     NetInfo.addEventListener(state => {
       const wasOffline = !this.isOnline;
       this.isOnline = state.isConnected && state.isInternetReachable;
       
-      // If just came online, sync data
-      if (wasOffline && this.isOnline) {
-        console.log('Back online - syncing data...');
+      // If we just came online and have pending sync, do it
+      if (wasOffline && this.isOnline && this.syncPending) {
+        console.log('📶 Back online - syncing pending data...');
         this.syncAllData();
       }
     });
+
+    // Setup data change listener
+    setOnDataChange(() => {
+      this.syncAllData();
+    });
+
+    console.log('🔄 Firebase Sync Service initialized');
   }
 
-  // Sync all local data to Firebase
-  async syncAllData(userId) {
-    if (!userId || this.syncInProgress) return;
+  // Get user's Firestore path
+  getUserPath() {
+    const userId = getCurrentUserId();
+    if (!userId || userId === 'guest-user') {
+      return null; // Guest users don't sync to Firebase
+    }
+    return `users/${userId}`;
+  }
+
+  // Sync all data to Firebase
+  async syncAllData() {
+    if (!db) {
+      console.log('Firebase DB not available');
+      return { success: false, error: 'Firebase not initialized' };
+    }
+
+    // Check network status
+    const netState = await NetInfo.fetch();
+    this.isOnline = netState.isConnected && netState.isInternetReachable;
+
+    if (!this.isOnline) {
+      console.log('📴 Offline - sync pending');
+      this.syncPending = true;
+      return { success: false, error: 'Offline', pending: true };
+    }
     
+    const userPath = this.getUserPath();
+    if (!userPath) {
+      return { success: false, error: 'Guest user - no sync' };
+    }
+
+    // Prevent concurrent syncs
+    if (this.syncInProgress) {
+      this.syncPending = true;
+      return { success: false, error: 'Sync already in progress' };
+    }
+
     this.syncInProgress = true;
-    
-    try {
-      const [customers, transactions] = await Promise.all([
-        Storage.getCustomers(),
-        Storage.getTransactions()
-      ]);
+    this.syncPending = false;
 
-      await this.syncCustomers(userId, customers);
-      await this.syncTransactions(userId, transactions);
+    try {
+      // Get local data
+      const customers = await Storage.getCustomers();
+      const transactions = await Storage.getTransactions();
       
-      console.log('Data synced successfully');
-    } catch (error) {
-      console.error('Sync error:', error);
-    } finally {
+      // Save to Firestore
+      const dataRef = doc(db, userPath, 'data');
+      await setDoc(dataRef, {
+        customers: customers,
+        transactions: transactions,
+        lastSyncedAt: serverTimestamp(),
+        deviceInfo: {
+          platform: require('react-native').Platform.OS,
+          syncTime: new Date().toISOString()
+        }
+      }, { merge: true });
+      
+      console.log('✅ Data synced to Firebase');
       this.syncInProgress = false;
+      
+      // If another sync was requested during this one, do it
+      if (this.syncPending) {
+        setTimeout(() => this.syncAllData(), 500);
+      }
+      
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Sync error:', error);
+      this.syncInProgress = false;
+      this.syncPending = true; // Retry later
+      return { success: false, error: error.message };
     }
   }
 
-  // Sync customers to Firebase
-  async syncCustomers(userId, customers) {
-    if (!this.isOnline) return;
+  // Load data from Firebase (for new device login)
+  async loadFromFirebase() {
+    if (!db) return null;
 
-    const batch = writeBatch(db);
-    const customersRef = collection(db, `users/${userId}/customers`);
-
-    customers.forEach(customer => {
-      const docRef = doc(customersRef, customer.id);
-      batch.set(docRef, customer, { merge: true });
-    });
-
-    await batch.commit();
-  }
-
-  // Sync transactions to Firebase
-  async syncTransactions(userId, transactions) {
-    if (!this.isOnline) return;
-
-    const batch = writeBatch(db);
-    const transactionsRef = collection(db, `users/${userId}/transactions`);
-
-    transactions.forEach(transaction => {
-      const docRef = doc(transactionsRef, transaction.id);
-      batch.set(docRef, transaction, { merge: true });
-    });
-
-    await batch.commit();
-  }
-
-  // Load data from Firebase to local storage
-  async loadFromFirebase(userId) {
-    if (!this.isOnline || !userId) return;
+    const netState = await NetInfo.fetch();
+    if (!netState.isConnected) return null;
+    
+    const userPath = this.getUserPath();
+    if (!userPath) return null;
 
     try {
-      // Load customers
-      const customersSnapshot = await getDocs(collection(db, `users/${userId}/customers`));
-      const customers = customersSnapshot.docs.map(doc => doc.data());
-      await Storage.saveCustomers(customers);
-
-      // Load transactions
-      const transactionsSnapshot = await getDocs(collection(db, `users/${userId}/transactions`));
-      const transactions = transactionsSnapshot.docs.map(doc => doc.data());
-      await Storage.saveTransactions(transactions);
-
-      console.log('Data loaded from Firebase');
+      const dataRef = doc(db, userPath, 'data');
+      const snapshot = await getDoc(dataRef);
+      
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        console.log('📥 Loaded data from Firebase');
+        return {
+          customers: data.customers || [],
+          transactions: data.transactions || []
+        };
+      }
+      return null;
     } catch (error) {
-      console.error('Load from Firebase error:', error);
+      console.error('Error loading from Firebase:', error);
+      return null;
     }
   }
 
-  // Real-time sync listeners
-  setupRealtimeSync(userId) {
-    if (!userId) return;
+  // Merge Firebase data with local data (used on login)
+  async mergeWithLocal() {
+    const firebaseData = await this.loadFromFirebase();
+    if (!firebaseData) return;
 
-    // Listen to customers changes
-    const customersUnsubscribe = onSnapshot(
-      collection(db, `users/${userId}/customers`),
-      (snapshot) => {
-        const customers = snapshot.docs.map(doc => doc.data());
-        Storage.saveCustomers(customers);
-      }
-    );
+    const localCustomers = await Storage.getCustomers();
+    const localTransactions = await Storage.getTransactions();
 
-    // Listen to transactions changes
-    const transactionsUnsubscribe = onSnapshot(
-      collection(db, `users/${userId}/transactions`),
-      (snapshot) => {
-        const transactions = snapshot.docs.map(doc => doc.data());
-        Storage.saveTransactions(transactions);
-      }
-    );
-
-    this.unsubscribers = [customersUnsubscribe, transactionsUnsubscribe];
-  }
-
-  // Stop real-time sync
-  stopRealtimeSync() {
-    this.unsubscribers.forEach(unsubscribe => unsubscribe());
-    this.unsubscribers = [];
-  }
-
-  // Add customer (works offline/online)
-  async addCustomer(userId, customer) {
-    // Save locally first
-    await Storage.addCustomer(customer);
-
-    // Sync to Firebase if online
-    if (this.isOnline && userId) {
+    // If local is empty, use Firebase data
+    if (localCustomers.length === 0 && firebaseData.customers.length > 0) {
+      // Directly save without triggering sync (to avoid loop)
+      const key = `${getCurrentUserId()}_customers`;
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      const SecureStore = require('expo-secure-store');
+      const Platform = require('react-native').Platform;
+      
       try {
-        await setDoc(doc(db, `users/${userId}/customers`, customer.id), customer);
-      } catch (error) {
-        console.error('Firebase add customer error:', error);
+        if (Platform.OS === 'web') {
+          await AsyncStorage.setItem(key, JSON.stringify(firebaseData.customers));
+        } else {
+          await SecureStore.setItemAsync(key, JSON.stringify(firebaseData.customers));
+        }
+        console.log('📥 Loaded customers from Firebase');
+      } catch (e) {
+        console.log('Error saving customers:', e);
+      }
+    }
+    
+    if (localTransactions.length === 0 && firebaseData.transactions.length > 0) {
+      const key = `${getCurrentUserId()}_transactions`;
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      const SecureStore = require('expo-secure-store');
+      const Platform = require('react-native').Platform;
+      
+      try {
+        if (Platform.OS === 'web') {
+          await AsyncStorage.setItem(key, JSON.stringify(firebaseData.transactions));
+        } else {
+          await SecureStore.setItemAsync(key, JSON.stringify(firebaseData.transactions));
+        }
+        console.log('📥 Loaded transactions from Firebase');
+      } catch (e) {
+        console.log('Error saving transactions:', e);
       }
     }
   }
 
-  // Update customer (works offline/online)
-  async updateCustomer(userId, customerId, updates) {
-    // Update locally first
-    await Storage.updateCustomer(customerId, updates);
-
-    // Sync to Firebase if online
-    if (this.isOnline && userId) {
-      try {
-        await setDoc(doc(db, `users/${userId}/customers`, customerId), updates, { merge: true });
-      } catch (error) {
-        console.error('Firebase update customer error:', error);
-      }
-    }
-  }
-
-  // Delete customer (works offline/online)
-  async deleteCustomer(userId, customerId) {
-    // Delete locally first
-    await Storage.deleteCustomer(customerId);
-
-    // Sync to Firebase if online
-    if (this.isOnline && userId) {
-      try {
-        await deleteDoc(doc(db, `users/${userId}/customers`, customerId));
-      } catch (error) {
-        console.error('Firebase delete customer error:', error);
-      }
-    }
-  }
-
-  // Add transaction (works offline/online)
-  async addTransaction(userId, transaction) {
-    // Save locally first
-    await Storage.addTransaction(transaction);
-
-    // Sync to Firebase if online
-    if (this.isOnline && userId) {
-      try {
-        await setDoc(doc(db, `users/${userId}/transactions`, transaction.id), transaction);
-      } catch (error) {
-        console.error('Firebase add transaction error:', error);
-      }
-    }
-  }
-
-  // Update transaction (works offline/online)
-  async updateTransaction(userId, transactionId, updates) {
-    // Update locally first
-    await Storage.updateTransaction(transactionId, updates);
-
-    // Sync to Firebase if online
-    if (this.isOnline && userId) {
-      try {
-        await setDoc(doc(db, `users/${userId}/transactions`, transactionId), updates, { merge: true });
-      } catch (error) {
-        console.error('Firebase update transaction error:', error);
-      }
-    }
-  }
-
-  // Delete transaction (works offline/online)
-  async deleteTransaction(userId, transactionId) {
-    // Delete locally first
-    await Storage.deleteTransaction(transactionId);
-
-    // Sync to Firebase if online
-    if (this.isOnline && userId) {
-      try {
-        await deleteDoc(doc(db, `users/${userId}/transactions`, transactionId));
-      } catch (error) {
-        console.error('Firebase delete transaction error:', error);
-      }
-    }
+  // Check if online
+  async checkConnection() {
+    const state = await NetInfo.fetch();
+    this.isOnline = state.isConnected && state.isInternetReachable;
+    return this.isOnline;
   }
 }
 
-export default new FirebaseSyncService();
+export const firebaseSync = new FirebaseSyncService();
 
+// Initialize sync service
+firebaseSync.initialize();
+
+export default firebaseSync;
