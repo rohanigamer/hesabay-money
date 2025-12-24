@@ -1,7 +1,6 @@
-// Firebase Configuration - Bulletproof for React Native + Web
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+// Firebase Configuration - Cross-platform solution
+// Uses Firebase JS SDK for web, REST API for mobile
+import { Platform } from 'react-native';
 
 // Firebase configuration
 const firebaseConfig = {
@@ -14,153 +13,119 @@ const firebaseConfig = {
   measurementId: "G-77PHLRBP0Z"
 };
 
-// Global Firebase instances
 let app = null;
 let auth = null;
 let db = null;
 let googleProvider = null;
 let firebaseReady = false;
-let initError = null;
-let initAttempts = 0;
+let isWeb = Platform.OS === 'web';
 
-// Initialize Firebase with retry logic
-const initializeFirebase = () => {
-  return new Promise((resolve) => {
-    initAttempts++;
-    console.log(`🔥 Firebase init attempt #${initAttempts}`);
+console.log('🔥 Firebase Config loaded, Platform:', Platform.OS);
 
-    try {
-      // Step 1: Initialize Firebase App
+// Initialize Firebase - only use SDK on web
+const initializeFirebase = async () => {
+  try {
+    console.log(`🔥 Initializing Firebase for ${Platform.OS}...`);
+    
+    if (isWeb) {
+      // Web: Use Firebase JS SDK
+      console.log('📱 Web platform detected - using Firebase SDK');
+      const { initializeApp, getApps, getApp } = await import('firebase/app');
+      const { getAuth, GoogleAuthProvider } = await import('firebase/auth');
+      const { getFirestore } = await import('firebase/firestore');
+      
       if (getApps().length === 0) {
-        console.log('📱 Creating new Firebase app...');
         app = initializeApp(firebaseConfig);
         console.log('✅ Firebase app created');
       } else {
-        console.log('📱 Using existing Firebase app');
         app = getApp();
+        console.log('✅ Using existing Firebase app');
       }
-
-      // Step 2: Initialize Auth (with delay for mobile)
-      setTimeout(() => {
-        try {
-          if (!auth) {
-            console.log('🔐 Initializing Auth...');
-            auth = getAuth(app);
-            
-            // Force auth to be ready by accessing a property
-            if (auth && auth.app) {
-              console.log('✅ Auth initialized and verified');
-            } else {
-              throw new Error('Auth object is invalid');
-            }
-          }
-
-          // Step 3: Initialize Firestore
-          if (!db) {
-            console.log('💾 Initializing Firestore...');
-            db = getFirestore(app);
-            console.log('✅ Firestore initialized');
-          }
-
-          // Step 4: Initialize Google Provider
-          if (!googleProvider) {
-            console.log('🔑 Initializing Google Provider...');
-            googleProvider = new GoogleAuthProvider();
-            console.log('✅ Google Provider initialized');
-          }
-
-          firebaseReady = true;
-          initError = null;
-          console.log('🎉 Firebase READY!');
-          console.log('📊 Status:', {
-            app: !!app,
-            auth: !!auth,
-            db: !!db,
-            provider: !!googleProvider
-          });
-          
-          resolve(true);
-        } catch (error) {
-          console.error('❌ Error during auth initialization:', error.message);
-          initError = error;
-          firebaseReady = false;
-          
-          // Retry up to 3 times
-          if (initAttempts < 3) {
-            console.log(`🔄 Retrying in 1 second... (attempt ${initAttempts}/3)`);
-            setTimeout(() => {
-              initializeFirebase().then(resolve);
-            }, 1000);
-          } else {
-            console.error('❌ Failed after 3 attempts');
-            resolve(false);
-          }
-        }
-      }, 200); // 200ms delay to let Firebase register components
-
-    } catch (error) {
-      console.error('❌ Fatal Firebase error:', error.message);
-      console.error('Stack:', error.stack);
-      initError = error;
-      firebaseReady = false;
       
-      // Retry up to 3 times
-      if (initAttempts < 3) {
-        console.log(`🔄 Retrying in 1 second... (attempt ${initAttempts}/3)`);
-        setTimeout(() => {
-          initializeFirebase().then(resolve);
-        }, 1000);
-      } else {
-        console.error('❌ Failed after 3 attempts');
-        resolve(false);
-      }
+      auth = getAuth(app);
+      db = getFirestore(app);
+      googleProvider = new GoogleAuthProvider();
+      
+      console.log('✅ Firebase SDK fully initialized for web');
+      firebaseReady = true;
+      return true;
+    } else {
+      // Mobile: Use REST API (no SDK needed)
+      console.log('📱 Mobile platform detected - using REST API');
+      console.log('✅ Firebase REST API ready for mobile');
+      firebaseReady = true;
+      return true;
     }
-  });
+  } catch (error) {
+    console.error('❌ Firebase initialization error:', error.message);
+    firebaseReady = false;
+    return false;
+  }
 };
 
 // Helper to check if Firebase is ready
 const isFirebaseReady = () => {
-  const ready = firebaseReady && auth !== null && db !== null;
-  if (!ready) {
-    console.log('❌ Firebase not ready:', {
-      firebaseReady,
-      hasAuth: auth !== null,
-      hasDb: db !== null
-    });
+  if (!isWeb) {
+    // Mobile: Always ready (uses REST API)
+    return true;
   }
-  return ready;
+  // Web: Check SDK is loaded
+  return firebaseReady && auth !== null;
 };
 
-// Helper to get initialization error
-const getInitError = () => initError;
-
-// Helper to manually retry initialization
-const retryInitialization = async () => {
-  console.log('🔄 Manual retry requested');
-  initAttempts = 0; // Reset attempts
-  return await initializeFirebase();
+// Firebase REST API URL
+const getFirebaseRestUrl = (endpoint) => {
+  return `https://identitytoolkit.googleapis.com/v1/${endpoint}?key=${firebaseConfig.apiKey}`;
 };
 
-// Export everything
+// Get Firestore REST URL
+const getFirestoreRestUrl = (path) => {
+  return `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/${path}`;
+};
+
+// Export configuration and helpers
 export { 
   app, 
   auth, 
-  db, 
-  googleProvider, 
-  GoogleAuthProvider, 
-  signInWithCredential,
+  db,
+  googleProvider,
   isFirebaseReady,
-  getInitError,
   initializeFirebase,
-  retryInitialization
+  firebaseConfig,
+  getFirebaseRestUrl,
+  getFirestoreRestUrl,
+  isWeb
 };
 
-// Auto-initialize on import
+// Export Firebase SDK functions for web (dynamic import)
+export const getFirebaseAuth = async () => {
+  if (isWeb) {
+    const { getAuth } = await import('firebase/auth');
+    return { getAuth };
+  }
+  return null;
+};
+
+export const getFirebaseAuthFunctions = async () => {
+  if (isWeb) {
+    return await import('firebase/auth');
+  }
+  return null;
+};
+
+export const getFirestoreFunctions = async () => {
+  if (isWeb) {
+    return await import('firebase/firestore');
+  }
+  return null;
+};
+
+// Auto-initialize
 console.log('⏰ Auto-initializing Firebase...');
 initializeFirebase().then((success) => {
   if (success) {
-    console.log('✅ Auto-init successful');
+    console.log('✅ Firebase initialized successfully');
   } else {
-    console.error('❌ Auto-init failed, but app will continue');
+    console.error('❌ Firebase initialization failed');
   }
 });

@@ -1,17 +1,8 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { Platform, Alert } from 'react-native';
 import { setCurrentUserId } from '../utils/Storage';
-import { 
-  createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword, 
-  signOut, 
-  onAuthStateChanged,
-  updateProfile,
-  sendEmailVerification,
-  sendPasswordResetEmail,
-  signInWithPopup
-} from 'firebase/auth';
-import { auth, googleProvider, isFirebaseReady, initializeFirebase, getInitError, retryInitialization, db } from '../config/firebase';
+import { isFirebaseReady, initializeFirebase, isWeb } from '../config/firebase';
+import { firebaseAuthREST } from '../services/FirebaseAuthREST';
 
 export const AuthContext = createContext();
 
@@ -26,66 +17,31 @@ export const AuthProvider = ({ children }) => {
     let isMounted = true;
 
     const setupAuth = async () => {
-      console.log('🔄 AuthContext: Setting up auth...');
+      console.log(`🔄 AuthContext: Setting up auth for ${Platform.OS}...`);
       
-      // Wait for Firebase to initialize (with multiple retry attempts)
-      let ready = false;
-      let attempts = 0;
-      const maxAttempts = 10; // 10 attempts * 1 second = 10 seconds max
-      
-      while (!ready && attempts < maxAttempts && isMounted) {
-        attempts++;
-        console.log(`🔄 AuthContext: Waiting for Firebase... (attempt ${attempts}/${maxAttempts})`);
-        
-        if (isFirebaseReady()) {
-          ready = true;
-          break;
-        }
-        
-        // Try to initialize if not ready
-        if (attempts === 1) {
-          console.log('🔄 AuthContext: Triggering Firebase init...');
-          await initializeFirebase();
-        } else if (attempts === 5) {
-          console.log('🔄 AuthContext: Retrying Firebase init...');
-          await retryInitialization();
-        }
-        
-        // Wait 1 second before next check
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
+      // Initialize Firebase
+      await initializeFirebase();
       
       if (!isMounted) return;
-      
-      if (!ready) {
-        console.error('❌ AuthContext: Firebase failed to initialize after all attempts');
-        const error = getInitError();
-        if (error) {
-          console.error('❌ Error details:', error.message);
+
+      if (isWeb) {
+        // Web: Use Firebase SDK
+        console.log('📱 Web: Using Firebase SDK');
+        
+        if (!isFirebaseReady()) {
+          console.error('❌ Firebase SDK not ready on web');
+          setFirebaseInitialized(false);
+          setLoading(false);
+          return;
         }
-        setFirebaseInitialized(false);
-        setLoading(false);
-        return;
-      }
-      
-      console.log('✅ AuthContext: Firebase is ready!');
-      
-      // Get auth reference
-      const { auth: currentAuth } = require('../config/firebase');
-      
-      if (!currentAuth) {
-        console.error('❌ AuthContext: Auth is NULL even though Firebase says it\'s ready!');
-        setFirebaseInitialized(false);
-        setLoading(false);
-        return;
-      }
 
-      console.log('✅ AuthContext: Auth object confirmed, setting up listener');
-      setFirebaseInitialized(true);
+        const { auth } = await import('../config/firebase');
+        const { onAuthStateChanged } = await import('firebase/auth');
+        
+        console.log('✅ Setting up Firebase SDK auth listener');
+        setFirebaseInitialized(true);
 
-      // Set up auth state listener
-      try {
-        unsubscribe = onAuthStateChanged(currentAuth, async (firebaseUser) => {
+        unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
           if (!isMounted) return;
           
           console.log('🔔 Auth state changed:', firebaseUser ? `${firebaseUser.email} (verified: ${firebaseUser.emailVerified})` : 'logged out');
@@ -106,15 +62,31 @@ export const AuthProvider = ({ children }) => {
           }
           setLoading(false);
         });
-      } catch (error) {
-        console.error('❌ Error setting up auth listener:', error);
-        if (isMounted) {
+      } else {
+        // Mobile: Use REST API
+        console.log('📱 Mobile: Using Firebase REST API');
+        
+        await firebaseAuthREST.initialize();
+        console.log('✅ Firebase REST API initialized');
+        setFirebaseInitialized(true);
+
+        unsubscribe = firebaseAuthREST.onAuthStateChanged(async (firebaseUser) => {
+          if (!isMounted) return;
+          
+          console.log('🔔 Auth state changed:', firebaseUser ? `${firebaseUser.email} (verified: ${firebaseUser.emailVerified})` : 'logged out');
+          
+          if (firebaseUser) {
+            setUser(firebaseUser);
+            setCurrentUserId(firebaseUser.uid);
+          } else {
+            setUser(null);
+            setCurrentUserId(null);
+          }
           setLoading(false);
-        }
+        });
       }
     };
 
-    // Start setup
     setupAuth();
 
     return () => {
@@ -126,28 +98,34 @@ export const AuthProvider = ({ children }) => {
 
   // Sign up with email verification
   const signUp = async (email, password, name) => {
-    const { auth: currentAuth } = require('../config/firebase');
-    
-    if (!currentAuth) {
-      return { success: false, error: 'Please wait, connecting to server...' };
-    }
-
     try {
-      const userCredential = await createUserWithEmailAndPassword(currentAuth, email, password);
+      let userCredential;
       
-      if (name) {
-        await updateProfile(userCredential.user, { displayName: name });
+      if (isWeb) {
+        const { auth } = await import('../config/firebase');
+        const { createUserWithEmailAndPassword, updateProfile, sendEmailVerification, signOut } = await import('firebase/auth');
+        
+        userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        
+        if (name) {
+          await updateProfile(userCredential.user, { displayName: name });
+        }
+        
+        await sendEmailVerification(userCredential.user);
+        await signOut(auth);
+      } else {
+        userCredential = await firebaseAuthREST.createUserWithEmailAndPassword(email, password);
+        
+        if (name) {
+          await firebaseAuthREST.updateProfile(userCredential.user, { displayName: name });
+        }
+        
+        await firebaseAuthREST.sendEmailVerification(userCredential.user);
+        await firebaseAuthREST.signOut();
       }
       
-      // Send verification email
-      await sendEmailVerification(userCredential.user);
-      
-      // Sign out immediately - user must verify email first
-      await signOut(currentAuth);
       setUser(null);
       setCurrentUserId(null);
-      
-      console.log('Account created, verification email sent, user signed out');
       
       return { 
         success: true, 
@@ -156,31 +134,40 @@ export const AuthProvider = ({ children }) => {
       };
     } catch (error) {
       console.error('Sign up error:', error);
-      const errorMsg = getErrorMessage(error);
-      console.log('Returning error message:', errorMsg);
-      return { success: false, error: errorMsg };
+      return { success: false, error: getErrorMessage(error) };
     }
   };
 
   // Sign in
   const signIn = async (email, password) => {
-    const { auth: currentAuth } = require('../config/firebase');
-    
-    if (!currentAuth) {
-      return { success: false, error: 'Please wait, connecting to server...' };
-    }
-
     try {
-      const userCredential = await signInWithEmailAndPassword(currentAuth, email, password);
+      let userCredential;
       
-      // Check email verification
-      if (!userCredential.user.emailVerified) {
-        await sendEmailVerification(userCredential.user);
-        return { 
-          success: false, 
-          error: 'Please verify your email first. A new verification email has been sent.',
-          needsVerification: true
-        };
+      if (isWeb) {
+        const { auth } = await import('../config/firebase');
+        const { signInWithEmailAndPassword, sendEmailVerification } = await import('firebase/auth');
+        
+        userCredential = await signInWithEmailAndPassword(auth, email, password);
+        
+        if (!userCredential.user.emailVerified) {
+          await sendEmailVerification(userCredential.user);
+          return { 
+            success: false, 
+            error: 'Please verify your email first. A new verification email has been sent.',
+            needsVerification: true
+          };
+        }
+      } else {
+        userCredential = await firebaseAuthREST.signInWithEmailAndPassword(email, password);
+        
+        if (!userCredential.user.emailVerified) {
+          await firebaseAuthREST.sendEmailVerification(userCredential.user);
+          return { 
+            success: false, 
+            error: 'Please verify your email first. A new verification email has been sent.',
+            needsVerification: true
+          };
+        }
       }
       
       setCurrentUserId(userCredential.user.uid);
@@ -206,18 +193,19 @@ export const AuthProvider = ({ children }) => {
 
   // Forgot password
   const forgotPassword = async (email) => {
-    const { auth: currentAuth } = require('../config/firebase');
-    
-    if (!currentAuth) {
-      return { success: false, error: 'Please wait, connecting to server...' };
-    }
-
     if (!email) {
       return { success: false, error: 'Please enter your email address.' };
     }
 
     try {
-      await sendPasswordResetEmail(currentAuth, email);
+      if (isWeb) {
+        const { auth } = await import('../config/firebase');
+        const { sendPasswordResetEmail } = await import('firebase/auth');
+        await sendPasswordResetEmail(auth, email);
+      } else {
+        await firebaseAuthREST.sendPasswordResetEmail(email);
+      }
+      
       return { 
         success: true, 
         message: 'Password reset email sent! Check your inbox.' 
@@ -230,14 +218,18 @@ export const AuthProvider = ({ children }) => {
 
   // Resend verification email
   const resendVerificationEmail = async () => {
-    const { auth: currentAuth } = require('../config/firebase');
-    
-    if (!currentAuth || !currentAuth.currentUser) {
+    if (!user) {
       return { success: false, error: 'No user logged in.' };
     }
 
     try {
-      await sendEmailVerification(currentAuth.currentUser);
+      if (isWeb) {
+        const { sendEmailVerification } = await import('firebase/auth');
+        await sendEmailVerification(user);
+      } else {
+        await firebaseAuthREST.sendEmailVerification(user);
+      }
+      
       return { success: true, message: 'Verification email sent!' };
     } catch (error) {
       return { success: false, error: error.message };
@@ -247,7 +239,6 @@ export const AuthProvider = ({ children }) => {
   // Log out
   const logOut = async () => {
     console.log('LogOut called');
-    const { auth: currentAuth } = require('../config/firebase');
     
     // Sync before logout
     try {
@@ -257,17 +248,15 @@ export const AuthProvider = ({ children }) => {
       console.log('Sync error:', e);
     }
 
-    if (!currentAuth) {
-      console.log('No auth, clearing user state');
-      setUser(null);
-      setCurrentUserId(null);
-      return { success: true, message: 'Logged out successfully!' };
-    }
-
     try {
-      console.log('Signing out from Firebase...');
-      await signOut(currentAuth);
-      console.log('Signed out, clearing user state');
+      if (isWeb) {
+        const { auth } = await import('../config/firebase');
+        const { signOut } = await import('firebase/auth');
+        await signOut(auth);
+      } else {
+        await firebaseAuthREST.signOut();
+      }
+      
       setUser(null);
       setCurrentUserId(null);
       return { success: true, message: 'Logged out successfully!' };
@@ -277,37 +266,33 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Google Sign-In
+  // Google Sign-In (web only)
   const signInWithGoogle = async () => {
-    const { auth: currentAuth, googleProvider: currentProvider } = require('../config/firebase');
-    
-    if (!currentAuth || !currentProvider) {
-      return { success: false, error: 'Please wait, connecting to server...' };
+    if (Platform.OS !== 'web') {
+      return { 
+        success: false, 
+        error: 'Google Sign-In on mobile requires additional setup.\n\nPlease use Email/Password or Continue as Guest.',
+        showAlternatives: true
+      };
     }
 
     try {
-      if (Platform.OS === 'web') {
-        const result = await signInWithPopup(currentAuth, currentProvider);
-        setCurrentUserId(result.user.uid);
-        
-        const isNewUser = result._tokenResponse?.isNewUser;
-        
-        return { 
-          success: true, 
-          user: result.user,
-          isNewUser: isNewUser,
-          message: isNewUser 
-            ? `Welcome! Account created with ${result.user.email}` 
-            : `Welcome back, ${result.user.displayName || 'User'}!`
-        };
-      } else {
-        // Mobile - Show message
-        return { 
-          success: false, 
-          error: 'Google Sign-In on mobile requires additional setup.\n\nPlease use Email/Password or Continue as Guest.',
-          showAlternatives: true
-        };
-      }
+      const { auth, googleProvider } = await import('../config/firebase');
+      const { signInWithPopup } = await import('firebase/auth');
+      
+      const result = await signInWithPopup(auth, googleProvider);
+      setCurrentUserId(result.user.uid);
+      
+      const isNewUser = result._tokenResponse?.isNewUser;
+      
+      return { 
+        success: true, 
+        user: result.user,
+        isNewUser: isNewUser,
+        message: isNewUser 
+          ? `Welcome! Account created with ${result.user.email}` 
+          : `Welcome back, ${result.user.displayName || 'User'}!`
+      };
     } catch (error) {
       console.error('Google Sign-In error:', error);
       
