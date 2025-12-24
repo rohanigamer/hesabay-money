@@ -70,11 +70,12 @@ export default function SignupScreen({ navigation }) {
       setStep(2); // Show verification sent screen
     } else {
       console.log('Showing error alert:', result.error);
-      Alert.alert(
-        '❌ Sign Up Failed', 
-        result.error || 'An error occurred. Please try again.',
-        [{ text: 'OK' }]
-      );
+      const errorMsg = result.error || 'An error occurred. Please try again.';
+      if (Platform.OS === 'web') {
+        window.alert('Sign Up Failed: ' + errorMsg);
+      } else {
+        Alert.alert('❌ Sign Up Failed', errorMsg, [{ text: 'OK' }]);
+      }
     }
   };
 

@@ -126,39 +126,56 @@ export default function SettingsScreen({ navigation }) {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     console.log('handleLogout called');
-    Alert.alert(
-      '🚪 Sign Out',
-      'Are you sure you want to sign out? Your data is synced to the cloud and will be available when you sign in again.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Sign Out', 
-          style: 'destructive',
-          onPress: async () => {
-            console.log('Sign out confirmed, calling logOut...');
-            try {
-              const result = await logOut();
-              console.log('Logout result:', result);
-              if (result.success) {
-                Alert.alert('✅ Signed Out', 'You have been signed out successfully.', [
-                  { text: 'OK', onPress: () => {
-                    console.log('Navigating to Login...');
-                    navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
-                  }}
-                ]);
-              } else {
-                Alert.alert('Error', result.error || 'Could not sign out');
-              }
-            } catch (error) {
-              console.error('Logout error:', error);
-              Alert.alert('Error', 'Could not sign out. Please try again.');
-            }
-          }
-        },
-      ]
-    );
+    
+    // Use window.confirm for web, Alert for native
+    const confirmLogout = Platform.OS === 'web' 
+      ? window.confirm('Are you sure you want to sign out?')
+      : await new Promise(resolve => {
+          Alert.alert(
+            '🚪 Sign Out',
+            'Are you sure you want to sign out?',
+            [
+              { text: 'Cancel', onPress: () => resolve(false), style: 'cancel' },
+              { text: 'Sign Out', onPress: () => resolve(true), style: 'destructive' },
+            ]
+          );
+        });
+
+    if (!confirmLogout) {
+      console.log('Logout cancelled');
+      return;
+    }
+
+    console.log('Sign out confirmed, calling logOut...');
+    try {
+      const result = await logOut();
+      console.log('Logout result:', result);
+      
+      if (result.success) {
+        if (Platform.OS === 'web') {
+          window.alert('Signed out successfully!');
+        } else {
+          Alert.alert('✅ Signed Out', 'You have been signed out successfully.');
+        }
+        console.log('Navigating to Login...');
+        navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+      } else {
+        if (Platform.OS === 'web') {
+          window.alert('Error: ' + (result.error || 'Could not sign out'));
+        } else {
+          Alert.alert('Error', result.error || 'Could not sign out');
+        }
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+      if (Platform.OS === 'web') {
+        window.alert('Error: Could not sign out. Please try again.');
+      } else {
+        Alert.alert('Error', 'Could not sign out. Please try again.');
+      }
+    }
   };
 
   const themeOptions = [

@@ -64,18 +64,28 @@ export default function LoginScreen({ navigation }) {
         [{ text: 'OK' }]
       );
     } else {
+      const errorMsg = result.error || 'Login failed. Please try again.';
       // Check if it's a credential error - offer to sign up
-      if (result.error && result.error.includes("don't have an account")) {
-        Alert.alert(
-          '❌ Login Failed',
-          result.error,
-          [
-            { text: 'Sign Up', onPress: () => navigation.navigate('Signup') },
-            { text: 'Try Again', style: 'cancel' }
-          ]
-        );
+      if (Platform.OS === 'web') {
+        const goToSignup = errorMsg.includes("don't have an account") 
+          ? window.confirm('Login Failed: ' + errorMsg + '\n\nWould you like to sign up instead?')
+          : (window.alert('Login Failed: ' + errorMsg), false);
+        if (goToSignup) {
+          navigation.navigate('Signup');
+        }
       } else {
-        Alert.alert('❌ Login Failed', result.error);
+        if (errorMsg.includes("don't have an account")) {
+          Alert.alert(
+            '❌ Login Failed',
+            errorMsg,
+            [
+              { text: 'Sign Up', onPress: () => navigation.navigate('Signup') },
+              { text: 'Try Again', style: 'cancel' }
+            ]
+          );
+        } else {
+          Alert.alert('❌ Login Failed', errorMsg);
+        }
       }
     }
   };
