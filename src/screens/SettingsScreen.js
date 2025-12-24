@@ -11,6 +11,7 @@ import {
   Platform,
   Animated,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as LocalAuthentication from 'expo-local-authentication';
@@ -331,6 +332,60 @@ export default function SettingsScreen({ navigation }) {
               title="Currency"
               subtitle={CURRENCIES.find(c => c.code === currency)?.name}
               onPress={() => setShowCurrencyModal(true)}
+              last
+              right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
+            />
+          </GlassCard>
+
+          {/* Help & Support */}
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Help & Support</Text>
+          <GlassCard style={styles.section}>
+            <Item
+              icon="logo-whatsapp"
+              title="WhatsApp Support"
+              subtitle="+93 790 285 355"
+              iconColor="#25D366"
+              onPress={() => {
+                const url = 'https://wa.me/93790285355';
+                Linking.openURL(url).catch(() => Alert.alert('Error', 'Could not open WhatsApp'));
+              }}
+              right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
+            />
+            <Item
+              icon="mail"
+              title="Email Support"
+              subtitle="rohanidgtl@gmail.com"
+              iconColor="#FF5722"
+              onPress={() => {
+                const url = 'mailto:rohanidgtl@gmail.com?subject=Hesabay Money Support';
+                Linking.openURL(url).catch(() => Alert.alert('Error', 'Could not open email'));
+              }}
+              right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
+            />
+            <Item
+              icon="star"
+              title="Rate App"
+              subtitle="Share your feedback"
+              iconColor="#FFB300"
+              onPress={() => {
+                Alert.alert(
+                  '⭐ Rate Hesabay Money',
+                  'Thank you for using Hesabay Money! Would you like to rate us on the Play Store?',
+                  [
+                    { text: 'Later', style: 'cancel' },
+                    { 
+                      text: 'Rate Now', 
+                      onPress: () => {
+                        // Replace with actual Play Store URL when published
+                        const url = Platform.OS === 'ios' 
+                          ? 'https://apps.apple.com' 
+                          : 'https://play.google.com/store';
+                        Linking.openURL(url).catch(() => {});
+                      }
+                    }
+                  ]
+                );
+              }}
               last
               right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
             />
