@@ -32,18 +32,22 @@ export const AuthProvider = ({ children }) => {
       // Try to initialize Firebase if not ready
       if (!isFirebaseReady()) {
         console.log('🔄 AuthContext: Firebase not ready, calling initializeFirebase...');
-        const initResult = initializeFirebase();
-        console.log('🔄 AuthContext: Init result:', initResult);
-        
-        if (!initResult) {
-          const error = getInitError();
-          console.error('❌ AuthContext: Firebase init failed with error:', error);
+        try {
+          const initResult = await initializeFirebase();
+          console.log('🔄 AuthContext: Init result:', initResult);
+          
+          if (!initResult) {
+            const error = getInitError();
+            console.error('❌ AuthContext: Firebase init failed with error:', error);
+          }
+        } catch (error) {
+          console.error('❌ AuthContext: Exception during Firebase init:', error);
         }
       }
 
       // Wait for Firebase to be ready (with polling)
       let attempts = 0;
-      const maxAttempts = 30; // 30 attempts * 100ms = 3 seconds max
+      const maxAttempts = 50; // 50 attempts * 100ms = 5 seconds max
       
       checkInterval = setInterval(() => {
         attempts++;

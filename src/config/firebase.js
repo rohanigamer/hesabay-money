@@ -2,14 +2,11 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getAuth, 
-  initializeAuth,
-  getReactNativePersistence,
   GoogleAuthProvider, 
   signInWithCredential 
 } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Firebase configuration
 const firebaseConfig = {
@@ -30,7 +27,7 @@ let googleProvider = null;
 let firebaseReady = false;
 let initError = null;
 
-const initializeFirebase = () => {
+const initializeFirebase = async () => {
   try {
     console.log('🔥 Starting Firebase initialization...');
     console.log('📱 Platform:', Platform.OS);
@@ -45,28 +42,22 @@ const initializeFirebase = () => {
       app = getApp();
     }
 
-    // Initialize Auth with platform-specific persistence
+    // Wait a moment for Firebase to register components on mobile
+    if (Platform.OS !== 'web') {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    // Initialize Auth - use getAuth for all platforms
+    // Firebase JS SDK v10+ handles persistence automatically
     if (!auth) {
       console.log('🔐 Initializing Firebase Auth...');
       
       try {
-        if (Platform.OS === 'web') {
-          // Web: use default getAuth (handles browser persistence automatically)
-          console.log('Using web auth (default persistence)');
-          auth = getAuth(app);
-        } else {
-          // Mobile: use initializeAuth with AsyncStorage persistence
-          console.log('Using mobile auth with AsyncStorage persistence');
-          auth = initializeAuth(app, {
-            persistence: getReactNativePersistence(AsyncStorage)
-          });
-        }
+        auth = getAuth(app);
         console.log('✅ Firebase Auth initialized successfully');
       } catch (authError) {
-        // If initializeAuth fails (already initialized), try getAuth
-        console.log('⚠️ initializeAuth failed, trying getAuth:', authError.message);
-        auth = getAuth(app);
-        console.log('✅ Firebase Auth recovered with getAuth');
+        console.error('⚠️ getAuth failed:', authError.message);
+        throw authError;
       }
     }
     
@@ -104,14 +95,16 @@ const initializeFirebase = () => {
 
 // Initialize immediately
 console.log('⏰ Starting immediate Firebase init...');
-try {
-  const result = initializeFirebase();
-  console.log('Immediate init result:', result);
-} catch (e) {
-  console.error('💥 Firebase startup error:', e);
-  console.error('Stack:', e.stack);
-  initError = e;
-}
+(async () => {
+  try {
+    const result = await initializeFirebase();
+    console.log('Immediate init result:', result);
+  } catch (e) {
+    console.error('💥 Firebase startup error:', e);
+    console.error('Stack:', e.stack);
+    initError = e;
+  }
+})();
 
 // Helper to check if Firebase is ready
 const isFirebaseReady = () => {
