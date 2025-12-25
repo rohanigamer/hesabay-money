@@ -7,6 +7,7 @@ import { ThemeProvider, ThemeContext } from './src/context/ThemeContext';
 import { LanguageProvider } from './src/context/LanguageContext';
 import { CurrencyProvider } from './src/context/CurrencyContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { AppLockProvider, useAppLock } from './src/context/AppLockContext';
 
 // Screens
 import LoginScreen from './src/screens/LoginScreen';
@@ -31,6 +32,7 @@ const forNoAnimation = () => ({
 function AppNavigator() {
   const { colors } = useContext(ThemeContext);
   const { loading, user } = useAuth();
+  const { isLocked, authMethod, unlock } = useAppLock();
   const navigationRef = useRef(null);
   const isFirstRender = useRef(true);
 
@@ -78,6 +80,15 @@ function AppNavigator() {
         <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading...</Text>
       </View>
     );
+  }
+
+  // Show authentication screen if app is locked
+  if (isLocked && user) {
+    if (authMethod === 'biometric') {
+      return <BiometricScreen onSuccess={unlock} />;
+    } else if (authMethod === 'passcode') {
+      return <PasscodeScreen onSuccess={unlock} />;
+    }
   }
 
   return (
@@ -144,9 +155,11 @@ function AppNavigator() {
 
 function AppContent() {
   return (
-    <AuthProvider>
-      <AppNavigator />
-    </AuthProvider>
+    <AppLockProvider>
+      <AuthProvider>
+        <AppNavigator />
+      </AuthProvider>
+    </AppLockProvider>
   );
 }
 

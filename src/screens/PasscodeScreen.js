@@ -3,9 +3,11 @@ import { View, Text, StyleSheet, TouchableOpacity, Animated, Vibration, Platform
 import { Ionicons } from '@expo/vector-icons';
 import { Storage } from '../utils/Storage';
 import { ThemeContext } from '../context/ThemeContext';
+import { useAppLock } from '../context/AppLockContext';
 
 export default function PasscodeScreen({ navigation, route, onSuccess }) {
   const { colors } = useContext(ThemeContext);
+  const { updateAuthMethod } = useAppLock();
   const isSettingUp = route?.params?.isSettingUp;
   const [passcode, setPasscode] = useState('');
   const [confirmPasscode, setConfirmPasscode] = useState('');
@@ -46,6 +48,7 @@ export default function PasscodeScreen({ navigation, route, onSuccess }) {
           if (newCode === confirmPasscode) {
             await Storage.setPasscode(newCode);
             await Storage.setAuthMethod('passcode');
+            updateAuthMethod('passcode');
             if (route?.params?.onPasscodeSet) route.params.onPasscodeSet();
             navigation.goBack();
           } else {

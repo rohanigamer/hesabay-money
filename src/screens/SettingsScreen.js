@@ -20,6 +20,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { ThemeContext } from '../context/ThemeContext';
 import { useCurrency } from '../context/CurrencyContext';
 import { useAuth } from '../context/AuthContext';
+import { useAppLock } from '../context/AppLockContext';
 import { CURRENCIES } from '../utils/Currency';
 import BottomNavigation from '../components/BottomNavigation';
 import GlassCard from '../components/GlassCard';
@@ -29,13 +30,24 @@ export default function SettingsScreen({ navigation }) {
   const { colors, theme, changeTheme } = useContext(ThemeContext);
   const { currency, changeCurrency } = useCurrency();
   const { user, logOut, syncData } = useAuth();
+  const { lockTimeout, updateLockTimeout, updateAuthMethod } = useAppLock();
   const [authMethod, setAuthMethod] = useState('none');
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [showCurrencyModal, setShowCurrencyModal] = useState(false);
+  const [showLockTimeoutModal, setShowLockTimeoutModal] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
   const headerAnim = useRef(new Animated.Value(0)).current;
   const sectionsAnim = useRef(new Animated.Value(0)).current;
+
+  const lockTimeoutOptions = [
+    { label: 'Immediately', value: 0 },
+    { label: 'After 1 minute', value: 60 },
+    { label: 'After 5 minutes', value: 300 },
+    { label: 'After 15 minutes', value: 900 },
+    { label: 'After 30 minutes', value: 1800 },
+    { label: 'After 1 hour', value: 3600 },
+  ];
 
   useFocusEffect(
     React.useCallback(() => {
@@ -67,6 +79,7 @@ export default function SettingsScreen({ navigation }) {
           onPress: async () => { 
             await Storage.deletePasscode(); 
             await Storage.setAuthMethod('none'); 
+            updateAuthMethod('none');
             loadSettings(); 
             Alert.alert('✅ Done', 'Passcode has been disabled.');
           } 
@@ -84,7 +97,8 @@ export default function SettingsScreen({ navigation }) {
         if (!hasHardware || !isEnrolled) return Alert.alert('⚠️ Not Available', 'Your device does not support biometric authentication or has no biometrics enrolled.');
         const result = await LocalAuthentication.authenticateAsync({ promptMessage: 'Enable biometric authentication' });
         if (result.success) { 
-          await Storage.setAuthMethod('passkey'); 
+          await Storage.setAuthMethod('biometric'); 
+          updateAuthMethod('biometric');
           loadSettings(); 
           Alert.alert('✅ Enabled', 'Biometric authentication has been enabled.');
         }
@@ -99,6 +113,7 @@ export default function SettingsScreen({ navigation }) {
           style: 'destructive', 
           onPress: async () => { 
             await Storage.setAuthMethod('none'); 
+            updateAuthMethod('none');
             loadSettings(); 
             Alert.alert('✅ Done', 'Biometric authentication has been disabled.');
           } 
@@ -335,16 +350,28 @@ export default function SettingsScreen({ navigation }) {
             <Item
               icon="finger-print"
               title="Biometric"
-              subtitle={authMethod === 'passkey' ? 'Enabled' : 'Disabled'}
-              last
+              subtitle={authMethod === 'biometric' ? 'Enabled' : 'Disabled'}
               right={
                 <Switch
-                  value={authMethod === 'passkey'}
+                  value={authMethod === 'biometric'}
                   onValueChange={handleBiometricToggle}
                   trackColor={{ false: colors.border, true: colors.accent }}
                 />
               }
             />
+            {(authMethod === 'passcode' || authMethod === 'biometric') && (
+              <Item
+                icon="time-outline"
+                title="Auto-Lock"
+                subtitle={lockTimeoutOptions.find(opt => opt.value === lockTimeout)?.label || 'Immediately'}
+                onPress={() => setShowLockTimeoutModal(true)}
+                last
+                right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
+              />
+            )}
+            {!(authMethod === 'passcode' || authMethod === 'biometric') && (
+              <View style={{ height: 0 }} />
+            )}
           </GlassCard>
 
           {/* Appearance */}
@@ -485,6 +512,38 @@ export default function SettingsScreen({ navigation }) {
                     <Text style={[styles.currencyCode, { color: colors.textSecondary }]}>{curr.code}</Text>
                   </View>
                   {currency === curr.code && <Ionicons name="checkmark" size={20} color={colors.accent} />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Lock Timeout Modal */}
+      <Modal visible={showLockTimeoutModal} animationType="slide" transparent onRequestClose={() => setShowLockTimeoutModal(false)}>
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowLockTimeoutModal(false)} />
+          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+            <View style={styles.modalHandle} />
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Auto-Lock Timeout</Text>
+            <ScrollView style={{ maxHeight: 400 }}>
+              {lockTimeoutOptions.map((option) => (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[styles.themeOpt, { backgroundColor: lockTimeout === option.value ? colors.accentLight : colors.backgroundSecondary }]}
+                  onPress={async () => { 
+                    await updateLockTimeout(option.value); 
+                    setShowLockTimeoutModal(false); 
+                    Alert.alert('✅ Auto-Lock Updated', `App will lock ${option.label.toLowerCase()}`);
+                  }}
+                >
+                  <Ionicons 
+                    name="time-outline" 
+                    size={22} 
+                    color={lockTimeout === option.value ? colors.accent : colors.textSecondary} 
+                  />
+                  <Text style={[styles.themeOptText, { color: colors.text, flex: 1, marginLeft: 12 }]}>{option.label}</Text>
+                  {lockTimeout === option.value && <Ionicons name="checkmark" size={20} color={colors.accent} />}
                 </TouchableOpacity>
               ))}
             </ScrollView>
