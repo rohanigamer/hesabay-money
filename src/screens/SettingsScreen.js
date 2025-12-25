@@ -193,6 +193,35 @@ export default function SettingsScreen({ navigation }) {
     }
   };
 
+  const handlePasswordReset = async () => {
+    if (!user || user.isGuest || !user.email) {
+      Alert.alert('Error', 'No email address found for password reset.');
+      return;
+    }
+
+    try {
+      // Import Firebase auth functions
+      if (Platform.OS === 'web') {
+        const { auth } = await import('../config/firebase');
+        const { sendPasswordResetEmail } = await import('firebase/auth');
+        await sendPasswordResetEmail(auth, user.email);
+        window.alert('Password reset email sent! Check your inbox.');
+      } else {
+        const { firebaseAuthREST } = await import('../services/FirebaseAuthREST');
+        await firebaseAuthREST.sendPasswordResetEmail(user.email);
+        Alert.alert('Success', 'Password reset email sent! Check your inbox.');
+      }
+    } catch (error) {
+      console.error('Password reset error:', error);
+      const errorMsg = error.message || 'Failed to send password reset email.';
+      if (Platform.OS === 'web') {
+        window.alert('Error: ' + errorMsg);
+      } else {
+        Alert.alert('Error', errorMsg);
+      }
+    }
+  };
+
   const handleLogout = async () => {
     console.log('handleLogout called');
     
@@ -288,6 +317,24 @@ export default function SettingsScreen({ navigation }) {
                   icon="person"
                   title={user.displayName || 'User'}
                   subtitle={user.email}
+                />
+                <Item
+                  icon="key"
+                  title="Change Password"
+                  subtitle="Update your password"
+                  onPress={() => {
+                    if (Platform.OS === 'web') {
+                      window.alert('A password reset link will be sent to ' + user.email);
+                    } else {
+                      Alert.alert(
+                        'Change Password',
+                        `A password reset link will be sent to ${user.email}`,
+                        [{ text: 'Cancel', style: 'cancel' }, { text: 'Send Link', onPress: handlePasswordReset }]
+                      );
+                    }
+                  }}
+                  iconColor="#FF9500"
+                  right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
                 />
                 <Item
                   icon="cloud-upload"
@@ -523,6 +570,17 @@ export default function SettingsScreen({ navigation }) {
             <Text style={[styles.appName, { color: colors.text }]}>Hesabay Money</Text>
             <Text style={[styles.version, { color: colors.textSecondary }]}>Version 1.0.0</Text>
           </GlassCard>
+
+          {/* Footer */}
+          <View style={styles.footer}>
+            <Text style={[styles.footerText, { color: colors.textTertiary }]}>
+              Powered by{' '}
+              <Text style={[styles.footerBrand, { color: colors.accent }]}>Rohani Digital</Text>
+            </Text>
+            <Text style={[styles.footerCopyright, { color: colors.textTertiary }]}>
+              © 2025 All rights reserved
+            </Text>
+          </View>
         </Animated.View>
       </ScrollView>
 
@@ -644,6 +702,10 @@ const styles = StyleSheet.create({
   logoText: { color: '#fff', fontSize: 26, fontWeight: '700' },
   appName: { fontSize: 18, fontWeight: '600', marginBottom: 4 },
   version: { fontSize: 13 },
+  footer: { marginTop: 32, marginBottom: 16, alignItems: 'center', gap: 4 },
+  footerText: { fontSize: 13, textAlign: 'center' },
+  footerBrand: { fontWeight: '600' },
+  footerCopyright: { fontSize: 11 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'flex-end' },
   modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: Platform.OS === 'ios' ? 40 : 20 },
   modalHandle: { width: 36, height: 4, backgroundColor: '#ccc', borderRadius: 2, alignSelf: 'center', marginBottom: 16 },

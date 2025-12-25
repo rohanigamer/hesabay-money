@@ -23,6 +23,7 @@ import { useCurrency } from '../context/CurrencyContext';
 import { Storage } from '../utils/Storage';
 import BottomNavigation from '../components/BottomNavigation';
 import GlassCard from '../components/GlassCard';
+import CalculatorInput from '../components/CalculatorInput';
 import { useFocusEffect } from '@react-navigation/native';
 
 export default function TransactionScreen({ navigation }) {
@@ -336,7 +337,9 @@ export default function TransactionScreen({ navigation }) {
           <GlassCard style={styles.balanceCard}>
             <View style={styles.balanceContent}>
               <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>Net Balance</Text>
-              <Text style={[styles.balanceAmount, { color: colors.text }]}>{format(stats.totalBalance)}</Text>
+              <Text style={[styles.balanceAmount, { 
+                color: stats.totalBalance < 0 ? colors.error : stats.totalBalance > 0 ? colors.success : colors.text 
+              }]}>{format(stats.totalBalance)}</Text>
               <View style={styles.balanceRow}>
                 <View style={styles.balanceItem}>
                   <Ionicons name="arrow-down" size={16} color={colors.success} />
@@ -475,14 +478,12 @@ export default function TransactionScreen({ navigation }) {
               {/* Amount */}
               <View style={styles.amountRow}>
                 <Text style={[styles.currency, { color: colors.textSecondary }]}>{getSymbol()}</Text>
-                <TextInput
+                <CalculatorInput
                   style={[styles.amountInput, { color: colors.text }]}
                   placeholder="0.00"
                   placeholderTextColor={colors.textTertiary}
                   value={formData.amount}
                   onChangeText={(t) => setFormData({ ...formData, amount: t.replace(/[^0-9.]/g, '') })}
-                  keyboardType="decimal-pad"
-                  returnKeyType="next"
                 />
               </View>
 
@@ -569,14 +570,12 @@ export default function TransactionScreen({ navigation }) {
                   {/* Amount */}
                   <View style={styles.amountRow}>
                     <Text style={[styles.currency, { color: colors.textSecondary }]}>{getSymbol()}</Text>
-                    <TextInput
+                    <CalculatorInput
                       style={[styles.amountInput, { color: colors.text }]}
                       placeholder="0.00"
                       placeholderTextColor={colors.textTertiary}
                       value={editData.amount}
                       onChangeText={(t) => setEditData({ ...editData, amount: t.replace(/[^0-9.]/g, '') })}
-                      keyboardType="decimal-pad"
-                      returnKeyType="next"
                     />
                   </View>
 
