@@ -10,6 +10,8 @@ import {
   Alert,
   Platform,
   Animated,
+  KeyboardAvoidingView,
+  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemeContext } from '../context/ThemeContext';
@@ -210,32 +212,44 @@ export default function CustomersScreen({ navigation }) {
 
       {/* Add Modal */}
       <Modal visible={showAddModal} animationType="slide" transparent onRequestClose={() => setShowAddModal(false)}>
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowAddModal(false)} />
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+          style={styles.modalOverlay}
+        >
+          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowAddModal(false); }} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
             <View style={styles.modalHandle} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>New Customer</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
-              placeholder="Name"
-              placeholderTextColor={colors.textTertiary}
-              value={formData.name}
-              onChangeText={(t) => setFormData({ ...formData, name: t })}
-              autoFocus
-            />
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
-              placeholder="Phone (optional)"
-              placeholderTextColor={colors.textTertiary}
-              value={formData.number}
-              onChangeText={(t) => setFormData({ ...formData, number: t })}
-              keyboardType="phone-pad"
-            />
-            <TouchableOpacity style={[styles.submitBtn, { backgroundColor: colors.accent }]} onPress={handleAdd}>
-              <Text style={styles.submitBtnText}>Add Customer</Text>
-            </TouchableOpacity>
+            <ScrollView 
+              style={{ width: '100%' }} 
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
+                placeholder="Name"
+                placeholderTextColor={colors.textTertiary}
+                value={formData.name}
+                onChangeText={(t) => setFormData({ ...formData, name: t })}
+                returnKeyType="next"
+              />
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
+                placeholder="Phone (optional)"
+                placeholderTextColor={colors.textTertiary}
+                value={formData.number}
+                onChangeText={(t) => setFormData({ ...formData, number: t })}
+                keyboardType="phone-pad"
+                returnKeyType="done"
+                onSubmitEditing={Keyboard.dismiss}
+              />
+              <TouchableOpacity style={[styles.submitBtn, { backgroundColor: colors.accent }]} onPress={handleAdd}>
+                <Text style={styles.submitBtnText}>Add Customer</Text>
+              </TouchableOpacity>
+              <View style={{ height: 50 }} />
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Menu Modal */}
@@ -257,83 +271,108 @@ export default function CustomersScreen({ navigation }) {
 
       {/* Edit Modal */}
       <Modal visible={showEditModal} animationType="slide" transparent onRequestClose={() => setShowEditModal(false)}>
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowEditModal(false)} />
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+          style={styles.modalOverlay}
+        >
+          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowEditModal(false); }} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
             <View style={styles.modalHandle} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>Edit Customer</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
-              placeholder="Name"
-              placeholderTextColor={colors.textTertiary}
-              value={formData.name}
-              onChangeText={(t) => setFormData({ ...formData, name: t })}
-            />
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
-              placeholder="Phone"
-              placeholderTextColor={colors.textTertiary}
-              value={formData.number}
-              onChangeText={(t) => setFormData({ ...formData, number: t })}
-              keyboardType="phone-pad"
-            />
-            <TouchableOpacity style={[styles.submitBtn, { backgroundColor: colors.accent }]} onPress={handleEdit}>
-              <Text style={styles.submitBtnText}>Save</Text>
-            </TouchableOpacity>
+            <ScrollView 
+              style={{ width: '100%' }} 
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
+                placeholder="Name"
+                placeholderTextColor={colors.textTertiary}
+                value={formData.name}
+                onChangeText={(t) => setFormData({ ...formData, name: t })}
+                returnKeyType="next"
+              />
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
+                placeholder="Phone"
+                placeholderTextColor={colors.textTertiary}
+                value={formData.number}
+                onChangeText={(t) => setFormData({ ...formData, name: t })}
+                keyboardType="phone-pad"
+                returnKeyType="done"
+                onSubmitEditing={Keyboard.dismiss}
+              />
+              <TouchableOpacity style={[styles.submitBtn, { backgroundColor: colors.accent }]} onPress={handleEdit}>
+                <Text style={styles.submitBtnText}>Save</Text>
+              </TouchableOpacity>
+              <View style={{ height: 50 }} />
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Delete Confirmation Modal */}
       <Modal visible={showDeleteConfirmModal} animationType="slide" transparent onRequestClose={() => setShowDeleteConfirmModal(false)}>
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { setShowDeleteConfirmModal(false); setDeleteConfirmText(''); }} />
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+          style={styles.modalOverlay}
+        >
+          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowDeleteConfirmModal(false); setDeleteConfirmText(''); }} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
             <View style={styles.modalHandle} />
             <Ionicons name="warning" size={48} color={colors.error} style={{ alignSelf: 'center', marginBottom: 16 }} />
             <Text style={[styles.modalTitle, { color: colors.error }]}>Delete Customer</Text>
-            {selectedCustomer && (
-              <>
-                <Text style={[styles.deleteWarning, { color: colors.textSecondary }]}>
-                  This will permanently delete "{selectedCustomer.name}" and all their entries. This action cannot be undone.
-                </Text>
-                <Text style={[styles.deleteInstruction, { color: colors.text }]}>
-                  Type the customer name to confirm:
-                </Text>
-                <Text style={[styles.customerNameDisplay, { color: colors.accent }]}>
-                  {selectedCustomer.name}
-                </Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text, borderWidth: 1, borderColor: colors.border }]}
-                  placeholder="Type customer name here"
-                  placeholderTextColor={colors.textTertiary}
-                  value={deleteConfirmText}
-                  onChangeText={setDeleteConfirmText}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                <View style={styles.deleteButtonRow}>
-                  <TouchableOpacity
-                    style={[styles.cancelDeleteBtn, { backgroundColor: colors.backgroundSecondary }]}
-                    onPress={() => { setShowDeleteConfirmModal(false); setDeleteConfirmText(''); }}
-                  >
-                    <Text style={[styles.cancelDeleteText, { color: colors.text }]}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.confirmDeleteBtn, { 
-                      backgroundColor: deleteConfirmText.trim().toLowerCase() === selectedCustomer.name.trim().toLowerCase() ? colors.error : colors.border,
-                      opacity: deleteConfirmText.trim().toLowerCase() === selectedCustomer.name.trim().toLowerCase() ? 1 : 0.5
-                    }]}
-                    onPress={confirmDelete}
-                    disabled={deleteConfirmText.trim().toLowerCase() !== selectedCustomer.name.trim().toLowerCase()}
-                  >
-                    <Text style={styles.submitBtnText}>DELETE PERMANENTLY</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
+            <ScrollView 
+              style={{ width: '100%' }} 
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {selectedCustomer && (
+                <>
+                  <Text style={[styles.deleteWarning, { color: colors.textSecondary }]}>
+                    This will permanently delete "{selectedCustomer.name}" and all their entries. This action cannot be undone.
+                  </Text>
+                  <Text style={[styles.deleteInstruction, { color: colors.text }]}>
+                    Type the customer name to confirm:
+                  </Text>
+                  <Text style={[styles.customerNameDisplay, { color: colors.accent }]}>
+                    {selectedCustomer.name}
+                  </Text>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text, borderWidth: 1, borderColor: colors.border }]}
+                    placeholder="Type customer name here"
+                    placeholderTextColor={colors.textTertiary}
+                    value={deleteConfirmText}
+                    onChangeText={setDeleteConfirmText}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    returnKeyType="done"
+                    onSubmitEditing={Keyboard.dismiss}
+                  />
+                  <View style={styles.deleteButtonRow}>
+                    <TouchableOpacity
+                      style={[styles.cancelDeleteBtn, { backgroundColor: colors.backgroundSecondary }]}
+                      onPress={() => { setShowDeleteConfirmModal(false); setDeleteConfirmText(''); }}
+                    >
+                      <Text style={[styles.cancelDeleteText, { color: colors.text }]}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.confirmDeleteBtn, { 
+                        backgroundColor: deleteConfirmText.trim().toLowerCase() === selectedCustomer.name.trim().toLowerCase() ? colors.error : colors.border,
+                        opacity: deleteConfirmText.trim().toLowerCase() === selectedCustomer.name.trim().toLowerCase() ? 1 : 0.5
+                      }]}
+                      onPress={confirmDelete}
+                      disabled={deleteConfirmText.trim().toLowerCase() !== selectedCustomer.name.trim().toLowerCase()}
+                    >
+                      <Text style={styles.submitBtnText}>DELETE PERMANENTLY</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <View style={{ height: 50 }} />
+                </>
+              )}
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <BottomNavigation navigation={navigation} />

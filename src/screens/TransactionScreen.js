@@ -11,6 +11,9 @@ import {
   Platform,
   Animated,
   Share,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system';
@@ -433,83 +436,100 @@ export default function TransactionScreen({ navigation }) {
 
       {/* Add Modal */}
       <Modal visible={showAddModal} animationType="slide" transparent onRequestClose={() => setShowAddModal(false)}>
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowAddModal(false)} />
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+          style={styles.modalOverlay}
+        >
+          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowAddModal(false); }} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
             <View style={styles.modalHandle} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>
               {selectedType === 'income' ? 'Cash In' : 'Cash Out'}
             </Text>
 
-            {/* Type Toggle */}
-            <View style={[styles.typeToggle, { backgroundColor: colors.backgroundSecondary }]}>
-              <TouchableOpacity
-                style={[styles.typeBtn, selectedType === 'income' && styles.typeBtnActive]}
-                onPress={() => setSelectedType('income')}
-              >
-                <Text style={[styles.typeBtnText, { color: selectedType === 'income' ? colors.success : colors.textSecondary }]}>
-                  + CASH IN
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.typeBtn, selectedType === 'expense' && styles.typeBtnActiveRed]}
-                onPress={() => setSelectedType('expense')}
-              >
-                <Text style={[styles.typeBtnText, { color: selectedType === 'expense' ? colors.error : colors.textSecondary }]}>
-                  - CASH OUT
-                </Text>
-              </TouchableOpacity>
-            </View>
+            <ScrollView 
+              style={{ width: '100%' }} 
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Type Toggle */}
+              <View style={[styles.typeToggle, { backgroundColor: colors.backgroundSecondary }]}>
+                <TouchableOpacity
+                  style={[styles.typeBtn, selectedType === 'income' && styles.typeBtnActive]}
+                  onPress={() => setSelectedType('income')}
+                >
+                  <Text style={[styles.typeBtnText, { color: selectedType === 'income' ? colors.success : colors.textSecondary }]}>
+                    + CASH IN
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.typeBtn, selectedType === 'expense' && styles.typeBtnActiveRed]}
+                  onPress={() => setSelectedType('expense')}
+                >
+                  <Text style={[styles.typeBtnText, { color: selectedType === 'expense' ? colors.error : colors.textSecondary }]}>
+                    - CASH OUT
+                  </Text>
+                </TouchableOpacity>
+              </View>
 
-            {/* Amount */}
-            <View style={styles.amountRow}>
-              <Text style={[styles.currency, { color: colors.textSecondary }]}>{getSymbol()}</Text>
+              {/* Amount */}
+              <View style={styles.amountRow}>
+                <Text style={[styles.currency, { color: colors.textSecondary }]}>{getSymbol()}</Text>
+                <TextInput
+                  style={[styles.amountInput, { color: colors.text }]}
+                  placeholder="0.00"
+                  placeholderTextColor={colors.textTertiary}
+                  value={formData.amount}
+                  onChangeText={(t) => setFormData({ ...formData, amount: t.replace(/[^0-9.]/g, '') })}
+                  keyboardType="decimal-pad"
+                  returnKeyType="next"
+                />
+              </View>
+
+              {/* Description */}
               <TextInput
-                style={[styles.amountInput, { color: colors.text }]}
-                placeholder="0.00"
+                style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
+                placeholder="Description"
                 placeholderTextColor={colors.textTertiary}
-                value={formData.amount}
-                onChangeText={(t) => setFormData({ ...formData, amount: t.replace(/[^0-9.]/g, '') })}
-                keyboardType="decimal-pad"
-                autoFocus
+                value={formData.description}
+                onChangeText={(t) => setFormData({ ...formData, description: t })}
+                returnKeyType="done"
+                onSubmitEditing={Keyboard.dismiss}
               />
-            </View>
 
-            {/* Description */}
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
-              placeholder="Description"
-              placeholderTextColor={colors.textTertiary}
-              value={formData.description}
-              onChangeText={(t) => setFormData({ ...formData, description: t })}
-            />
+              {/* Customer */}
+              <TouchableOpacity
+                style={[styles.input, styles.customerBtn, { backgroundColor: colors.backgroundSecondary }]}
+                onPress={() => { Keyboard.dismiss(); setShowCustomerPicker(true); }}
+              >
+                <Text style={{ color: formData.customerName ? colors.text : colors.textTertiary }}>
+                  {formData.customerName || 'Link to customer (optional)'}
+                </Text>
+                <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+              </TouchableOpacity>
 
-            {/* Customer */}
-            <TouchableOpacity
-              style={[styles.input, styles.customerBtn, { backgroundColor: colors.backgroundSecondary }]}
-              onPress={() => setShowCustomerPicker(true)}
-            >
-              <Text style={{ color: formData.customerName ? colors.text : colors.textTertiary }}>
-                {formData.customerName || 'Link to customer (optional)'}
-              </Text>
-              <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
-            </TouchableOpacity>
-
-            {/* Submit */}
-            <TouchableOpacity
-              style={[styles.submitBtn, { backgroundColor: selectedType === 'income' ? colors.success : colors.error }]}
-              onPress={handleAddTransaction}
-            >
-              <Text style={styles.submitBtnText}>Add {selectedType === 'income' ? 'Income' : 'Expense'}</Text>
-            </TouchableOpacity>
+              {/* Submit */}
+              <TouchableOpacity
+                style={[styles.submitBtn, { backgroundColor: selectedType === 'income' ? colors.success : colors.error }]}
+                onPress={handleAddTransaction}
+              >
+                <Text style={styles.submitBtnText}>Add {selectedType === 'income' ? 'Income' : 'Expense'}</Text>
+              </TouchableOpacity>
+              
+              {/* Extra space at bottom for keyboard */}
+              <View style={{ height: 50 }} />
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Edit Modal */}
       <Modal visible={showEditModal} animationType="slide" transparent onRequestClose={() => setShowEditModal(false)}>
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowEditModal(false)} />
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+          style={styles.modalOverlay}
+        >
+          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowEditModal(false); }} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
@@ -519,72 +539,84 @@ export default function TransactionScreen({ navigation }) {
               </TouchableOpacity>
             </View>
 
-            {editData && (
-              <>
-                {/* Type Toggle */}
-                <View style={[styles.typeToggle, { backgroundColor: colors.backgroundSecondary }]}>
-                  <TouchableOpacity
-                    style={[styles.typeBtn, (editData.type === 'income' || editData.type === 'credit') && styles.typeBtnActive]}
-                    onPress={() => setEditData({ ...editData, type: 'income' })}
-                  >
-                    <Text style={[styles.typeBtnText, { color: (editData.type === 'income' || editData.type === 'credit') ? colors.success : colors.textSecondary }]}>
-                      + CASH IN
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.typeBtn, (editData.type === 'expense' || editData.type === 'debit') && styles.typeBtnActiveRed]}
-                    onPress={() => setEditData({ ...editData, type: 'expense' })}
-                  >
-                    <Text style={[styles.typeBtnText, { color: (editData.type === 'expense' || editData.type === 'debit') ? colors.error : colors.textSecondary }]}>
-                      - CASH OUT
-                    </Text>
-                  </TouchableOpacity>
-                </View>
+            <ScrollView 
+              style={{ width: '100%' }} 
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {editData && (
+                <>
+                  {/* Type Toggle */}
+                  <View style={[styles.typeToggle, { backgroundColor: colors.backgroundSecondary }]}>
+                    <TouchableOpacity
+                      style={[styles.typeBtn, (editData.type === 'income' || editData.type === 'credit') && styles.typeBtnActive]}
+                      onPress={() => setEditData({ ...editData, type: 'income' })}
+                    >
+                      <Text style={[styles.typeBtnText, { color: (editData.type === 'income' || editData.type === 'credit') ? colors.success : colors.textSecondary }]}>
+                        + CASH IN
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.typeBtn, (editData.type === 'expense' || editData.type === 'debit') && styles.typeBtnActiveRed]}
+                      onPress={() => setEditData({ ...editData, type: 'expense' })}
+                    >
+                      <Text style={[styles.typeBtnText, { color: (editData.type === 'expense' || editData.type === 'debit') ? colors.error : colors.textSecondary }]}>
+                        - CASH OUT
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
 
-                {/* Amount */}
-                <View style={styles.amountRow}>
-                  <Text style={[styles.currency, { color: colors.textSecondary }]}>{getSymbol()}</Text>
+                  {/* Amount */}
+                  <View style={styles.amountRow}>
+                    <Text style={[styles.currency, { color: colors.textSecondary }]}>{getSymbol()}</Text>
+                    <TextInput
+                      style={[styles.amountInput, { color: colors.text }]}
+                      placeholder="0.00"
+                      placeholderTextColor={colors.textTertiary}
+                      value={editData.amount}
+                      onChangeText={(t) => setEditData({ ...editData, amount: t.replace(/[^0-9.]/g, '') })}
+                      keyboardType="decimal-pad"
+                      returnKeyType="next"
+                    />
+                  </View>
+
+                  {/* Description */}
                   <TextInput
-                    style={[styles.amountInput, { color: colors.text }]}
-                    placeholder="0.00"
+                    style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
+                    placeholder="Description"
                     placeholderTextColor={colors.textTertiary}
-                    value={editData.amount}
-                    onChangeText={(t) => setEditData({ ...editData, amount: t.replace(/[^0-9.]/g, '') })}
-                    keyboardType="decimal-pad"
+                    value={editData.description}
+                    onChangeText={(t) => setEditData({ ...editData, description: t })}
+                    returnKeyType="done"
+                    onSubmitEditing={Keyboard.dismiss}
                   />
-                </View>
 
-                {/* Description */}
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
-                  placeholder="Description"
-                  placeholderTextColor={colors.textTertiary}
-                  value={editData.description}
-                  onChangeText={(t) => setEditData({ ...editData, description: t })}
-                />
+                  {/* Customer */}
+                  <TouchableOpacity
+                    style={[styles.input, styles.customerBtn, { backgroundColor: colors.backgroundSecondary }]}
+                    onPress={() => { Keyboard.dismiss(); setShowCustomerPicker(true); }}
+                  >
+                    <Text style={{ color: editData.customerName ? colors.text : colors.textTertiary }}>
+                      {editData.customerName || 'Link to customer (optional)'}
+                    </Text>
+                    <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+                  </TouchableOpacity>
 
-                {/* Customer */}
-                <TouchableOpacity
-                  style={[styles.input, styles.customerBtn, { backgroundColor: colors.backgroundSecondary }]}
-                  onPress={() => { setShowCustomerPicker(true); }}
-                >
-                  <Text style={{ color: editData.customerName ? colors.text : colors.textTertiary }}>
-                    {editData.customerName || 'Link to customer (optional)'}
-                  </Text>
-                  <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
-                </TouchableOpacity>
-
-                {/* Submit */}
-                <TouchableOpacity
-                  style={[styles.submitBtn, { backgroundColor: colors.accent }]}
-                  onPress={handleEditTransaction}
-                >
-                  <Text style={styles.submitBtnText}>Save Changes</Text>
-                </TouchableOpacity>
-              </>
-            )}
+                  {/* Submit */}
+                  <TouchableOpacity
+                    style={[styles.submitBtn, { backgroundColor: colors.accent }]}
+                    onPress={handleEditTransaction}
+                  >
+                    <Text style={styles.submitBtnText}>Save Changes</Text>
+                  </TouchableOpacity>
+                  
+                  {/* Extra space at bottom for keyboard */}
+                  <View style={{ height: 50 }} />
+                </>
+              )}
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Delete Confirmation Modal */}
@@ -708,38 +740,52 @@ export default function TransactionScreen({ navigation }) {
 
       {/* Add Customer Modal */}
       <Modal visible={showAddCustomerModal} animationType="slide" transparent onRequestClose={() => setShowAddCustomerModal(false)}>
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowAddCustomerModal(false)} />
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+          style={styles.modalOverlay}
+        >
+          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowAddCustomerModal(false); }} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
             <View style={styles.modalHandle} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>Add Customer</Text>
 
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
-              placeholder="Customer Name *"
-              placeholderTextColor={colors.textTertiary}
-              value={newCustomerData.name}
-              onChangeText={(t) => setNewCustomerData({ ...newCustomerData, name: t })}
-              autoFocus
-            />
-
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
-              placeholder="Phone Number (optional)"
-              placeholderTextColor={colors.textTertiary}
-              value={newCustomerData.number}
-              onChangeText={(t) => setNewCustomerData({ ...newCustomerData, number: t })}
-              keyboardType="phone-pad"
-            />
-
-            <TouchableOpacity
-              style={[styles.submitBtn, { backgroundColor: colors.accent }]}
-              onPress={handleAddCustomer}
+            <ScrollView 
+              style={{ width: '100%' }} 
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
             >
-              <Text style={styles.submitBtnText}>Add Customer</Text>
-            </TouchableOpacity>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
+                placeholder="Customer Name *"
+                placeholderTextColor={colors.textTertiary}
+                value={newCustomerData.name}
+                onChangeText={(t) => setNewCustomerData({ ...newCustomerData, name: t })}
+                returnKeyType="next"
+              />
+
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
+                placeholder="Phone Number (optional)"
+                placeholderTextColor={colors.textTertiary}
+                value={newCustomerData.number}
+                onChangeText={(t) => setNewCustomerData({ ...newCustomerData, number: t })}
+                keyboardType="phone-pad"
+                returnKeyType="done"
+                onSubmitEditing={Keyboard.dismiss}
+              />
+
+              <TouchableOpacity
+                style={[styles.submitBtn, { backgroundColor: colors.accent }]}
+                onPress={handleAddCustomer}
+              >
+                <Text style={styles.submitBtnText}>Add Customer</Text>
+              </TouchableOpacity>
+              
+              {/* Extra space at bottom for keyboard */}
+              <View style={{ height: 50 }} />
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Export Modal */}
