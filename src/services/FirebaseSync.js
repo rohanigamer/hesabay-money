@@ -49,6 +49,13 @@ class FirebaseSyncService {
     if (!isWeb) {
       const AsyncStorage = require('@react-native-async-storage/async-storage').default;
       try {
+        // Try to get token from firebaseIdToken (saved by REST API)
+        const token = await AsyncStorage.getItem('firebaseIdToken');
+        if (token) {
+          return { userId, token };
+        }
+        
+        // Fallback: try old format
         const savedUser = await AsyncStorage.getItem('@firebase_auth_user');
         if (savedUser) {
           const user = JSON.parse(savedUser);
@@ -347,6 +354,70 @@ class FirebaseSyncService {
       } catch (e) {
         console.log('Error saving transactions:', e);
       }
+    }
+  }
+
+  // Force refresh from Firebase - OVERWRITES local data
+  async forceRefreshFromFirebase() {
+    console.log('🔄 Force refreshing data from Firebase...');
+    
+    const netState = await NetInfo.fetch();
+    if (!netState.isConnected) {
+      return { success: false, error: 'No internet connection' };
+    }
+    
+    const userAuth = await this.getUserAuth();
+    if (!userAuth) {
+      return { success: false, error: 'Not logged in' };
+    }
+
+    try {
+      const firebaseData = await this.loadFromFirebase();
+      
+      if (!firebaseData) {
+        return { success: false, error: 'No data found in Firebase' };
+      }
+
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      const SecureStore = require('expo-secure-store');
+      const userId = getCurrentUserId();
+      
+      // OVERWRITE customers
+      const customersKey = `${userId}_customers`;
+      try {
+        if (Platform.OS === 'web') {
+          await AsyncStorage.setItem(customersKey, JSON.stringify(firebaseData.customers));
+        } else {
+          await SecureStore.setItemAsync(customersKey, JSON.stringify(firebaseData.customers));
+        }
+        console.log(`✅ Refreshed ${firebaseData.customers.length} customers from Firebase`);
+      } catch (e) {
+        console.error('Error saving customers:', e);
+        return { success: false, error: 'Failed to save customers locally' };
+      }
+      
+      // OVERWRITE transactions
+      const transactionsKey = `${userId}_transactions`;
+      try {
+        if (Platform.OS === 'web') {
+          await AsyncStorage.setItem(transactionsKey, JSON.stringify(firebaseData.transactions));
+        } else {
+          await SecureStore.setItemAsync(transactionsKey, JSON.stringify(firebaseData.transactions));
+        }
+        console.log(`✅ Refreshed ${firebaseData.transactions.length} transactions from Firebase`);
+      } catch (e) {
+        console.error('Error saving transactions:', e);
+        return { success: false, error: 'Failed to save transactions locally' };
+      }
+      
+      return { 
+        success: true, 
+        customersCount: firebaseData.customers.length,
+        transactionsCount: firebaseData.transactions.length
+      };
+    } catch (error) {
+      console.error('❌ Force refresh error:', error);
+      return { success: false, error: error.message };
     }
   }
 

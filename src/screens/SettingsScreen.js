@@ -141,6 +141,58 @@ export default function SettingsScreen({ navigation }) {
     }
   };
 
+  const handleRefreshFromFirebase = async () => {
+    if (!user || user.isGuest) {
+      Alert.alert('⚠️ Guest Mode', 'Data refresh is not available in guest mode. Please sign in to access cloud data.');
+      return;
+    }
+
+    // Confirm action
+    const confirmAction = Platform.OS === 'web' 
+      ? window.confirm('This will replace your local data with data from Firebase. Continue?')
+      : await new Promise(resolve => {
+          Alert.alert(
+            '🔄 Refresh from Firebase',
+            'This will replace your local data with the latest data from the cloud. Continue?',
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Refresh', style: 'default', onPress: () => resolve(true) }
+            ]
+          );
+        });
+
+    if (!confirmAction) return;
+
+    setSyncing(true);
+    const result = await firebaseSync.forceRefreshFromFirebase();
+    setSyncing(false);
+
+    if (result.success) {
+      const message = Platform.OS === 'web'
+        ? `Refreshed ${result.customersCount} customers and ${result.transactionsCount} transactions from Firebase.\n\nPlease refresh the page to see updated data.`
+        : `Refreshed ${result.customersCount} customers and ${result.transactionsCount} transactions from Firebase.`;
+      
+      if (Platform.OS === 'web') {
+        window.alert('✅ ' + message);
+        window.location.reload();
+      } else {
+        Alert.alert('✅ Refresh Complete', message, [
+          { text: 'OK', onPress: () => {
+            // Navigate to Transaction screen to refresh the view
+            navigation.navigate('Transaction');
+          }}
+        ]);
+      }
+    } else {
+      const errorMsg = result.error || 'Could not refresh data. Please try again.';
+      if (Platform.OS === 'web') {
+        window.alert('❌ Refresh Failed: ' + errorMsg);
+      } else {
+        Alert.alert('❌ Refresh Failed', errorMsg);
+      }
+    }
+  };
+
   const handleLogout = async () => {
     console.log('handleLogout called');
     
@@ -243,6 +295,20 @@ export default function SettingsScreen({ navigation }) {
                   subtitle="Backup your data to cloud"
                   onPress={handleManualSync}
                   iconColor="#34C759"
+                  right={
+                    syncing ? (
+                      <ActivityIndicator size="small" color={colors.accent} />
+                    ) : (
+                      <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+                    )
+                  }
+                />
+                <Item
+                  icon="cloud-download"
+                  title="Refresh from Firebase"
+                  subtitle="Get latest data from cloud"
+                  onPress={handleRefreshFromFirebase}
+                  iconColor="#007AFF"
                   right={
                     syncing ? (
                       <ActivityIndicator size="small" color={colors.accent} />
