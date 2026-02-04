@@ -2,8 +2,8 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
 // Password strength calculator
-const calculateStrength = (password) => {
-  if (!password) return { level: 0, label: '', color: '#ccc' };
+const calculateStrength = (password, colors) => {
+  if (!password) return { level: 0, label: '', color: colors?.border || '#ccc' };
   
   let score = 0;
   
@@ -20,18 +20,18 @@ const calculateStrength = (password) => {
   
   // Determine strength level
   if (score <= 2) {
-    return { level: 1, label: 'Weak', color: '#FF3B30' };
+    return { level: 1, label: 'Weak', color: colors?.error || '#FF3B30' };
   } else if (score <= 4) {
-    return { level: 2, label: 'Fair', color: '#FF9500' };
+    return { level: 2, label: 'Fair', color: colors?.warning || '#FF9500' };
   } else if (score <= 5) {
-    return { level: 3, label: 'Good', color: '#34C759' };
+    return { level: 3, label: 'Good', color: colors?.success || '#34C759' };
   } else {
-    return { level: 4, label: 'Strong', color: '#007AFF' };
+    return { level: 4, label: 'Strong', color: colors?.accent || '#007AFF' };
   }
 };
 
 export default function PasswordStrength({ password, colors }) {
-  const strength = calculateStrength(password);
+  const strength = calculateStrength(password, colors);
   
   if (!password || password.length === 0) {
     return null;

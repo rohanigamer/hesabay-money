@@ -339,9 +339,9 @@ export default function LoginScreen({ navigation }) {
                 disabled={loading}
               >
                 {loading ? (
-                  <ActivityIndicator color="#fff" size="small" />
+                  <ActivityIndicator color={colors.onAccent} size="small" />
                 ) : (
-                  <Text style={[styles.modalBtnText, { color: '#fff' }]}>Send Link</Text>
+                  <Text style={[styles.modalBtnText, { color: colors.onAccent }]}>Send Link</Text>
                 )}
               </TouchableOpacity>
             </View>

@@ -87,13 +87,13 @@ export default function CalculatorInput({ value, onChangeText, placeholder, styl
     
     if (type === 'operation') {
       bgColor = colors.accent;
-      textColor = '#fff';
+      textColor = colors.onAccent;
     } else if (type === 'equals') {
       bgColor = colors.success;
-      textColor = '#fff';
+      textColor = colors.onSuccess;
     } else if (type === 'clear') {
       bgColor = colors.error;
-      textColor = '#fff';
+      textColor = colors.onError;
     }
 
     return (
@@ -125,7 +125,7 @@ export default function CalculatorInput({ value, onChangeText, placeholder, styl
             setShowCalc(true);
           }}
         >
-          <Ionicons name="calculator" size={18} color="#fff" />
+          <Ionicons name="calculator" size={18} color={colors.onAccent} />
         </TouchableOpacity>
       </View>
 
@@ -178,7 +178,7 @@ export default function CalculatorInput({ value, onChangeText, placeholder, styl
               style={[styles.calcDoneBtn, { backgroundColor: colors.accent }]}
               onPress={handleDone}
             >
-              <Text style={styles.calcDoneText}>Done</Text>
+              <Text style={[styles.calcDoneText, { color: colors.onAccent }]}>Done</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -261,9 +261,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   calcDoneText: {
-    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
   },
 });
+
 

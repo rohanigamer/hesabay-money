@@ -25,10 +25,13 @@ import BottomNavigation from '../components/BottomNavigation';
 import GlassCard from '../components/GlassCard';
 import CalculatorInput from '../components/CalculatorInput';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BOTTOM_NAV_HEIGHT } from '../constants/layout';
 
 export default function TransactionScreen({ navigation }) {
   const { colors } = useContext(ThemeContext);
   const { getSymbol, format } = useCurrency();
+  const insets = useSafeAreaInsets();
   
   const [transactions, setTransactions] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -288,7 +291,14 @@ export default function TransactionScreen({ navigation }) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} bounces={true}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: insets.bottom + BOTTOM_NAV_HEIGHT + 24 },
+        ]}
+        showsVerticalScrollIndicator={false}
+        bounces={true}
+      >
         {/* Header */}
         <Animated.View
           style={[
@@ -304,7 +314,7 @@ export default function TransactionScreen({ navigation }) {
             style={[styles.exportBtn, { backgroundColor: colors.accent }]} 
             onPress={() => setShowExportModal(true)}
           >
-            <Ionicons name="download-outline" size={18} color="#fff" />
+            <Ionicons name="download-outline" size={18} color={colors.onAccent} />
           </TouchableOpacity>
         </Animated.View>
 
@@ -421,18 +431,18 @@ export default function TransactionScreen({ navigation }) {
       <View style={[styles.bottomActionsWrapper, { backgroundColor: colors.background, borderTopColor: colors.border }]}>
         <View style={styles.bottomActions}>
           <TouchableOpacity
-            style={styles.cashInBtn}
+            style={[styles.cashInBtn, { backgroundColor: colors.success }]}
             onPress={() => { setSelectedType('income'); setFormData({ amount: '', description: '', customerId: null, customerName: '' }); setShowAddModal(true); }}
           >
-            <Ionicons name="add" size={20} color="#fff" />
-            <Text style={styles.cashBtnText}>CASH IN</Text>
+            <Ionicons name="add" size={20} color={colors.onSuccess} />
+            <Text style={[styles.cashBtnText, { color: colors.onSuccess }]}>CASH IN</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.cashOutBtn}
+            style={[styles.cashOutBtn, { backgroundColor: colors.error }]}
             onPress={() => { setSelectedType('expense'); setFormData({ amount: '', description: '', customerId: null, customerName: '' }); setShowAddModal(true); }}
           >
-            <Ionicons name="remove" size={20} color="#fff" />
-            <Text style={styles.cashBtnText}>CASH OUT</Text>
+            <Ionicons name="remove" size={20} color={colors.onError} />
+            <Text style={[styles.cashBtnText, { color: colors.onError }]}>CASH OUT</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -840,7 +850,7 @@ export default function TransactionScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContent: { padding: 16, paddingTop: Platform.OS === 'ios' ? 60 : 50, paddingBottom: 180 },
+  scrollContent: { padding: 16, paddingTop: Platform.OS === 'ios' ? 60 : 50 },
   header: { marginBottom: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { fontSize: 34, fontWeight: '700', letterSpacing: -0.5 },
   exportBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
@@ -884,9 +894,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, 
     gap: 12,
   },
-  cashInBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#4CAF50', paddingVertical: 14, borderRadius: 8, gap: 6 },
-  cashOutBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#c62828', paddingVertical: 14, borderRadius: 8, gap: 6 },
-  cashBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  cashInBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 8, gap: 6 },
+  cashOutBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 8, gap: 6 },
+  cashBtnText: { fontSize: 14, fontWeight: '700' },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: Platform.OS === 'ios' ? 40 : 20 },

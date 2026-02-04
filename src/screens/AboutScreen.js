@@ -9,12 +9,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemeContext } from '../context/ThemeContext';
 import BottomNavigation from '../components/BottomNavigation';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BOTTOM_NAV_HEIGHT } from '../constants/layout';
 
 export default function AboutScreen({ navigation }) {
   const { colors } = useContext(ThemeContext);
-  const gradientColors = colors.background === '#ffffff' 
-    ? [colors.gradientStart, colors.gradientEnd]
-    : [colors.gradientStart, colors.gradientEnd];
+  const insets = useSafeAreaInsets();
+  const gradientColors = [colors.gradientStart, colors.gradientEnd];
 
   return (
     <View style={styles.container}>
@@ -23,7 +24,10 @@ export default function AboutScreen({ navigation }) {
         style={styles.gradient}
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: insets.bottom + BOTTOM_NAV_HEIGHT + 24 },
+          ]}
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
@@ -89,7 +93,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
-    paddingBottom: 100,
   },
   header: {
     marginBottom: 30,

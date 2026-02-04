@@ -2,8 +2,10 @@ import React, { useEffect, useRef, useContext } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemeContext } from '../context/ThemeContext';
 import i18n from '../utils/i18n';
+import { BOTTOM_NAV_HEIGHT } from '../constants/layout';
 
 const navigationItems = [
   { id: 'Transaction', label: i18n.t('transaction'), icon: 'repeat', iconOutline: 'repeat-outline' },
@@ -14,6 +16,7 @@ const navigationItems = [
 
 export default function BottomNavigation({ navigation }) {
   const { colors } = useContext(ThemeContext);
+  const insets = useSafeAreaInsets();
   const route = useRoute();
   const currentRoute = route.name;
 
@@ -107,7 +110,17 @@ export default function BottomNavigation({ navigation }) {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, borderTopColor: colors.border }]}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: colors.background,
+          borderTopColor: colors.border,
+          height: BOTTOM_NAV_HEIGHT + insets.bottom,
+          paddingBottom: Math.max(insets.bottom, Platform.OS === 'ios' ? 12 : 10),
+        },
+      ]}
+    >
       <NavContent />
     </View>
   );
@@ -124,7 +137,6 @@ const styles = StyleSheet.create({
   navContent: {
     flexDirection: 'row',
     paddingTop: 8,
-    paddingBottom: Platform.OS === 'ios' ? 28 : 12,
   },
   navItem: {
     flex: 1,
@@ -147,8 +159,6 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 10,
     fontWeight: '500',
-    includeFontPadding: false,
-    textAlignVertical: 'center',
     letterSpacing: 0.1,
   },
 });

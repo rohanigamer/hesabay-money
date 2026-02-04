@@ -25,9 +25,12 @@ import { CURRENCIES } from '../utils/Currency';
 import BottomNavigation from '../components/BottomNavigation';
 import GlassCard from '../components/GlassCard';
 import { firebaseSync } from '../services/FirebaseSync';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BOTTOM_NAV_HEIGHT } from '../constants/layout';
 
 export default function SettingsScreen({ navigation }) {
   const { colors, theme, changeTheme } = useContext(ThemeContext);
+  const insets = useSafeAreaInsets();
   const { currency, changeCurrency } = useCurrency();
   const { user, logOut, syncData } = useAuth();
   const { lockTimeout, updateLockTimeout, updateAuthMethod } = useAppLock();
@@ -288,7 +291,7 @@ export default function SettingsScreen({ navigation }) {
       activeOpacity={onPress ? 0.6 : 1}
     >
       <View style={[styles.iconBox, { backgroundColor: iconColor || colors.accent }]}>
-        <Ionicons name={icon} size={18} color="#fff" />
+        <Ionicons name={icon} size={18} color={colors.onAccent} />
       </View>
       <View style={styles.itemInfo}>
         <Text style={[styles.itemTitle, { color: colors.text }]}>{title}</Text>
@@ -302,7 +305,13 @@ export default function SettingsScreen({ navigation }) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: insets.bottom + BOTTOM_NAV_HEIGHT + 24 },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         <Animated.View style={[styles.header, { opacity: headerAnim }]}>
           <Text style={[styles.title, { color: colors.text }]}>Settings</Text>
         </Animated.View>
@@ -333,7 +342,7 @@ export default function SettingsScreen({ navigation }) {
                       );
                     }
                   }}
-                  iconColor="#FF9500"
+                  iconColor={colors.warning}
                   right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
                 />
                 <Item
@@ -341,7 +350,7 @@ export default function SettingsScreen({ navigation }) {
                   title="Sync Data"
                   subtitle="Backup your data to cloud"
                   onPress={handleManualSync}
-                  iconColor="#34C759"
+                  iconColor={colors.success}
                   right={
                     syncing ? (
                       <ActivityIndicator size="small" color={colors.accent} />
@@ -355,7 +364,7 @@ export default function SettingsScreen({ navigation }) {
                   title="Refresh from Firebase"
                   subtitle="Get latest data from cloud"
                   onPress={handleRefreshFromFirebase}
-                  iconColor="#007AFF"
+                  iconColor={colors.accent}
                   right={
                     syncing ? (
                       <ActivityIndicator size="small" color={colors.accent} />
@@ -370,7 +379,7 @@ export default function SettingsScreen({ navigation }) {
                   subtitle="Log out from your account"
                   onPress={handleLogout}
                   last
-                  iconColor="#FF3B30"
+                  iconColor={colors.error}
                   right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
                 />
               </>
@@ -514,7 +523,7 @@ export default function SettingsScreen({ navigation }) {
               icon="logo-whatsapp"
               title="WhatsApp Support"
               subtitle="+93 790 285 355"
-              iconColor="#25D366"
+              iconColor={colors.success}
               onPress={() => {
                 const url = 'https://wa.me/93790285355';
                 Linking.openURL(url).catch(() => Alert.alert('Error', 'Could not open WhatsApp'));
@@ -525,7 +534,7 @@ export default function SettingsScreen({ navigation }) {
               icon="mail"
               title="Email Support"
               subtitle="rohanidgtl@gmail.com"
-              iconColor="#FF5722"
+              iconColor={colors.warning}
               onPress={() => {
                 const url = 'mailto:rohanidgtl@gmail.com?subject=Hesabay Money Support';
                 Linking.openURL(url).catch(() => Alert.alert('Error', 'Could not open email'));
@@ -536,7 +545,7 @@ export default function SettingsScreen({ navigation }) {
               icon="star"
               title="Rate App"
               subtitle="Share your feedback"
-              iconColor="#FFB300"
+              iconColor={colors.warning}
               onPress={() => {
                 Alert.alert(
                   '⭐ Rate Hesabay Money',
@@ -565,7 +574,7 @@ export default function SettingsScreen({ navigation }) {
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>About</Text>
           <GlassCard style={styles.aboutCard}>
             <View style={[styles.logo, { backgroundColor: colors.accent }]}>
-              <Text style={styles.logoText}>H</Text>
+              <Text style={[styles.logoText, { color: colors.onAccent }]}>H</Text>
             </View>
             <Text style={[styles.appName, { color: colors.text }]}>Hesabay Money</Text>
             <Text style={[styles.version, { color: colors.textSecondary }]}>Version 1.0.0</Text>
@@ -682,7 +691,7 @@ export default function SettingsScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContent: { padding: 16, paddingTop: Platform.OS === 'ios' ? 60 : 50, paddingBottom: 120 },
+  scrollContent: { padding: 16, paddingTop: Platform.OS === 'ios' ? 60 : 50 },
   header: { marginBottom: 24 },
   title: { fontSize: 34, fontWeight: '700', letterSpacing: -0.5 },
   sectionTitle: { fontSize: 13, fontWeight: '500', marginBottom: 8, marginLeft: 4, textTransform: 'uppercase' },

@@ -85,7 +85,7 @@ export default function PasscodeScreen({ navigation, route, onSuccess }) {
 
   const Key = ({ num, onPress }) => (
     <TouchableOpacity
-      style={[styles.key, { backgroundColor: colors.glass, borderColor: colors.border }]}
+      style={[styles.key, { backgroundColor: colors.surface, borderColor: colors.border }]}
       onPress={onPress}
       activeOpacity={0.6}
     >
@@ -98,7 +98,7 @@ export default function PasscodeScreen({ navigation, route, onSuccess }) {
       <View style={styles.content}>
         {/* Logo */}
         <View style={[styles.logo, { backgroundColor: colors.accent }]}>
-          <Text style={styles.logoText}>H</Text>
+          <Text style={[styles.logoText, { color: colors.onAccent }]}>H</Text>
         </View>
 
         {/* Title */}
@@ -149,7 +149,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40 },
   logo: { width: 64, height: 64, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
-  logoText: { color: '#fff', fontSize: 30, fontWeight: '700' },
+  logoText: { fontSize: 30, fontWeight: '700' },
   title: { fontSize: 22, fontWeight: '600', marginBottom: 32 },
   dots: { flexDirection: 'row', gap: 16, marginBottom: 16 },
   dot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1.5 },

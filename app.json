@@ -41,7 +41,8 @@
       }
     },
     "plugins": [
-      "expo-localization"
+      "expo-localization",
+      "expo-font"
     ],
     "scheme": "hesabaymoney",
     "description": "Manage your finances, customers, and transactions with ease. Track income, expenses, and customer balances offline and online.",

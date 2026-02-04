@@ -30,7 +30,7 @@ const forNoAnimation = () => ({
 });
 
 function AppNavigator() {
-  const { colors } = useContext(ThemeContext);
+  const { colors, isDark } = useContext(ThemeContext);
   const { loading, user } = useAuth();
   const { isLocked, authMethod, unlock } = useAppLock();
   const navigationRef = useRef(null);
@@ -73,7 +73,7 @@ function AppNavigator() {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
         <View style={[styles.logoBox, { backgroundColor: colors.accent }]}>
-          <Text style={styles.logoText}>H</Text>
+          <Text style={[styles.logoText, { color: colors.onAccent }]}>H</Text>
         </View>
         <Text style={[styles.appTitle, { color: colors.text }]}>Hesabay Money</Text>
         <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 24 }} />
@@ -95,7 +95,7 @@ function AppNavigator() {
     <NavigationContainer
       ref={navigationRef}
       theme={{
-        dark: colors.background === '#000000',
+        dark: isDark,
         colors: {
           background: colors.backgroundSecondary,
           primary: colors.accent,
@@ -106,7 +106,7 @@ function AppNavigator() {
         },
       }}
     >
-      <StatusBar style={colors.background === '#ffffff' ? 'dark' : 'light'} />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       <Stack.Navigator
         initialRouteName={user ? "Transaction" : "Login"}
         screenOptions={{
@@ -190,7 +190,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   logoText: {
-    color: '#fff',
     fontSize: 40,
     fontWeight: '700',
   },

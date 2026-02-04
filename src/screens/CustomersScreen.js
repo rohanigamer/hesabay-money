@@ -20,10 +20,13 @@ import { Storage } from '../utils/Storage';
 import BottomNavigation from '../components/BottomNavigation';
 import GlassCard from '../components/GlassCard';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BOTTOM_NAV_HEIGHT } from '../constants/layout';
 
 export default function CustomersScreen({ navigation }) {
   const { colors } = useContext(ThemeContext);
   const { formatWithSign } = useCurrency();
+  const insets = useSafeAreaInsets();
   const [customers, setCustomers] = useState([]);
   const [filteredCustomers, setFilteredCustomers] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -129,7 +132,13 @@ export default function CustomersScreen({ navigation }) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: insets.bottom + BOTTOM_NAV_HEIGHT + 24 },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Header */}
         <Animated.View
           style={[
@@ -142,13 +151,13 @@ export default function CustomersScreen({ navigation }) {
         >
           <Text style={[styles.title, { color: colors.text }]}>Customers</Text>
           <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.accent }]} onPress={() => setShowAddModal(true)}>
-            <Ionicons name="add" size={20} color="#fff" />
+            <Ionicons name="add" size={20} color={colors.onAccent} />
           </TouchableOpacity>
         </Animated.View>
 
         {/* Search */}
         <Animated.View style={{ opacity: headerAnim }}>
-          <View style={[styles.searchBar, { backgroundColor: colors.glass, borderColor: colors.border }]}>
+          <View style={[styles.searchBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Ionicons name="search" size={18} color={colors.textTertiary} />
             <TextInput
               style={[styles.searchInput, { color: colors.text }]}
@@ -189,7 +198,7 @@ export default function CustomersScreen({ navigation }) {
                   activeOpacity={0.6}
                 >
                   <View style={[styles.avatar, { backgroundColor: colors.accent }]}>
-                    <Text style={styles.avatarText}>{customer.name.charAt(0).toUpperCase()}</Text>
+                    <Text style={[styles.avatarText, { color: colors.onAccent }]}>{customer.name.charAt(0).toUpperCase()}</Text>
                   </View>
                   <View style={styles.customerInfo}>
                     <Text style={[styles.customerName, { color: colors.text }]}>{customer.name}</Text>
@@ -244,7 +253,7 @@ export default function CustomersScreen({ navigation }) {
                 onSubmitEditing={Keyboard.dismiss}
               />
               <TouchableOpacity style={[styles.submitBtn, { backgroundColor: colors.accent }]} onPress={handleAdd}>
-                <Text style={styles.submitBtnText}>Add Customer</Text>
+                <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>Add Customer</Text>
               </TouchableOpacity>
               <View style={{ height: 50 }} />
             </ScrollView>
@@ -297,13 +306,13 @@ export default function CustomersScreen({ navigation }) {
                 placeholder="Phone"
                 placeholderTextColor={colors.textTertiary}
                 value={formData.number}
-                onChangeText={(t) => setFormData({ ...formData, name: t })}
+                onChangeText={(t) => setFormData({ ...formData, number: t })}
                 keyboardType="phone-pad"
                 returnKeyType="done"
                 onSubmitEditing={Keyboard.dismiss}
               />
               <TouchableOpacity style={[styles.submitBtn, { backgroundColor: colors.accent }]} onPress={handleEdit}>
-                <Text style={styles.submitBtnText}>Save</Text>
+                <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>Save</Text>
               </TouchableOpacity>
               <View style={{ height: 50 }} />
             </ScrollView>
@@ -382,7 +391,7 @@ export default function CustomersScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContent: { padding: 16, paddingTop: Platform.OS === 'ios' ? 60 : 50, paddingBottom: 120 },
+  scrollContent: { padding: 16, paddingTop: Platform.OS === 'ios' ? 60 : 50 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   title: { fontSize: 34, fontWeight: '700', letterSpacing: -0.5 },
   addBtn: { width: 32, height: 32, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
@@ -393,7 +402,7 @@ const styles = StyleSheet.create({
   listCard: { overflow: 'hidden' },
   customerItem: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12 },
   avatar: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  avatarText: { color: '#fff', fontSize: 18, fontWeight: '600' },
+  avatarText: { fontSize: 18, fontWeight: '600' },
   customerInfo: { flex: 1 },
   customerName: { fontSize: 16, fontWeight: '500', marginBottom: 2 },
   customerNumber: { fontSize: 13 },
@@ -406,7 +415,7 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 20, fontWeight: '600', marginBottom: 20, textAlign: 'center' },
   input: { padding: 14, borderRadius: 12, fontSize: 16, marginBottom: 12 },
   submitBtn: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
-  submitBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  submitBtnText: { fontSize: 16, fontWeight: '600' },
 
   menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' },
   menuContent: { borderRadius: 12, padding: 8, minWidth: 180, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 5 },

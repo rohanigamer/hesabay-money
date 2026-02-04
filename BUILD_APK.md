@@ -26,6 +26,23 @@ eas build --platform android
 
 (Production is the default profile)
 
+## Recommended Release Build (APK)
+
+This repo’s `eas.json` already forces **APK** output for both `preview` and `production`.
+
+Run:
+
+```bash
+# From D:\HesabayMoney
+npm install
+npx expo-doctor
+
+# Release APK
+eas build --platform android --profile production
+```
+
+When it finishes, EAS will show a **download link** for the `.apk`.
+
 ## After Build Completes
 
 1. Download the APK from the provided link
