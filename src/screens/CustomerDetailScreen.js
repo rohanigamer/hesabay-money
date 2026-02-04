@@ -19,18 +19,23 @@ import { ThemeContext } from '../context/ThemeContext';
 import { useCurrency } from '../context/CurrencyContext';
 import { Storage } from '../utils/Storage';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFeedback } from '../context/FeedbackContext';
+import i18n from '../utils/i18n';
 
 export default function CustomerDetailScreen({ navigation, route }) {
   const { colors, isDark } = useContext(ThemeContext);
+  const insets = useSafeAreaInsets();
   const { getSymbol, format, formatWithSign, walletBalances, primaryCurrency } = useCurrency();
   const { toast } = useFeedback();
-  const { customerId } = route.params;
+  const customerId = route.params?.customerId;
   
   // Data states
   const [customer, setCustomer] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [filteredTransactions, setFilteredTransactions] = useState([]);
+  const [loadError, setLoadError] = useState(null);
+  const [actionLoading, setActionLoading] = useState(false);
   
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
@@ -64,7 +69,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
     useCallback(() => {
       loadData();
       startAnimations();
-    }, [customerId])
+    }, [customerId, loadData])
   );
 
   useEffect(() => {
@@ -80,16 +85,33 @@ export default function CustomerDetailScreen({ navigation, route }) {
     ]).start();
   };
 
-  const loadData = async () => {
-    const customers = await Storage.getCustomers();
-    const found = customers.find(c => c.id === customerId);
-    setCustomer(found);
-    if (found) {
-      setEditCustomerData({ name: found.name, number: found.number || '' });
+  const loadData = useCallback(async () => {
+    if (!customerId) {
+      setLoadError('Invalid customer');
+      setCustomer(null);
+      return;
     }
-    const txns = await Storage.getCustomerTransactions(customerId);
-    setTransactions(txns);
-  };
+    setLoadError(null);
+    try {
+      const [customers, txns] = await Promise.all([
+        Storage.getCustomers(),
+        Storage.getCustomerTransactions(customerId),
+      ]);
+      const found = customers.find(c => c.id === customerId);
+      setCustomer(found ?? null);
+      if (found) {
+        setEditCustomerData({ name: found.name, number: found.number || '' });
+        setLoadError(null);
+      } else {
+        setLoadError('Customer not found');
+      }
+      setTransactions(Array.isArray(txns) ? txns : []);
+    } catch (err) {
+      console.error('CustomerDetail loadData:', err);
+      setLoadError(err?.message || 'Could not load data');
+      toast({ type: 'error', title: 'Error', message: 'Could not load customer. Try again.' });
+    }
+  }, [customerId, toast]);
 
   const applyFilters = () => {
     let filtered = [...transactions];
@@ -130,21 +152,34 @@ export default function CustomerDetailScreen({ navigation, route }) {
 
   // Add new entry
   const handleAdd = async () => {
+    if (!customer?.id) return;
     if (!formData.amount || parseFloat(formData.amount) <= 0) {
       toast({ type: 'warning', title: 'Invalid amount', message: 'Enter a valid amount.' });
       return;
     }
-    await Storage.addTransaction({
-      amount: parseFloat(formData.amount),
-      type: selectedType,
-      description: formData.description || (selectedType === 'credit' ? 'Cash In' : 'Cash Out'),
-      customerId: customer.id,
-      customerName: customer.name,
-      currencyCode: formData.currencyCode || primaryCurrency,
-    });
-      setFormData({ amount: '', description: '', currencyCode: null });
-      setShowAddModal(false);
-      loadData();
+    setActionLoading(true);
+    try {
+      const result = await Storage.addTransaction({
+        amount: parseFloat(formData.amount),
+        type: selectedType,
+        description: formData.description || (selectedType === 'credit' ? 'Cash In' : 'Cash Out'),
+        customerId: customer.id,
+        customerName: customer.name,
+        currencyCode: formData.currencyCode || primaryCurrency,
+      });
+      if (result) {
+        setFormData({ amount: '', description: '', currencyCode: null });
+        setShowAddModal(false);
+        await loadData();
+      } else {
+        toast({ type: 'error', title: 'Error', message: 'Could not add entry. Try again.' });
+      }
+    } catch (err) {
+      console.error('handleAdd:', err);
+      toast({ type: 'error', title: 'Error', message: err?.message || 'Could not add entry.' });
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   // Edit customer
@@ -153,12 +188,24 @@ export default function CustomerDetailScreen({ navigation, route }) {
       toast({ type: 'warning', title: 'Missing name', message: 'Name is required.' });
       return;
     }
-    await Storage.updateCustomer(customerId, {
-      name: editCustomerData.name.trim(),
-      number: editCustomerData.number.trim(),
-    });
-    setShowEditModal(false);
-    loadData();
+    setActionLoading(true);
+    try {
+      const updated = await Storage.updateCustomer(customerId, {
+        name: editCustomerData.name.trim(),
+        number: editCustomerData.number.trim(),
+      });
+      if (updated) {
+        setShowEditModal(false);
+        await loadData();
+      } else {
+        toast({ type: 'error', title: 'Error', message: 'Could not update customer.' });
+      }
+    } catch (err) {
+      console.error('handleEditCustomer:', err);
+      toast({ type: 'error', title: 'Error', message: err?.message || 'Could not update.' });
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   // Delete customer
@@ -168,11 +215,26 @@ export default function CustomerDetailScreen({ navigation, route }) {
   };
 
   const confirmDeleteCustomer = async () => {
-    if (deleteConfirmText.trim().toLowerCase() === customer.name.trim().toLowerCase()) {
-      await Storage.deleteCustomer(customerId);
-      navigation.goBack();
-    } else {
+    if (!customer) return;
+    if (deleteConfirmText.trim().toLowerCase() !== customer.name.trim().toLowerCase()) {
       toast({ type: 'error', title: 'Name does not match', message: 'Type the exact customer name to confirm deletion.' });
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const ok = await Storage.deleteCustomer(customerId);
+      if (ok) {
+        setShowDeleteConfirmModal(false);
+        setDeleteConfirmText('');
+        navigation.goBack();
+      } else {
+        toast({ type: 'error', title: 'Error', message: 'Could not delete customer.' });
+      }
+    } catch (err) {
+      console.error('confirmDeleteCustomer:', err);
+      toast({ type: 'error', title: 'Error', message: err?.message || 'Could not delete.' });
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -185,10 +247,18 @@ export default function CustomerDetailScreen({ navigation, route }) {
 
   const confirmDeleteEntry = async () => {
     if (!entryToDelete) return;
-    await Storage.deleteTransaction(entryToDelete.id);
-    setShowDeleteEntryModal(false);
-    setEntryToDelete(null);
-          loadData();
+    setActionLoading(true);
+    try {
+      await Storage.deleteTransaction(entryToDelete.id);
+      setShowDeleteEntryModal(false);
+      setEntryToDelete(null);
+      await loadData();
+    } catch (err) {
+      console.error('confirmDeleteEntry:', err);
+      toast({ type: 'error', title: 'Error', message: err?.message || 'Could not delete entry.' });
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   // Edit entry
@@ -204,29 +274,39 @@ export default function CustomerDetailScreen({ navigation, route }) {
   };
 
   const handleEditEntry = async () => {
+    if (!customer?.id) return;
     if (!editEntryData.amount || parseFloat(editEntryData.amount) <= 0) {
       toast({ type: 'warning', title: 'Invalid amount', message: 'Enter a valid amount.' });
       return;
     }
-    
-    // Delete old and add new (simple approach)
-    await Storage.deleteTransaction(editEntryData.id);
-    await Storage.addTransaction({
-      amount: parseFloat(editEntryData.amount),
-      type: editEntryData.type,
-      description: editEntryData.description || (editEntryData.type === 'credit' ? 'Cash In' : 'Cash Out'),
-      customerId: customer.id,
-      customerName: customer.name,
-      currencyCode: editEntryData.currencyCode || primaryCurrency,
-    });
-    
-    setShowEditEntryModal(false);
-    loadData();
+    setActionLoading(true);
+    try {
+      await Storage.deleteTransaction(editEntryData.id);
+      const result = await Storage.addTransaction({
+        amount: parseFloat(editEntryData.amount),
+        type: editEntryData.type,
+        description: editEntryData.description || (editEntryData.type === 'credit' ? 'Cash In' : 'Cash Out'),
+        customerId: customer.id,
+        customerName: customer.name,
+        currencyCode: editEntryData.currencyCode || primaryCurrency,
+      });
+      if (result) {
+        setShowEditEntryModal(false);
+        await loadData();
+      } else {
+        toast({ type: 'error', title: 'Error', message: 'Entry was removed but could not save changes. Try adding again.' });
+      }
+    } catch (err) {
+      console.error('handleEditEntry:', err);
+      toast({ type: 'error', title: 'Error', message: err?.message || 'Could not update entry.' });
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   // Share/Export PDF
   const handleSharePDF = async () => {
-    const report = generateReport();
+    const report = generateReportText();
     try {
       await Share.share({
         message: report,
@@ -237,26 +317,26 @@ export default function CustomerDetailScreen({ navigation, route }) {
     }
   };
 
-  // Generate text report
-  const generateReport = () => {
+  // Generate text report (uses per-currency totals; run after totalsByCurrency is in scope)
+  const generateReportText = () => {
     let report = `=== ACCOUNT STATEMENT ===\n\n`;
     report += `Customer: ${customer.name}\n`;
     report += `Phone: ${customer.number || 'N/A'}\n`;
     report += `Date: ${new Date().toLocaleDateString()}\n\n`;
     report += `--- SUMMARY ---\n`;
-    report += `Net Balance: ${formatWithSign(customer.balance)}\n`;
-    report += `Total In: ${format(totalIn)}\n`;
-    report += `Total Out: ${format(totalOut)}\n`;
+    currencyCodes.forEach(code => {
+      const tot = totalsByCurrency[code] || { in: 0, out: 0, net: 0 };
+      const net = code === primaryCurrency ? primaryNet : tot.net;
+      report += `[${code}] Net: ${formatWithSign(net, code)} | In: ${format(tot.in, code)} | Out: ${format(tot.out, code)}\n`;
+    });
     report += `Total Entries: ${transactions.length}\n\n`;
     report += `--- TRANSACTIONS ---\n\n`;
-    
     transactions.forEach((t, i) => {
       const type = (t.type === 'credit' || t.type === 'income') ? 'IN' : 'OUT';
       report += `${i + 1}. ${formatDateFull(t.createdAt)}\n`;
       report += `   ${type}: ${format(t.amount, t.currencyCode)}\n`;
       report += `   ${t.description || 'No description'}\n\n`;
     });
-    
     return report;
   };
 
@@ -278,8 +358,8 @@ export default function CustomerDetailScreen({ navigation, route }) {
     return Object.values(groups);
   };
 
-  // Loading state
-  if (!customer) {
+  // Loading / not found state
+  if (!customer && !loadError) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.loading}>
@@ -288,34 +368,60 @@ export default function CustomerDetailScreen({ navigation, route }) {
       </View>
     );
   }
+  if (!customer && loadError) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={styles.loading}>
+          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Customer not found</Text>
+          <Text style={{ color: colors.textTertiary, marginTop: 8, textAlign: 'center' }}>
+            {loadError === 'Invalid customer' ? 'Invalid or missing customer.' : 'They may have been deleted.'}
+          </Text>
+          <TouchableOpacity
+            style={[styles.submitBtn, { backgroundColor: colors.accent, marginTop: 24, paddingHorizontal: 24 }]}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>Go back</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
-  // Calculate totals
-  const totalIn = transactions.filter(t => t.type === 'credit' || t.type === 'income').reduce((s, t) => s + parseFloat(t.amount || 0), 0);
-  const totalOut = transactions.filter(t => t.type === 'debit' || t.type === 'expense').reduce((s, t) => s + parseFloat(t.amount || 0), 0);
-  const netBalance = parseFloat(customer.balance) || 0;
+  // Per-currency totals from transactions
+  const totalsByCurrency = {};
+  transactions.forEach(t => {
+    const code = (t.currencyCode || primaryCurrency).toUpperCase();
+    if (!totalsByCurrency[code]) totalsByCurrency[code] = { in: 0, out: 0 };
+    const amt = parseFloat(t.amount) || 0;
+    if (t.type === 'credit' || t.type === 'income') totalsByCurrency[code].in += amt;
+    else if (t.type === 'debit' || t.type === 'expense') totalsByCurrency[code].out += amt;
+  });
+  Object.keys(totalsByCurrency).forEach(code => {
+    totalsByCurrency[code].net = totalsByCurrency[code].in - totalsByCurrency[code].out;
+  });
 
-  // Calculate running balance
-  const getRunningBalance = (index) => {
-    let balance = netBalance;
-    for (let i = 0; i < index; i++) {
-      const t = filteredTransactions[i];
-      const amt = parseFloat(t.amount) || 0;
-      if (t.type === 'credit' || t.type === 'income') {
-        balance -= amt;
-      } else {
-        balance += amt;
-      }
-    }
-    return balance;
-  };
+  // Running balance after each transaction (in that transaction's currency)
+  const runningBalanceAfter = {};
+  const sortedByDate = [...transactions].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  const runningByCode = {};
+  sortedByDate.forEach(t => {
+    const code = (t.currencyCode || primaryCurrency).toUpperCase();
+    runningByCode[code] = (runningByCode[code] ?? 0) + (t.type === 'credit' || t.type === 'income' ? parseFloat(t.amount) || 0 : -(parseFloat(t.amount) || 0));
+    runningBalanceAfter[t.id] = runningByCode[code];
+  });
+
+  const primaryNet = (customer.balanceByCurrency && customer.balanceByCurrency[primaryCurrency]) != null
+    ? customer.balanceByCurrency[primaryCurrency]
+    : (parseFloat(customer.balance) || 0);
+  const currencyCodes = Object.keys(totalsByCurrency).length ? Object.keys(totalsByCurrency) : [primaryCurrency];
 
   // Get date filter label
   const getDateFilterLabel = () => {
     switch (dateFilter) {
-      case 'today': return 'Today';
-      case 'week': return 'This Week';
-      case 'month': return 'This Month';
-      default: return 'Select Date';
+      case 'today': return i18n.t('today');
+      case 'week': return i18n.t('thisWeek');
+      case 'month': return i18n.t('thisMonth');
+      default: return i18n.t('selectDate');
     }
   };
 
@@ -348,7 +454,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
         <Ionicons name="search" size={20} color={colors.textTertiary} />
         <TextInput
           style={[styles.searchInput, { color: colors.text }]}
-          placeholder="Search by remark or amount"
+          placeholder={i18n.t('searchByRemarkOrAmount')}
           placeholderTextColor={colors.textTertiary}
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -381,7 +487,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
           onPress={() => setFilterType(filterType === 'all' ? 'credit' : filterType === 'credit' ? 'debit' : 'all')}
         >
           <Text style={[styles.filterText, { color: filterType !== 'all' ? colors.info : colors.text }]}>
-            {filterType === 'all' ? 'Entry Type' : filterType === 'credit' ? 'Cash In' : 'Cash Out'}
+            {filterType === 'all' ? i18n.t('entryType') : filterType === 'credit' ? i18n.t('cashIn') : i18n.t('cashOut')}
                   </Text>
           <Ionicons name="chevron-down" size={16} color={filterType !== 'all' ? colors.info : colors.textSecondary} />
         </TouchableOpacity>
@@ -389,25 +495,35 @@ export default function CustomerDetailScreen({ navigation, route }) {
 
       <Animated.View style={{ flex: 1, opacity: contentAnim }}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-          {/* Summary Card */}
+          {/* Summary Card — per currency */}
           <View style={[styles.summaryCard, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
-            <View style={styles.summaryRow}>
-              <Text style={[styles.summaryLabel, { color: colors.text }]}>Net Balance</Text>
-              <Text style={[styles.summaryValue, { color: netBalance < 0 ? colors.error : colors.text }]}>
-                {formatWithSign(netBalance)}
-              </Text>
-            </View>
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
-            <View style={styles.summaryRow}>
-              <Text style={[styles.summaryLabel, { color: colors.text }]}>Total In (+)</Text>
-              <Text style={[styles.summaryValueBlue, { color: colors.info }]}>{format(totalIn)}</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={[styles.summaryLabel, { color: colors.text }]}>Total Out (-)</Text>
-              <Text style={[styles.summaryValueRed, { color: colors.error }]}>{format(totalOut)}</Text>
-            </View>
+            {currencyCodes.map((code) => {
+              const tot = totalsByCurrency[code] || { in: 0, out: 0, net: 0 };
+              const net = code === primaryCurrency ? primaryNet : tot.net;
+              return (
+                <View key={code}>
+                  <View style={styles.summaryRow}>
+                    <Text style={[styles.summaryLabel, { color: colors.text }]}>Net Balance ({code})</Text>
+                    <Text style={[styles.summaryValue, { color: net < 0 ? colors.error : colors.text }]}>
+                      {formatWithSign(net, code)}
+                    </Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={[styles.summaryLabel, { color: colors.text }]}>Total In (+)</Text>
+                    <Text style={[styles.summaryValueBlue, { color: colors.info }]}>{format(tot.in, code)}</Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={[styles.summaryLabel, { color: colors.text }]}>Total Out (-)</Text>
+                    <Text style={[styles.summaryValueRed, { color: colors.error }]}>{format(tot.out, code)}</Text>
+                  </View>
+                  {currencyCodes.indexOf(code) < currencyCodes.length - 1 && (
+                    <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                  )}
+                </View>
+              );
+            })}
             <TouchableOpacity style={styles.viewReportsBtn} onPress={() => setShowReportsModal(true)}>
-              <Text style={[styles.viewReportsText, { color: colors.info }]}>VIEW REPORTS</Text>
+              <Text style={[styles.viewReportsText, { color: colors.info }]}>{i18n.t('viewReports')}</Text>
               <Ionicons name="chevron-forward" size={18} color={colors.info} />
             </TouchableOpacity>
           </View>
@@ -425,9 +541,6 @@ export default function CustomerDetailScreen({ navigation, route }) {
               </Text>
               {group.items.map((item) => {
                 const isCredit = item.type === 'credit' || item.type === 'income';
-                const globalIndex = filteredTransactions.findIndex(t => t.id === item.id);
-                const runningBal = getRunningBalance(globalIndex + 1);
-                
                 return (
                   <TouchableOpacity
                     key={item.id}
@@ -462,7 +575,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
                         {format(item.amount, item.currencyCode)}
                       </Text>
                       <Text style={[styles.balanceAfter, { color: colors.textSecondary }]}>
-                        Balance: {formatWithSign(runningBal)}
+                        Balance: {formatWithSign(runningBalanceAfter[item.id] ?? 0, item.currencyCode || primaryCurrency)}
                       </Text>
                     </View>
                     </TouchableOpacity>
@@ -512,13 +625,13 @@ export default function CustomerDetailScreen({ navigation, route }) {
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 0}
         >
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowAddModal(false); }} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>
-              {selectedType === 'credit' ? 'Cash In' : 'Cash Out'}
+              {selectedType === 'credit' ? i18n.t('cashIn') : i18n.t('cashOut')}
             </Text>
 
             <ScrollView
@@ -582,17 +695,18 @@ export default function CustomerDetailScreen({ navigation, route }) {
 
             <TextInput
               style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
-              placeholder="Add remark (optional)"
+              placeholder={i18n.t('addRemark')}
               placeholderTextColor={colors.textTertiary}
               value={formData.description}
               onChangeText={(t) => setFormData({ ...formData, description: t })}
             />
 
             <TouchableOpacity
-              style={[styles.submitBtn, { backgroundColor: selectedType === 'credit' ? colors.success : colors.error }]}
+              style={[styles.submitBtn, { backgroundColor: selectedType === 'credit' ? colors.success : colors.error, opacity: actionLoading ? 0.7 : 1 }]}
               onPress={handleAdd}
+              disabled={actionLoading}
             >
-              <Text style={[styles.submitBtnText, { color: selectedType === 'credit' ? colors.onSuccess : colors.onError }]}>SAVE ENTRY</Text>
+              <Text style={[styles.submitBtnText, { color: selectedType === 'credit' ? colors.onSuccess : colors.onError }]}>{i18n.t('saveEntry')}</Text>
             </TouchableOpacity>
             </ScrollView>
           </View>
@@ -604,12 +718,12 @@ export default function CustomerDetailScreen({ navigation, route }) {
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 0}
         >
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowEditEntryModal(false); }} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Edit Entry</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('updateEntry')}</Text>
 
             <ScrollView
               style={{ width: '100%' }}
@@ -671,7 +785,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
 
             <TextInput
               style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
-              placeholder="Add remark (optional)"
+              placeholder={i18n.t('addRemark')}
               placeholderTextColor={colors.textTertiary}
               value={editEntryData.description}
               onChangeText={(t) => setEditEntryData({ ...editEntryData, description: t })}
@@ -685,10 +799,11 @@ export default function CustomerDetailScreen({ navigation, route }) {
                 <Ionicons name="trash-outline" size={20} color={colors.error} />
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.editSaveBtn, { backgroundColor: editEntryData.type === 'credit' ? colors.success : colors.error }]}
+                style={[styles.editSaveBtn, { backgroundColor: editEntryData.type === 'credit' ? colors.success : colors.error, opacity: actionLoading ? 0.7 : 1 }]}
                 onPress={handleEditEntry}
+                disabled={actionLoading}
               >
-                <Text style={[styles.submitBtnText, { color: editEntryData.type === 'credit' ? colors.onSuccess : colors.onError }]}>UPDATE ENTRY</Text>
+                <Text style={[styles.submitBtnText, { color: editEntryData.type === 'credit' ? colors.onSuccess : colors.onError }]}>{i18n.t('updateEntry')}</Text>
               </TouchableOpacity>
             </View>
             </ScrollView>
@@ -718,7 +833,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 0}
         >
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowDeleteConfirmModal(false); setDeleteConfirmText(''); }} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
@@ -743,7 +858,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
             </Text>
             <TextInput
               style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text, borderWidth: 1, borderColor: colors.border }]}
-              placeholder="Type customer name here"
+                    placeholder={i18n.t('typeCustomerNameHere')}
               placeholderTextColor={colors.textTertiary}
               value={deleteConfirmText}
               onChangeText={setDeleteConfirmText}
@@ -842,12 +957,12 @@ export default function CustomerDetailScreen({ navigation, route }) {
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 0}
         >
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowEditModal(false); }} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Edit Customer</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('editCustomer')}</Text>
 
             <ScrollView
               style={{ width: '100%' }}
@@ -856,19 +971,19 @@ export default function CustomerDetailScreen({ navigation, route }) {
               showsVerticalScrollIndicator={false}
               keyboardDismissMode="on-drag"
             >
-            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Name</Text>
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>{i18n.t('name')}</Text>
             <TextInput
               style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
-              placeholder="Customer name"
+              placeholder={i18n.t('customerName')}
               placeholderTextColor={colors.textTertiary}
               value={editCustomerData.name}
               onChangeText={(t) => setEditCustomerData({ ...editCustomerData, name: t })}
             />
 
-            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Phone Number</Text>
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>{i18n.t('phoneNumber')}</Text>
             <TextInput
               style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
-              placeholder="Phone number (optional)"
+              placeholder={i18n.t('phoneOptional')}
               placeholderTextColor={colors.textTertiary}
               value={editCustomerData.number}
               onChangeText={(t) => setEditCustomerData({ ...editCustomerData, number: t })}
@@ -876,11 +991,38 @@ export default function CustomerDetailScreen({ navigation, route }) {
             />
 
             <TouchableOpacity style={[styles.submitBtn, { backgroundColor: colors.accent }]} onPress={handleEditCustomer}>
-              <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>SAVE CHANGES</Text>
+              <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>{i18n.t('save')}</Text>
             </TouchableOpacity>
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Filter by Type Modal (Options button) */}
+      <Modal visible={showFilterModal} animationType="slide" transparent onRequestClose={() => setShowFilterModal(false)}>
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowFilterModal(false)} />
+          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
+            <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('filterByEntryType')}</Text>
+            {[
+              { key: 'all', label: i18n.t('allEntries') },
+              { key: 'credit', label: i18n.t('cashInOnly') },
+              { key: 'debit', label: i18n.t('cashOutOnly') },
+            ].map((opt) => (
+              <TouchableOpacity
+                key={opt.key}
+                style={[styles.dateOption, filterType === opt.key && { backgroundColor: colors.accentLight }]}
+                onPress={() => { setFilterType(opt.key); setShowFilterModal(false); }}
+              >
+                <Text style={[styles.dateOptionText, { color: filterType === opt.key ? colors.info : colors.text }]}>
+                  {opt.label}
+                </Text>
+                {filterType === opt.key && <Ionicons name="checkmark" size={22} color={colors.info} />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
       </Modal>
 
       {/* Date Filter Modal */}
@@ -889,13 +1031,13 @@ export default function CustomerDetailScreen({ navigation, route }) {
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowDateModal(false)} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Filter by Date</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('filterByDate')}</Text>
 
             {[
-              { key: 'all', label: 'All Time' },
-              { key: 'today', label: 'Today' },
-              { key: 'week', label: 'This Week' },
-              { key: 'month', label: 'This Month' },
+              { key: 'all', label: i18n.t('allTime') },
+              { key: 'today', label: i18n.t('today') },
+              { key: 'week', label: i18n.t('thisWeek') },
+              { key: 'month', label: i18n.t('thisMonth') },
             ].map((opt) => (
               <TouchableOpacity
                 key={opt.key}
@@ -918,30 +1060,38 @@ export default function CustomerDetailScreen({ navigation, route }) {
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowReportsModal(false)} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Reports</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('reports')}</Text>
 
             <View style={[styles.reportCard, { backgroundColor: colors.backgroundSecondary }]}>
               <Text style={[styles.reportLabel, { color: colors.textSecondary }]}>Customer</Text>
               <Text style={[styles.reportValue, { color: colors.text }]}>{customer.name}</Text>
             </View>
 
-              <View style={styles.reportRow}>
-              <View style={[styles.reportCard, styles.reportCardHalf, { backgroundColor: colors.success + '20' }]}>
-                <Text style={[styles.reportLabel, { color: colors.success }]}>Total In</Text>
-                <Text style={[styles.reportValue, { color: colors.success }]}>{format(totalIn)}</Text>
-              </View>
-              <View style={[styles.reportCard, styles.reportCardHalf, { backgroundColor: colors.error + '20' }]}>
-                <Text style={[styles.reportLabel, { color: colors.error }]}>Total Out</Text>
-                <Text style={[styles.reportValue, { color: colors.error }]}>{format(totalOut)}</Text>
-              </View>
-            </View>
-
-            <View style={[styles.reportCard, { backgroundColor: netBalance >= 0 ? colors.accentLight : colors.error + '20' }]}>
-              <Text style={[styles.reportLabel, { color: netBalance >= 0 ? colors.info : colors.error }]}>Net Balance</Text>
-              <Text style={[styles.reportValueLarge, { color: netBalance >= 0 ? colors.info : colors.error }]}>
-                {formatWithSign(netBalance)}
-              </Text>
-            </View>
+            {currencyCodes.map((code) => {
+              const tot = totalsByCurrency[code] || { in: 0, out: 0, net: 0 };
+              const net = code === primaryCurrency ? primaryNet : tot.net;
+              return (
+                <View key={code}>
+                  <Text style={[styles.reportLabel, { color: colors.textSecondary, marginBottom: 4 }]}>{code}</Text>
+                  <View style={styles.reportRow}>
+                    <View style={[styles.reportCard, styles.reportCardHalf, { backgroundColor: colors.success + '20' }]}>
+                      <Text style={[styles.reportLabel, { color: colors.success }]}>Total In</Text>
+                      <Text style={[styles.reportValue, { color: colors.success }]}>{format(tot.in, code)}</Text>
+                    </View>
+                    <View style={[styles.reportCard, styles.reportCardHalf, { backgroundColor: colors.error + '20' }]}>
+                      <Text style={[styles.reportLabel, { color: colors.error }]}>Total Out</Text>
+                      <Text style={[styles.reportValue, { color: colors.error }]}>{format(tot.out, code)}</Text>
+                    </View>
+                  </View>
+                  <View style={[styles.reportCard, { backgroundColor: net >= 0 ? colors.accentLight : colors.error + '20', marginBottom: 12 }]}>
+                    <Text style={[styles.reportLabel, { color: net >= 0 ? colors.info : colors.error }]}>Net Balance</Text>
+                    <Text style={[styles.reportValueLarge, { color: net >= 0 ? colors.info : colors.error }]}>
+                      {formatWithSign(net, code)}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
 
             <View style={[styles.reportCard, { backgroundColor: colors.backgroundSecondary }]}>
               <Text style={[styles.reportLabel, { color: colors.textSecondary }]}>Total Entries</Text>

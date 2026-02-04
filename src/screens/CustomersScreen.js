@@ -22,10 +22,11 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BOTTOM_NAV_HEIGHT } from '../constants/layout';
 import { useFeedback } from '../context/FeedbackContext';
+import i18n from '../utils/i18n';
 
 export default function CustomersScreen({ navigation }) {
   const { colors } = useContext(ThemeContext);
-  const { formatWithSign } = useCurrency();
+  const { formatWithSign, primaryCurrency } = useCurrency();
   const { toast } = useFeedback();
   const insets = useSafeAreaInsets();
   const [customers, setCustomers] = useState([]);
@@ -67,7 +68,7 @@ export default function CustomersScreen({ navigation }) {
   const applyFilter = (data, query) => {
     let filtered = [...data];
     if (query.trim()) {
-      filtered = filtered.filter(c => c.name.toLowerCase().includes(query.toLowerCase()) || c.number.includes(query));
+      filtered = filtered.filter(c => c.name.toLowerCase().includes(query.toLowerCase()) || (c.number || '').includes(query));
     }
     filtered.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
     setFilteredCustomers(filtered);
@@ -82,7 +83,7 @@ export default function CustomersScreen({ navigation }) {
       toast({ type: 'warning', title: 'Missing name', message: 'Please enter a customer name.' });
       return;
     }
-    const result = await Storage.addCustomer({ name: formData.name.trim(), number: formData.number.trim(), balance: 0 });
+    const result = await Storage.addCustomer({ name: formData.name.trim(), number: formData.number.trim() });
     if (result) {
       setFormData({ name: '', number: '' });
       setShowAddModal(false);
@@ -150,7 +151,7 @@ export default function CustomersScreen({ navigation }) {
             },
           ]}
         >
-          <Text style={[styles.title, { color: colors.text }]}>Customers</Text>
+            <Text style={[styles.title, { color: colors.text }]}>{i18n.t('customers')}</Text>
           <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.accent }]} onPress={() => setShowAddModal(true)}>
             <Ionicons name="add" size={20} color={colors.onAccent} />
           </TouchableOpacity>
@@ -162,7 +163,7 @@ export default function CustomersScreen({ navigation }) {
             <Ionicons name="search" size={18} color={colors.textTertiary} />
             <TextInput
               style={[styles.searchInput, { color: colors.text }]}
-              placeholder="Search"
+              placeholder={i18n.t('searchPlaceholder')}
               placeholderTextColor={colors.textTertiary}
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -186,7 +187,7 @@ export default function CustomersScreen({ navigation }) {
             <View style={styles.empty}>
               <Ionicons name="people-outline" size={48} color={colors.textTertiary} />
               <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                {searchQuery ? 'No results' : 'No customers yet'}
+                {searchQuery ? i18n.t('noResults') : i18n.t('noCustomersYet')}
               </Text>
             </View>
           ) : (
@@ -203,18 +204,19 @@ export default function CustomersScreen({ navigation }) {
                   </View>
                   <View style={styles.customerInfo}>
                     <Text style={[styles.customerName, { color: colors.text }]}>{customer.name}</Text>
-                    <Text style={[styles.customerNumber, { color: colors.textTertiary }]}>{customer.number}</Text>
+                    <Text style={[styles.customerNumber, { color: colors.textTertiary }]}>{customer.number || '—'}</Text>
                   </View>
                   <View style={styles.customerRight}>
                     <Text style={[styles.customerBalance, { color: (parseFloat(customer.balance) || 0) < 0 ? colors.error : colors.success }]}>
-                      {formatWithSign(customer.balance)}
+                      {formatWithSign(parseFloat(customer.balance) || 0, primaryCurrency)}
                     </Text>
                     <TouchableOpacity onPress={(e) => openMenu(customer, e)}>
                       <Ionicons name="ellipsis-horizontal" size={18} color={colors.textTertiary} />
                     </TouchableOpacity>
                   </View>
                 </TouchableOpacity>
-              ))}
+              );
+              })}
             </GlassCard>
           )}
         </Animated.View>
@@ -230,7 +232,7 @@ export default function CustomersScreen({ navigation }) {
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowAddModal(false); }} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
-            <Text style={[styles.modalTitle, { color: colors.text }]}>New Customer</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('newCustomer')}</Text>
             <ScrollView 
               style={{ width: '100%', maxHeight: '85%' }}
               contentContainerStyle={{ paddingBottom: 100 }}
@@ -240,7 +242,7 @@ export default function CustomersScreen({ navigation }) {
             >
               <TextInput
                 style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
-                placeholder="Name"
+                placeholder={i18n.t('name')}
                 placeholderTextColor={colors.textTertiary}
                 value={formData.name}
                 onChangeText={(t) => setFormData({ ...formData, name: t })}
@@ -248,7 +250,7 @@ export default function CustomersScreen({ navigation }) {
               />
               <TextInput
                 style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
-                placeholder="Phone (optional)"
+                placeholder={i18n.t('phoneOptional')}
                 placeholderTextColor={colors.textTertiary}
                 value={formData.number}
                 onChangeText={(t) => setFormData({ ...formData, number: t })}
@@ -257,7 +259,7 @@ export default function CustomersScreen({ navigation }) {
                 onSubmitEditing={Keyboard.dismiss}
               />
               <TouchableOpacity style={[styles.submitBtn, { backgroundColor: colors.accent }]} onPress={handleAdd}>
-                <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>Add Customer</Text>
+                <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>{i18n.t('addCustomer')}</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -291,7 +293,7 @@ export default function CustomersScreen({ navigation }) {
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowEditModal(false); }} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Edit Customer</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('editCustomer')}</Text>
             <ScrollView 
               style={{ width: '100%', maxHeight: '85%' }}
               contentContainerStyle={{ paddingBottom: 100 }}
@@ -301,7 +303,7 @@ export default function CustomersScreen({ navigation }) {
             >
               <TextInput
                 style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
-                placeholder="Name"
+                placeholder={i18n.t('name')}
                 placeholderTextColor={colors.textTertiary}
                 value={formData.name}
                 onChangeText={(t) => setFormData({ ...formData, name: t })}
@@ -309,7 +311,7 @@ export default function CustomersScreen({ navigation }) {
               />
               <TextInput
                 style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
-                placeholder="Phone"
+                placeholder={i18n.t('phone')}
                 placeholderTextColor={colors.textTertiary}
                 value={formData.number}
                 onChangeText={(t) => setFormData({ ...formData, number: t })}
@@ -318,7 +320,7 @@ export default function CustomersScreen({ navigation }) {
                 onSubmitEditing={Keyboard.dismiss}
               />
               <TouchableOpacity style={[styles.submitBtn, { backgroundColor: colors.accent }]} onPress={handleEdit}>
-                <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>Save</Text>
+                <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>{i18n.t('save')}</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -357,7 +359,7 @@ export default function CustomersScreen({ navigation }) {
                   </Text>
                   <TextInput
                     style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text, borderWidth: 1, borderColor: colors.border }]}
-                    placeholder="Type customer name here"
+                    placeholder={i18n.t('typeCustomerNameHere')}
                     placeholderTextColor={colors.textTertiary}
                     value={deleteConfirmText}
                     onChangeText={setDeleteConfirmText}
@@ -381,7 +383,7 @@ export default function CustomersScreen({ navigation }) {
                       onPress={confirmDelete}
                       disabled={deleteConfirmText.trim().toLowerCase() !== selectedCustomer.name.trim().toLowerCase()}
                     >
-                      <Text style={styles.submitBtnText}>DELETE PERMANENTLY</Text>
+                      <Text style={[styles.submitBtnText, { color: colors.onError }]}>DELETE PERMANENTLY</Text>
                     </TouchableOpacity>
                   </View>
                 </>

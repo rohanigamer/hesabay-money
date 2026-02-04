@@ -2,6 +2,7 @@
 // Works with both Firebase SDK (web) and REST API (mobile)
 import NetInfo from '@react-native-community/netinfo';
 import { Storage, getCurrentUserId, setOnDataChange } from '../utils/Storage';
+import { DEFAULT_CURRENCY } from '../utils/Currency';
 import { Platform } from 'react-native';
 import { isWeb, firebaseConfig } from '../config/firebase';
 
@@ -109,7 +110,7 @@ class FirebaseSyncService {
         customers: customers,
         transactions: transactions,
         wallets: wallets || [],
-        exchangeRates: exchangeRates || { baseCurrency: 'USD', rates: {} },
+        exchangeRates: exchangeRates || { baseCurrency: DEFAULT_CURRENCY, rates: {} },
         lastSyncedAt: new Date().toISOString(),
         deviceInfo: {
           platform: Platform.OS,
@@ -164,7 +165,7 @@ class FirebaseSyncService {
     const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/users/${userId}`;
     
     const wallets = data.wallets || [];
-    const exchangeRates = data.exchangeRates || { baseCurrency: 'USD', rates: {} };
+    const exchangeRates = data.exchangeRates || { baseCurrency: DEFAULT_CURRENCY, rates: {} };
     const firestoreData = {
       fields: {
         customers: { arrayValue: { values: data.customers.map(c => ({ mapValue: { fields: this.convertToFirestoreFields(c) } })) } },
@@ -281,8 +282,8 @@ class FirebaseSyncService {
       const data = snapshot.data();
       console.log('📥 Loaded data from Firebase (SDK)');
       const exchangeRates = data.exchangeRates && typeof data.exchangeRates === 'object'
-        ? { baseCurrency: data.exchangeRates.baseCurrency || 'USD', rates: data.exchangeRates.rates || {} }
-        : { baseCurrency: 'USD', rates: {} };
+        ? { baseCurrency: data.exchangeRates.baseCurrency || DEFAULT_CURRENCY, rates: data.exchangeRates.rates || {} }
+        : { baseCurrency: DEFAULT_CURRENCY, rates: {} };
       return {
         customers: data.customers || [],
         transactions: data.transactions || [],
@@ -319,9 +320,9 @@ class FirebaseSyncService {
       this.convertFromFirestoreFields(v.mapValue?.fields || {})
     ) || [];
     const exchangeRatesRaw = fields.exchangeRates?.mapValue?.fields;
-    let exchangeRates = { baseCurrency: 'USD', rates: {} };
+    let exchangeRates = { baseCurrency: DEFAULT_CURRENCY, rates: {} };
     if (exchangeRatesRaw) {
-      exchangeRates.baseCurrency = exchangeRatesRaw.baseCurrency?.stringValue || 'USD';
+      exchangeRates.baseCurrency = exchangeRatesRaw.baseCurrency?.stringValue || DEFAULT_CURRENCY;
       const ratesMap = exchangeRatesRaw.rates?.mapValue?.fields;
       exchangeRates.rates = ratesMap ? this.convertFromFirestoreFields(ratesMap) : {};
       if (typeof exchangeRates.rates !== 'object') exchangeRates.rates = {};

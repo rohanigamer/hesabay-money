@@ -10,6 +10,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Modal,
+  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemeContext } from '../context/ThemeContext';
@@ -17,6 +18,7 @@ import { useAuth } from '../context/AuthContext';
 import PasswordStrength from '../components/PasswordStrength';
 import AnimatedBackground from '../components/AnimatedBackground';
 import { useFeedback } from '../context/FeedbackContext';
+import i18n from '../utils/i18n';
 
 export default function LoginScreen({ navigation }) {
   const { colors } = useContext(ThemeContext);
@@ -155,7 +157,7 @@ export default function LoginScreen({ navigation }) {
               <Ionicons name="mail-outline" size={20} color={colors.textTertiary} />
               <TextInput
                 style={[styles.input, { color: colors.text }]}
-                placeholder="your@email.com"
+                placeholder={i18n.t('emailPlaceholder')}
                 placeholderTextColor={colors.textTertiary}
                 value={email}
                 onChangeText={setEmail}
@@ -173,7 +175,7 @@ export default function LoginScreen({ navigation }) {
               <Ionicons name="lock-closed-outline" size={20} color={colors.textTertiary} />
               <TextInput
                 style={[styles.input, { color: colors.text }]}
-                placeholder="Enter your password"
+                placeholder={i18n.t('passwordPlaceholder')}
                 placeholderTextColor={colors.textTertiary}
                 value={password}
                 onChangeText={setPassword}
@@ -268,47 +270,58 @@ export default function LoginScreen({ navigation }) {
         animationType="fade"
         onRequestClose={() => setForgotPasswordModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>🔑 Reset Password</Text>
-            <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
-              Enter your email address and we'll send you a link to reset your password.
-            </Text>
-            
-            <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border, marginTop: 20 }]}>
-              <Ionicons name="mail-outline" size={20} color={colors.textTertiary} />
-              <TextInput
-                style={[styles.input, { color: colors.text }]}
-                placeholder="your@email.com"
-                placeholderTextColor={colors.textTertiary}
-                value={resetEmail}
-                onChangeText={setResetEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
+        >
+          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setForgotPasswordModal(false); }} activeOpacity={1} />
+          <ScrollView
+            contentContainerStyle={styles.forgotModalScroll}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>🔑 Reset Password</Text>
+              <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+                Enter your email address and we'll send you a link to reset your password.
+              </Text>
+              
+              <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border, marginTop: 20 }]}>
+                <Ionicons name="mail-outline" size={20} color={colors.textTertiary} />
+                <TextInput
+                  style={[styles.input, { color: colors.text }]}
+                  placeholder={i18n.t('emailPlaceholder')}
+                  placeholderTextColor={colors.textTertiary}
+                  value={resetEmail}
+                  onChangeText={setResetEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
 
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalBtn, { backgroundColor: colors.border }]}
-                onPress={() => setForgotPasswordModal(false)}
-              >
-                <Text style={[styles.modalBtnText, { color: colors.text }]}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalBtn, { backgroundColor: colors.accent }]}
-                onPress={handleForgotPassword}
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color={colors.onAccent} size="small" />
-                ) : (
-                  <Text style={[styles.modalBtnText, { color: colors.onAccent }]}>Send Link</Text>
-                )}
-              </TouchableOpacity>
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalBtn, { backgroundColor: colors.border }]}
+                  onPress={() => setForgotPasswordModal(false)}
+                >
+                  <Text style={[styles.modalBtnText, { color: colors.text }]}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalBtn, { backgroundColor: colors.accent }]}
+                  onPress={handleForgotPassword}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <ActivityIndicator color={colors.onAccent} size="small" />
+                  ) : (
+                    <Text style={[styles.modalBtnText, { color: colors.onAccent }]}>Send Link</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
     </KeyboardAvoidingView>
     </AnimatedBackground>
@@ -356,6 +369,7 @@ const styles = StyleSheet.create({
 
   // Modal styles
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  forgotModalScroll: { flexGrow: 1, justifyContent: 'center', padding: 24, paddingVertical: 48 },
   modalContent: { width: '100%', maxWidth: 400, borderRadius: 20, padding: 24 },
   modalTitle: { fontSize: 20, fontWeight: '700', marginBottom: 8 },
   modalSubtitle: { fontSize: 14, lineHeight: 20 },

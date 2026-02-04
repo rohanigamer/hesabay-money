@@ -189,8 +189,22 @@ export function FeedbackOverlay() {
 const TOAST_ICONS = { success: 'checkmark-circle', error: 'alert-circle', warning: 'warning', info: 'information-circle' };
 
 function ToastStack({ toasts, colors, topInset, onDismiss }) {
+  const count = toasts.length;
   return (
     <View pointerEvents="box-none" style={[styles.toastStack, { top: topInset + 12 }]}>
+      {count > 1 && (
+        <View style={[styles.toastCountBadge, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={[styles.toastCountPill, { backgroundColor: colors.accent }]}>
+            <Text style={[styles.toastCountNum, { color: colors.onAccent }]}>{count}</Text>
+          </View>
+          <Text style={[styles.toastCountLabel, { color: colors.textSecondary }]}>
+            {count} {count === 1 ? 'message' : 'messages'}
+          </Text>
+          <View style={[styles.toastCountBarBg, { backgroundColor: colors.border }]}>
+            <View style={[styles.toastCountBarFill, { backgroundColor: colors.accent }]} />
+          </View>
+        </View>
+      )}
       {toasts.map((t, index) => (
         <ToastItem key={t.id} toast={t} index={index} colors={colors} onDismiss={() => onDismiss(t.id)} />
       ))}
@@ -203,7 +217,9 @@ const easeInCubic = Easing.bezier(0.32, 0, 0.67, 0);
 
 function ToastItem({ toast, index, colors, onDismiss }) {
   const anim = useRef(new Animated.Value(0)).current;
+  const progressAnim = useRef(new Animated.Value(1)).current;
   const hasTriggeredExitRef = useRef(false);
+  const progressStartedRef = useRef(false);
 
   const palette = useMemo(() => {
     const base = { bg: colors.surface, border: colors.border, title: colors.text, msg: colors.textSecondary, accent: colors.accent };
@@ -231,11 +247,25 @@ function ToastItem({ toast, index, colors, onDismiss }) {
           duration: TOAST_ENTER_MS,
           easing: easeOutCubic,
           useNativeDriver: true,
-        }).start();
+        }).start(() => {
+          if (!progressStartedRef.current && toast.durationMs) {
+            progressStartedRef.current = true;
+            Animated.timing(progressAnim, {
+              toValue: 0,
+              duration: toast.durationMs - TOAST_ENTER_MS - 100,
+              easing: Easing.linear,
+              useNativeDriver: true,
+            }).start();
+          }
+        });
       }, stagger);
       return () => clearTimeout(timer);
     }
-  }, [toast.exiting, toast.id, index]);
+  }, [toast.exiting, toast.id, index, toast.durationMs]);
+
+  React.useEffect(() => {
+    if (toast.exiting) progressAnim.setValue(0);
+  }, [toast.exiting]);
 
   const title = toast.title || (toast.type === 'error' ? 'Error' : toast.type === 'success' ? 'Success' : 'Notice');
   const icon = TOAST_ICONS[toast.type] || 'information-circle';
@@ -267,6 +297,18 @@ function ToastItem({ toast, index, colors, onDismiss }) {
         <Pressable onPress={() => onDismiss(toast.id)} hitSlop={8} style={styles.toastDismiss}>
           <Text style={[styles.toastDismissText, { color: colors.textTertiary }]}>Dismiss</Text>
         </Pressable>
+      </View>
+      {/* Countdown bar: shrinks from full to empty until toast disappears */}
+      <View style={[styles.toastProgressTrack, { backgroundColor: colors.border }]} pointerEvents="none">
+        <Animated.View
+          style={[
+            styles.toastProgressBar,
+            {
+              backgroundColor: palette.accent,
+              transform: [{ scaleX: progressAnim }],
+            },
+          ]}
+        />
       </View>
     </Animated.View>
   );
@@ -432,6 +474,64 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: 'hidden',
     minHeight: 56,
+  },
+  toastProgressTrack: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 3,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    justifyContent: 'flex-start',
+  },
+  toastProgressBar: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    right: 0,
+  },
+  toastCountBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    paddingBottom: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+    gap: 8,
+  },
+  toastCountPill: {
+    minWidth: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toastCountNum: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  toastCountLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  toastCountBarBg: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    bottom: 6,
+    height: 2,
+    borderRadius: 1,
+    overflow: 'hidden',
+  },
+  toastCountBarFill: {
+    flex: 1,
+    height: '100%',
+    borderRadius: 1,
   },
   toastAccent: {
     width: 4,

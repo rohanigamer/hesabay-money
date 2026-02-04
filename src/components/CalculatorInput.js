@@ -1,19 +1,25 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, Platform, Dimensions } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useContext } from 'react';
 import { ThemeContext } from '../context/ThemeContext';
+import i18n from '../utils/i18n';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function CalculatorInput({ value, onChangeText, placeholder, style, ...otherProps }) {
   const { colors } = useContext(ThemeContext);
   const insets = useSafeAreaInsets();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const [showCalc, setShowCalc] = useState(false);
   const [calcDisplay, setCalcDisplay] = useState('0');
   const [prevValue, setPrevValue] = useState(null);
   const [operation, setOperation] = useState(null);
+
+  const isSmallScreen = screenHeight < 600 || screenWidth < 360;
+  const calcModalMaxHeight = Math.min(screenHeight * 0.82, 520);
+  const calcDisplayFontSize = isSmallScreen ? 24 : 32;
+  const calcBtnHeight = isSmallScreen ? 48 : 60;
+  const calcBtnFontSize = isSmallScreen ? 20 : 24;
 
   const handleNumberPress = (num) => {
     if (calcDisplay === '0') {
@@ -85,7 +91,7 @@ export default function CalculatorInput({ value, onChangeText, placeholder, styl
     setOperation(null);
   };
 
-  const CalcButton = ({ label, onPress, span = 1, type = 'default' }) => {
+  const CalcButton = ({ label, onPress, span = 1, type = 'default', height, fontSize }) => {
     let bgColor = colors.surface;
     let textColor = colors.text;
     
@@ -102,92 +108,94 @@ export default function CalculatorInput({ value, onChangeText, placeholder, styl
 
     return (
       <TouchableOpacity
-        style={[styles.calcBtn, { backgroundColor: bgColor, flex: span }]}
+        style={[styles.calcBtn, { backgroundColor: bgColor, flex: span, minHeight: height, height }]}
         onPress={onPress}
         activeOpacity={0.7}
       >
-        <Text style={[styles.calcBtnText, { color: textColor }]}>{label}</Text>
+        <Text style={[styles.calcBtnText, { color: textColor, fontSize: fontSize }]}>{label}</Text>
       </TouchableOpacity>
     );
   };
 
   return (
-    <View style={{ width: '100%' }}>
-      <View style={styles.inputWrapper}>
-        <TextInput
-          style={[style, { flex: 1 }]}
-          value={value}
-          onChangeText={onChangeText}
-          placeholder={placeholder}
-          keyboardType="decimal-pad"
-          {...otherProps}
-        />
-        <TouchableOpacity
-          style={[styles.calcIcon, { backgroundColor: colors.accent }]}
-          onPress={() => {
-            setCalcDisplay(value || '0');
-            setShowCalc(true);
-          }}
-        >
-          <Ionicons name="calculator" size={18} color={colors.onAccent} />
-        </TouchableOpacity>
-      </View>
+    <>
+    <View style={styles.inputWrapper}>
+      <TextInput
+        style={[styles.inputFlex, style]}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        keyboardType="decimal-pad"
+        {...otherProps}
+      />
+      <TouchableOpacity
+        style={[styles.calcIcon, { backgroundColor: colors.accent }]}
+        onPress={() => {
+          setCalcDisplay(value || '0');
+          setShowCalc(true);
+        }}
+      >
+        <Ionicons name="calculator" size={18} color={colors.onAccent} />
+      </TouchableOpacity>
+    </View>
 
       <Modal visible={showCalc} animationType="slide" transparent onRequestClose={() => setShowCalc(false)}>
         <View style={styles.calcOverlay}>
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowCalc(false)} />
-          <View style={[styles.calcModal, { backgroundColor: colors.background, maxHeight: SCREEN_HEIGHT * 0.82, paddingBottom: Math.max(insets.bottom, 24) + 16 }]}>
+          <View style={[styles.calcModal, { backgroundColor: colors.background, maxHeight: calcModalMaxHeight, paddingBottom: Math.max(insets.bottom, 24) + 16 }]}>
             <View style={[styles.calcHandle, { backgroundColor: colors.border }]} />
-            <Text style={[styles.calcTitle, { color: colors.text }]}>Calculator</Text>
+            <Text style={[styles.calcTitle, { color: colors.text }, isSmallScreen && { fontSize: 18, marginBottom: 12 }]}>{i18n.t('calculator')}</Text>
             
-            {/* Display */}
-            <View style={[styles.calcDisplay, { backgroundColor: colors.backgroundSecondary }]}>
-              <Text style={[styles.calcDisplayText, { color: colors.text }]}>{calcDisplay}</Text>
+            {/* Display - responsive so value and sign stay visible */}
+            <View style={[styles.calcDisplay, { backgroundColor: colors.backgroundSecondary }, isSmallScreen && { padding: 12, minHeight: 48, marginBottom: 12 }]}>
+              <Text style={[styles.calcDisplayText, { color: colors.text, fontSize: calcDisplayFontSize }]} numberOfLines={1} adjustsFontSizeToFit={true}>
+                {calcDisplay}
+              </Text>
             </View>
 
-            {/* Buttons */}
-            <View style={styles.calcGrid}>
+            {/* Buttons - responsive height */}
+            <View style={[styles.calcGrid, isSmallScreen && { gap: 8 }]}>
               <View style={styles.calcRow}>
-                <CalcButton label="C" onPress={handleClear} type="clear" />
-                <CalcButton label="⌫" onPress={handleDelete} />
-                <CalcButton label="÷" onPress={() => handleOperationPress('÷')} type="operation" />
+                <CalcButton label="C" onPress={handleClear} type="clear" height={calcBtnHeight} fontSize={calcBtnFontSize} />
+                <CalcButton label="⌫" onPress={handleDelete} height={calcBtnHeight} fontSize={calcBtnFontSize} />
+                <CalcButton label="÷" onPress={() => handleOperationPress('÷')} type="operation" height={calcBtnHeight} fontSize={calcBtnFontSize} />
               </View>
               <View style={styles.calcRow}>
-                <CalcButton label="7" onPress={() => handleNumberPress('7')} />
-                <CalcButton label="8" onPress={() => handleNumberPress('8')} />
-                <CalcButton label="9" onPress={() => handleNumberPress('9')} />
-                <CalcButton label="×" onPress={() => handleOperationPress('×')} type="operation" />
+                <CalcButton label="7" onPress={() => handleNumberPress('7')} height={calcBtnHeight} fontSize={calcBtnFontSize} />
+                <CalcButton label="8" onPress={() => handleNumberPress('8')} height={calcBtnHeight} fontSize={calcBtnFontSize} />
+                <CalcButton label="9" onPress={() => handleNumberPress('9')} height={calcBtnHeight} fontSize={calcBtnFontSize} />
+                <CalcButton label="×" onPress={() => handleOperationPress('×')} type="operation" height={calcBtnHeight} fontSize={calcBtnFontSize} />
               </View>
               <View style={styles.calcRow}>
-                <CalcButton label="4" onPress={() => handleNumberPress('4')} />
-                <CalcButton label="5" onPress={() => handleNumberPress('5')} />
-                <CalcButton label="6" onPress={() => handleNumberPress('6')} />
-                <CalcButton label="-" onPress={() => handleOperationPress('-')} type="operation" />
+                <CalcButton label="4" onPress={() => handleNumberPress('4')} height={calcBtnHeight} fontSize={calcBtnFontSize} />
+                <CalcButton label="5" onPress={() => handleNumberPress('5')} height={calcBtnHeight} fontSize={calcBtnFontSize} />
+                <CalcButton label="6" onPress={() => handleNumberPress('6')} height={calcBtnHeight} fontSize={calcBtnFontSize} />
+                <CalcButton label="-" onPress={() => handleOperationPress('-')} type="operation" height={calcBtnHeight} fontSize={calcBtnFontSize} />
               </View>
               <View style={styles.calcRow}>
-                <CalcButton label="1" onPress={() => handleNumberPress('1')} />
-                <CalcButton label="2" onPress={() => handleNumberPress('2')} />
-                <CalcButton label="3" onPress={() => handleNumberPress('3')} />
-                <CalcButton label="+" onPress={() => handleOperationPress('+')} type="operation" />
+                <CalcButton label="1" onPress={() => handleNumberPress('1')} height={calcBtnHeight} fontSize={calcBtnFontSize} />
+                <CalcButton label="2" onPress={() => handleNumberPress('2')} height={calcBtnHeight} fontSize={calcBtnFontSize} />
+                <CalcButton label="3" onPress={() => handleNumberPress('3')} height={calcBtnHeight} fontSize={calcBtnFontSize} />
+                <CalcButton label="+" onPress={() => handleOperationPress('+')} type="operation" height={calcBtnHeight} fontSize={calcBtnFontSize} />
               </View>
               <View style={styles.calcRow}>
-                <CalcButton label="0" onPress={() => handleNumberPress('0')} span={2} />
-                <CalcButton label="." onPress={handleDecimalPress} />
-                <CalcButton label="=" onPress={handleEquals} type="equals" />
+                <CalcButton label="0" onPress={() => handleNumberPress('0')} span={2} height={calcBtnHeight} fontSize={calcBtnFontSize} />
+                <CalcButton label="." onPress={handleDecimalPress} height={calcBtnHeight} fontSize={calcBtnFontSize} />
+                <CalcButton label="=" onPress={handleEquals} type="equals" height={calcBtnHeight} fontSize={calcBtnFontSize} />
               </View>
             </View>
 
             {/* Done Button */}
             <TouchableOpacity
-              style={[styles.calcDoneBtn, { backgroundColor: colors.accent }]}
+              style={[styles.calcDoneBtn, { backgroundColor: colors.accent }, isSmallScreen && { marginTop: 12, padding: 12 }]}
               onPress={handleDone}
             >
-              <Text style={[styles.calcDoneText, { color: colors.onAccent }]}>Done</Text>
+              <Text style={[styles.calcDoneText, { color: colors.onAccent }]}>{i18n.t('done')}</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
-    </View>
+    </>
   );
 }
 
@@ -237,7 +245,6 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   calcDisplayText: {
-    fontSize: 32,
     fontWeight: '600',
   },
   calcGrid: {
@@ -248,14 +255,16 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   calcBtn: {
-    height: 60,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
   calcBtnText: {
-    fontSize: 24,
     fontWeight: '600',
+  },
+  inputFlex: {
+    flex: 1,
+    minWidth: 0,
   },
   calcDoneBtn: {
     marginTop: 16,

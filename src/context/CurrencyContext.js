@@ -50,8 +50,8 @@ export const CurrencyProvider = ({ children }) => {
     return result;
   }, [loadWallets]);
 
-  const updateWallet = useCallback(async (id, { initialBalance }) => {
-    const result = await Storage.updateWallet(id, { initialBalance });
+  const updateWallet = useCallback(async (id, updates) => {
+    const result = await Storage.updateWallet(id, updates);
     if (result.success) await loadWallets();
     return result;
   }, [loadWallets]);

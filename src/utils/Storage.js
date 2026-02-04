@@ -211,14 +211,14 @@ export const Storage = {
     }
   },
 
-  // Currency
+  // Currency (default USD when not set)
   async getCurrency() {
     try {
       const currency = await storage.getItemAsync(STORAGE_KEYS.CURRENCY);
-      return currency || 'USD';
+      return currency || DEFAULT_CURRENCY;
     } catch (error) {
       console.error('Error getting currency:', error);
-      return 'USD';
+      return DEFAULT_CURRENCY;
     }
   },
 
@@ -308,16 +308,42 @@ export const Storage = {
     }
   },
 
-  async updateWallet(id, { initialBalance }) {
+  async updateWallet(id, updates) {
     try {
       const wallets = await this.getWallets();
       const index = wallets.findIndex(w => w.id === id);
       if (index === -1) return { success: false, error: 'Wallet not found.' };
-      const num = parseFloat(initialBalance);
-      if (Number.isNaN(num)) {
-        return { success: false, error: 'Enter a valid number.' };
+      const wallet = wallets[index];
+      let next = { ...wallet };
+
+      if (updates.currencyCode !== undefined) {
+        const newCode = (updates.currencyCode || '').toString().toUpperCase();
+        if (!CURRENCIES.some(c => c.code === newCode)) {
+          return { success: false, error: 'Invalid currency code.' };
+        }
+        if (newCode === (wallet.currencyCode || '').toUpperCase()) {
+          return { success: false, error: 'Same currency selected.' };
+        }
+        if (wallets.some(w => w.id !== id && (w.currencyCode || '').toUpperCase() === newCode)) {
+          return { success: false, error: 'That currency is already added.' };
+        }
+        const transactions = await this.getTransactions();
+        const count = transactions.filter(t => (t.currencyCode || '').toUpperCase() === (wallet.currencyCode || '').toUpperCase()).length;
+        if (count > 0) {
+          return { success: false, error: `This currency has ${count} transaction(s). Use Remove to convert or delete them first.`, transactionCount: count };
+        }
+        next.currencyCode = newCode;
       }
-      wallets[index] = { ...wallets[index], initialBalance: num };
+
+      if (updates.initialBalance !== undefined) {
+        const num = parseFloat(updates.initialBalance);
+        if (Number.isNaN(num)) {
+          return { success: false, error: 'Enter a valid number.' };
+        }
+        next.initialBalance = num;
+      }
+
+      wallets[index] = next;
       await this.saveWallets(wallets);
       return { success: true };
     } catch (error) {
@@ -342,6 +368,56 @@ export const Storage = {
     } catch (error) {
       console.error('Error removing wallet:', error);
       return { success: false, error: error.message || 'Could not remove.', transactionCount: 0 };
+    }
+  },
+
+  // Convert all transactions from wallet's currency to target currency using rate (1 fromCurrency = rate targetCurrency), then remove wallet.
+  async convertTransactionsToCurrencyAndRemoveWallet(walletId, targetCurrencyCode, rate) {
+    try {
+      const wallets = await this.getWallets();
+      const wallet = wallets.find(w => w.id === walletId);
+      if (!wallet) return { success: false, error: 'Wallet not found.' };
+      const targetCode = (targetCurrencyCode || '').toUpperCase();
+      const fromCode = (wallet.currencyCode || '').toUpperCase();
+      if (fromCode === targetCode) return { success: false, error: 'Target currency must be different.' };
+      const otherWallet = wallets.find(w => (w.currencyCode || '').toUpperCase() === targetCode);
+      if (!otherWallet) return { success: false, error: 'Target currency must be one of your wallets.' };
+      const numRate = parseFloat(rate);
+      if (Number.isNaN(numRate) || numRate <= 0) return { success: false, error: 'Enter a valid rate (e.g. 0.014 for 1 AFN = 0.014 USD).' };
+
+      const transactions = await this.getTransactions();
+      const toConvert = transactions.filter(t => (t.currencyCode || '').toUpperCase() === fromCode);
+      for (const t of toConvert) {
+        const newAmount = (parseFloat(t.amount) || 0) * numRate;
+        await this.updateTransaction(t.id, { amount: newAmount, currencyCode: targetCode });
+      }
+      const next = wallets.filter(w => w.id !== walletId);
+      await this.saveWallets(next);
+      return { success: true, convertedCount: toConvert.length };
+    } catch (error) {
+      console.error('Error converting and removing wallet:', error);
+      return { success: false, error: error.message || 'Could not convert.' };
+    }
+  },
+
+  // Delete all transactions with this wallet's currency and remove the wallet.
+  async deleteTransactionsWithCurrencyAndRemoveWallet(walletId) {
+    try {
+      const wallets = await this.getWallets();
+      const wallet = wallets.find(w => w.id === walletId);
+      if (!wallet) return { success: false, error: 'Wallet not found.' };
+      const fromCode = (wallet.currencyCode || '').toUpperCase();
+      const transactions = await this.getTransactions();
+      const toDelete = transactions.filter(t => (t.currencyCode || '').toUpperCase() === fromCode);
+      for (const t of toDelete) {
+        await this.deleteTransaction(t.id);
+      }
+      const next = wallets.filter(w => w.id !== walletId);
+      await this.saveWallets(next);
+      return { success: true, deletedCount: toDelete.length };
+    } catch (error) {
+      console.error('Error deleting transactions and removing wallet:', error);
+      return { success: false, error: error.message || 'Could not remove.' };
     }
   },
 
@@ -440,12 +516,30 @@ export const Storage = {
     }
   },
 
-  // Customers (user-specific)
+  // Customers (user-specific). Migrates legacy customers to balanceByCurrency from transactions.
   async getCustomers() {
     try {
       const key = getUserKey(STORAGE_KEYS.CUSTOMERS);
-      const customers = await storage.getItemAsync(key);
-      return customers ? JSON.parse(customers) : [];
+      const raw = await storage.getItemAsync(key);
+      let customers = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(customers)) customers = [];
+
+      const transactions = await this.getTransactions();
+      const wallets = await this.getWallets();
+      const primaryCode = wallets.length > 0 ? wallets[0].currencyCode : DEFAULT_CURRENCY;
+      let needsSave = false;
+
+      customers = customers.map(c => {
+        const hasBalanceByCurrency = c.balanceByCurrency && typeof c.balanceByCurrency === 'object';
+        if (hasBalanceByCurrency) return c;
+        const balanceByCurrency = this._balanceByCurrencyFromTransactions(transactions, c.id);
+        const balance = balanceByCurrency[primaryCode] ?? (parseFloat(c.balance) || 0);
+        needsSave = true;
+        return { ...c, balanceByCurrency, balance };
+      });
+
+      if (needsSave) await this.saveCustomers(customers);
+      return customers;
     } catch (error) {
       console.error('Error getting customers:', error);
       return [];
@@ -464,12 +558,29 @@ export const Storage = {
     }
   },
 
+  // Compute balanceByCurrency for a customer from their transactions (for migration).
+  _balanceByCurrencyFromTransactions(transactions, customerId) {
+    const byCurrency = {};
+    transactions
+      .filter(t => t.customerId === customerId)
+      .forEach(t => {
+        const code = (t.currencyCode || DEFAULT_CURRENCY).toUpperCase();
+        if (!byCurrency[code]) byCurrency[code] = 0;
+        const amount = parseFloat(t.amount) || 0;
+        if (t.type === 'credit' || t.type === 'income') byCurrency[code] += amount;
+        else if (t.type === 'debit' || t.type === 'expense') byCurrency[code] -= amount;
+      });
+    return byCurrency;
+  },
+
   async addCustomer(customer) {
     try {
       const customers = await this.getCustomers();
       const newCustomer = {
         id: Date.now().toString(),
         ...customer,
+        balanceByCurrency: {},
+        balance: 0,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -556,20 +667,19 @@ export const Storage = {
       transactions.unshift(newTransaction);
       await this.saveTransactions(transactions);
 
-      // Update customer balance if linked
+      // Update customer balanceByCurrency (and primary-currency balance) if linked
       if (transaction.customerId) {
         const customers = await this.getCustomers();
         const customerIndex = customers.findIndex(c => c.id === transaction.customerId);
         if (customerIndex !== -1) {
           const amount = parseFloat(transaction.amount) || 0;
-          const currentBalance = parseFloat(customers[customerIndex].balance) || 0;
-          
-          if (transaction.type === 'credit' || transaction.type === 'income') {
-            customers[customerIndex].balance = currentBalance + amount;
-          } else if (transaction.type === 'debit' || transaction.type === 'expense') {
-            customers[customerIndex].balance = currentBalance - amount;
-          }
-          
+          const cust = customers[customerIndex];
+          const byCurrency = { ...(cust.balanceByCurrency && typeof cust.balanceByCurrency === 'object' ? cust.balanceByCurrency : {}) };
+          const code = (currencyCode || primaryCode).toUpperCase();
+          const current = byCurrency[code] ?? 0;
+          byCurrency[code] = (transaction.type === 'credit' || transaction.type === 'income') ? current + amount : current - amount;
+          customers[customerIndex].balanceByCurrency = byCurrency;
+          customers[customerIndex].balance = byCurrency[primaryCode] ?? 0;
           customers[customerIndex].updatedAt = new Date().toISOString();
           await this.saveCustomers(customers);
         }
@@ -594,60 +704,61 @@ export const Storage = {
 
   async updateTransaction(transactionId, updates) {
     try {
-      const transactions = await this.getTransactions();
+      const [transactions, wallets] = await Promise.all([this.getTransactions(), this.getWallets()]);
       const transactionIndex = transactions.findIndex(t => t.id === transactionId);
-      
+      const primaryCode = wallets.length > 0 ? wallets[0].currencyCode : DEFAULT_CURRENCY;
+
       if (transactionIndex === -1) return false;
-      
+
       const oldTransaction = transactions[transactionIndex];
-      
-      // Reverse old balance changes if customer was linked
+
+      // Reverse old customer balanceByCurrency
       if (oldTransaction.customerId) {
         const customers = await this.getCustomers();
         const customerIndex = customers.findIndex(c => c.id === oldTransaction.customerId);
         if (customerIndex !== -1) {
+          const cust = customers[customerIndex];
+          const byCurrency = { ...(cust.balanceByCurrency && typeof cust.balanceByCurrency === 'object' ? cust.balanceByCurrency : {}) };
+          const code = (oldTransaction.currencyCode || primaryCode).toUpperCase();
           const amount = parseFloat(oldTransaction.amount) || 0;
-          const currentBalance = parseFloat(customers[customerIndex].balance) || 0;
-          
-          if (oldTransaction.type === 'credit' || oldTransaction.type === 'income') {
-            customers[customerIndex].balance = currentBalance - amount;
-          } else if (oldTransaction.type === 'debit' || oldTransaction.type === 'expense') {
-            customers[customerIndex].balance = currentBalance + amount;
-          }
-          
+          const current = byCurrency[code] ?? 0;
+          byCurrency[code] = (oldTransaction.type === 'credit' || oldTransaction.type === 'income') ? current - amount : current + amount;
+          customers[customerIndex].balanceByCurrency = byCurrency;
+          customers[customerIndex].balance = byCurrency[primaryCode] ?? 0;
           customers[customerIndex].updatedAt = new Date().toISOString();
           await this.saveCustomers(customers);
         }
       }
-      
+
       // Update transaction
-      transactions[transactionIndex] = {
+      const newTransaction = {
         ...oldTransaction,
         ...updates,
         updatedAt: new Date().toISOString(),
       };
-      
+      transactions[transactionIndex] = newTransaction;
       await this.saveTransactions(transactions);
-      
-      // Apply new balance changes if customer is linked
-      if (updates.customerId) {
+
+      // Apply new customer balanceByCurrency (use effective customer/amount/type/currency)
+      const effCustomerId = updates.customerId !== undefined ? updates.customerId : oldTransaction.customerId;
+      if (effCustomerId) {
         const customers = await this.getCustomers();
-        const customerIndex = customers.findIndex(c => c.id === updates.customerId);
+        const customerIndex = customers.findIndex(c => c.id === effCustomerId);
         if (customerIndex !== -1) {
-          const amount = parseFloat(updates.amount) || 0;
-          const currentBalance = parseFloat(customers[customerIndex].balance) || 0;
-          
-          if (updates.type === 'credit' || updates.type === 'income') {
-            customers[customerIndex].balance = currentBalance + amount;
-          } else if (updates.type === 'debit' || updates.type === 'expense') {
-            customers[customerIndex].balance = currentBalance - amount;
-          }
-          
+          const amount = parseFloat(newTransaction.amount) ?? parseFloat(oldTransaction.amount) || 0;
+          const type = newTransaction.type ?? oldTransaction.type;
+          const currencyCode = (newTransaction.currencyCode || oldTransaction.currencyCode || primaryCode).toUpperCase();
+          const cust = customers[customerIndex];
+          const byCurrency = { ...(cust.balanceByCurrency && typeof cust.balanceByCurrency === 'object' ? cust.balanceByCurrency : {}) };
+          const current = byCurrency[currencyCode] ?? 0;
+          byCurrency[currencyCode] = (type === 'credit' || type === 'income') ? current + amount : current - amount;
+          customers[customerIndex].balanceByCurrency = byCurrency;
+          customers[customerIndex].balance = byCurrency[primaryCode] ?? 0;
           customers[customerIndex].updatedAt = new Date().toISOString();
           await this.saveCustomers(customers);
         }
       }
-      
+
       return true;
     } catch (error) {
       console.error('Error updating transaction:', error);
@@ -655,12 +766,10 @@ export const Storage = {
     }
   },
 
-  // Clear all transactions (local). Resets customer balances. Caller should sync to cloud after.
+  // Clear all transactions and all customers (local). Caller should sync to cloud after.
   async clearAllTransactions() {
     try {
-      const customers = await this.getCustomers();
-      const updated = customers.map(c => ({ ...c, balance: 0, updatedAt: new Date().toISOString() }));
-      await this.saveCustomers(updated);
+      await this.saveCustomers([]);
       await this.saveTransactions([]);
       return true;
     } catch (error) {
@@ -671,28 +780,27 @@ export const Storage = {
 
   async deleteTransaction(transactionId) {
     try {
-      const transactions = await this.getTransactions();
+      const [transactions, wallets] = await Promise.all([this.getTransactions(), this.getWallets()]);
       const transaction = transactions.find(t => t.id === transactionId);
-      
+      const primaryCode = wallets.length > 0 ? wallets[0].currencyCode : DEFAULT_CURRENCY;
+
       if (transaction && transaction.customerId) {
-        // Reverse the balance change
         const customers = await this.getCustomers();
         const customerIndex = customers.findIndex(c => c.id === transaction.customerId);
         if (customerIndex !== -1) {
+          const cust = customers[customerIndex];
+          const byCurrency = { ...(cust.balanceByCurrency && typeof cust.balanceByCurrency === 'object' ? cust.balanceByCurrency : {}) };
+          const code = (transaction.currencyCode || primaryCode).toUpperCase();
           const amount = parseFloat(transaction.amount) || 0;
-          const currentBalance = parseFloat(customers[customerIndex].balance) || 0;
-          
-          if (transaction.type === 'credit' || transaction.type === 'income') {
-            customers[customerIndex].balance = currentBalance - amount;
-          } else if (transaction.type === 'debit' || transaction.type === 'expense') {
-            customers[customerIndex].balance = currentBalance + amount;
-          }
-          
+          const current = byCurrency[code] ?? 0;
+          byCurrency[code] = (transaction.type === 'credit' || transaction.type === 'income') ? current - amount : current + amount;
+          customers[customerIndex].balanceByCurrency = byCurrency;
+          customers[customerIndex].balance = byCurrency[primaryCode] ?? 0;
           customers[customerIndex].updatedAt = new Date().toISOString();
           await this.saveCustomers(customers);
         }
       }
-      
+
       const filtered = transactions.filter(t => t.id !== transactionId);
       await this.saveTransactions(filtered);
       return true;
@@ -766,9 +874,9 @@ export const Storage = {
         transactions: transactions || [],
         wallets: wallets || [],
         theme: theme || 'light',
-        currency: currency || 'USD',
+        currency: currency || DEFAULT_CURRENCY,
         language: language || 'en',
-        exchangeRates: exchangeRates || { baseCurrency: 'USD', rates: {} },
+        exchangeRates: exchangeRates || { baseCurrency: DEFAULT_CURRENCY, rates: {} },
       };
       return JSON.stringify(payload, null, 0);
     } catch (error) {

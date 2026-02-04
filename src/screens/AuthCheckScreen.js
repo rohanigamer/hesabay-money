@@ -154,7 +154,7 @@ export default function AuthCheckScreen({ navigation }) {
 
   if (isChecking) return null;
   if (authMethod === 'passcode') return <PasscodeScreen navigation={navigation} onSuccess={handleAuthSuccess} />;
-  if (authMethod === 'passkey') return <BiometricScreen navigation={navigation} onSuccess={handleAuthSuccess} />;
+  if (authMethod === 'biometric') return <BiometricScreen navigation={navigation} onSuccess={handleAuthSuccess} />;
   return null;
 }
 

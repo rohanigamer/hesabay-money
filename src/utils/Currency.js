@@ -16,6 +16,7 @@ export const CURRENCIES = [
   { code: 'AFN', symbol: '؋', name: 'Afghan Afghani' },
 ];
 
+/** Default app currency when none is set (e.g. first launch). */
 export const DEFAULT_CURRENCY = 'USD';
 
 export const getCurrencySymbol = (currencyCode) => {

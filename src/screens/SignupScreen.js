@@ -16,6 +16,7 @@ import { useAuth } from '../context/AuthContext';
 import PasswordStrength from '../components/PasswordStrength';
 import AnimatedBackground from '../components/AnimatedBackground';
 import { useFeedback } from '../context/FeedbackContext';
+import i18n from '../utils/i18n';
 
 export default function SignupScreen({ navigation }) {
   const { colors } = useContext(ThemeContext);
@@ -176,7 +177,7 @@ export default function SignupScreen({ navigation }) {
               <Ionicons name="person-outline" size={20} color={colors.textTertiary} />
               <TextInput
                 style={[styles.input, { color: colors.text }]}
-                placeholder="John Doe"
+                placeholder={i18n.t('namePlaceholder')}
                 placeholderTextColor={colors.textTertiary}
                 value={name}
                 onChangeText={setName}
@@ -192,7 +193,7 @@ export default function SignupScreen({ navigation }) {
               <Ionicons name="mail-outline" size={20} color={colors.textTertiary} />
               <TextInput
                 style={[styles.input, { color: colors.text }]}
-                placeholder="your@email.com"
+                placeholder={i18n.t('emailPlaceholder')}
                 placeholderTextColor={colors.textTertiary}
                 value={email}
                 onChangeText={setEmail}
@@ -210,7 +211,7 @@ export default function SignupScreen({ navigation }) {
               <Ionicons name="lock-closed-outline" size={20} color={colors.textTertiary} />
               <TextInput
                 style={[styles.input, { color: colors.text }]}
-                placeholder="At least 6 characters"
+                placeholder={i18n.t('passwordMinPlaceholder')}
                 placeholderTextColor={colors.textTertiary}
                 value={password}
                 onChangeText={setPassword}
@@ -235,7 +236,7 @@ export default function SignupScreen({ navigation }) {
               <Ionicons name="lock-closed-outline" size={20} color={colors.textTertiary} />
               <TextInput
                 style={[styles.input, { color: colors.text }]}
-                placeholder="Confirm your password"
+                placeholder={i18n.t('confirmPasswordPlaceholder')}
                 placeholderTextColor={colors.textTertiary}
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}

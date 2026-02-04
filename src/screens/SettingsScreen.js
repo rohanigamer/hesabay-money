@@ -13,6 +13,7 @@ import {
   Linking,
   TextInput,
   KeyboardAvoidingView,
+  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as LocalAuthentication from 'expo-local-authentication';
@@ -22,7 +23,7 @@ import { ThemeContext } from '../context/ThemeContext';
 import { useCurrency } from '../context/CurrencyContext';
 import { useAuth } from '../context/AuthContext';
 import { useAppLock } from '../context/AppLockContext';
-import { CURRENCIES } from '../utils/Currency';
+import { CURRENCIES, DEFAULT_CURRENCY } from '../utils/Currency';
 import BottomNavigation from '../components/BottomNavigation';
 import GlassCard from '../components/GlassCard';
 import { firebaseSync } from '../services/FirebaseSync';
@@ -38,8 +39,8 @@ import { getPrivacyPolicyUrl, getRateAppUrl } from '../config/appLinks';
 export default function SettingsScreen({ navigation }) {
   const { colors, theme, changeTheme } = useContext(ThemeContext);
   const insets = useSafeAreaInsets();
-  const { wallets, walletBalances, addWallet, updateWallet, removeWallet, format, refreshBalances, exchangeRates, loadExchangeRates } = useCurrency();
-  const { user, logOut, syncData } = useAuth();
+  const { wallets, walletBalances, addWallet, updateWallet, removeWallet, loadWallets, format, refreshBalances, exchangeRates, loadExchangeRates } = useCurrency();
+  const { user, logOut } = useAuth();
   const { lockTimeout, updateLockTimeout, updateAuthMethod } = useAppLock();
   const { toast, confirm, alert, showError } = useFeedback();
   const [authMethod, setAuthMethod] = useState('none');
@@ -56,8 +57,14 @@ export default function SettingsScreen({ navigation }) {
   const [deleteAllVerification, setDeleteAllVerification] = useState('');
   const [deletingAll, setDeletingAll] = useState(false);
   const [showExchangeRatesModal, setShowExchangeRatesModal] = useState(false);
-  const [exchangeRateForm, setExchangeRateForm] = useState({ baseCurrency: 'USD', rates: {} });
+  const [exchangeRateForm, setExchangeRateForm] = useState({ baseCurrency: DEFAULT_CURRENCY, rates: {} });
   const [savingRates, setSavingRates] = useState(false);
+  const [walletToRemove, setWalletToRemove] = useState(null);
+  const [showRemoveCurrencyOptionsModal, setShowRemoveCurrencyOptionsModal] = useState(false);
+  const [showConvertCurrencyModal, setShowConvertCurrencyModal] = useState(false);
+  const [convertTargetCurrency, setConvertTargetCurrency] = useState('');
+  const [convertRate, setConvertRate] = useState('');
+  const [convertingOrDeleting, setConvertingOrDeleting] = useState(false);
 
   const headerAnim = useRef(new Animated.Value(0)).current;
   const sectionsAnim = useRef(new Animated.Value(0)).current;
@@ -272,17 +279,21 @@ export default function SettingsScreen({ navigation }) {
   const openExchangeRatesModal = async () => {
     const current = await Storage.getExchangeRates();
     const ratesObj = current.rates || {};
+    const walletCodes = walletBalances.map(w => w.currencyCode);
+    const base = current.baseCurrency && walletCodes.includes(current.baseCurrency)
+      ? current.baseCurrency
+      : (walletCodes[0] || current.baseCurrency || DEFAULT_CURRENCY);
     const rateStrings = {};
-    CURRENCIES.filter(c => c.code !== current.baseCurrency).forEach(c => {
-      rateStrings[c.code] = ratesObj[c.code] != null ? String(ratesObj[c.code]) : '';
+    walletCodes.filter(code => code !== base).forEach(code => {
+      rateStrings[code] = ratesObj[code] != null ? String(ratesObj[code]) : '';
     });
-    setExchangeRateForm({ baseCurrency: current.baseCurrency || 'USD', rates: rateStrings });
+    setExchangeRateForm({ baseCurrency: base, rates: rateStrings });
     setShowExchangeRatesModal(true);
   };
 
   const handleSaveExchangeRates = async () => {
     setSavingRates(true);
-    const base = exchangeRateForm.baseCurrency || 'USD';
+    const base = exchangeRateForm.baseCurrency || DEFAULT_CURRENCY;
     const rates = {};
     Object.entries(exchangeRateForm.rates || {}).forEach(([code, val]) => {
       if (code === base) return;
@@ -297,6 +308,73 @@ export default function SettingsScreen({ navigation }) {
       toast({ type: 'success', title: i18n.t('success'), message: i18n.t('exchangeRatesSaved') });
     } else {
       toast({ type: 'error', title: i18n.t('error'), message: 'Could not save exchange rates.' });
+    }
+  };
+
+  const handleChooseConvertCurrency = () => {
+    setShowRemoveCurrencyOptionsModal(false);
+    setConvertTargetCurrency(walletToRemove ? (walletBalances.find(ow => ow.id !== walletToRemove.id)?.currencyCode || '') : '');
+    setConvertRate('');
+    setShowConvertCurrencyModal(true);
+  };
+
+  const handleChooseDeleteTransactions = async () => {
+    setShowRemoveCurrencyOptionsModal(false);
+    const count = walletToRemove?.transactionCount ?? 0;
+    const ok = await confirm({
+      title: 'Delete transactions and remove currency?',
+      message: `This will permanently delete ${count} transaction(s) with ${walletToRemove?.currencyCode} and remove the currency. This cannot be undone.`,
+      confirmText: 'Delete & Remove',
+      cancelText: 'Cancel',
+      destructive: true,
+    });
+    if (!ok || !walletToRemove) return;
+    setConvertingOrDeleting(true);
+    try {
+      const result = await Storage.deleteTransactionsWithCurrencyAndRemoveWallet(walletToRemove.id);
+      if (result.success) {
+        await loadWallets();
+        await refreshBalances();
+        toast({ type: 'success', title: 'Removed', message: `${walletToRemove.currencyCode} and ${result.deletedCount} transaction(s) removed.` });
+      } else {
+        toast({ type: 'error', title: 'Error', message: result.error });
+      }
+    } catch (e) {
+      toast({ type: 'error', title: 'Error', message: e.message || 'Could not remove.' });
+    } finally {
+      setConvertingOrDeleting(false);
+      setWalletToRemove(null);
+    }
+  };
+
+  const handleConfirmConvertCurrency = async () => {
+    if (!walletToRemove || !convertTargetCurrency.trim()) {
+      toast({ type: 'warning', title: 'Select currency', message: 'Choose a target currency.' });
+      return;
+    }
+    const rateNum = parseFloat(convertRate.replace(/,/g, ''));
+    if (Number.isNaN(rateNum) || rateNum <= 0) {
+      toast({ type: 'warning', title: 'Invalid rate', message: 'Enter a valid rate (e.g. 0.014 for 1 AFN = 0.014 USD).' });
+      return;
+    }
+    setConvertingOrDeleting(true);
+    try {
+      const result = await Storage.convertTransactionsToCurrencyAndRemoveWallet(walletToRemove.id, convertTargetCurrency.trim(), rateNum);
+      if (result.success) {
+        await loadWallets();
+        await refreshBalances();
+        setShowConvertCurrencyModal(false);
+        setWalletToRemove(null);
+        setConvertTargetCurrency('');
+        setConvertRate('');
+        toast({ type: 'success', title: 'Done', message: `${result.convertedCount} transaction(s) converted to ${convertTargetCurrency} and currency removed.` });
+      } else {
+        toast({ type: 'error', title: 'Error', message: result.error });
+      }
+    } catch (e) {
+      toast({ type: 'error', title: 'Error', message: e.message || 'Could not convert.' });
+    } finally {
+      setConvertingOrDeleting(false);
     }
   };
 
@@ -548,16 +626,14 @@ export default function SettingsScreen({ navigation }) {
                   icon="log-in"
                   title="Sign In"
                   subtitle="Sign in to sync your data"
-                  onPress={() => {
-                    (async () => {
-                      const ok = await confirm({
-                        title: 'Switch account?',
-                        message: 'If you sign in, your guest data will remain on this device.',
-                        confirmText: 'Continue',
-                        cancelText: 'Cancel',
-                      });
-                      if (ok) navigation.navigate('Login');
-                    })();
+                  onPress={async () => {
+                    const ok = await confirm({
+                      title: 'Switch account?',
+                      message: 'If you sign in, your guest data will remain on this device.',
+                      confirmText: 'Continue',
+                      cancelText: 'Cancel',
+                    });
+                    if (ok) navigation.navigate('Login');
                   }}
                   right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
                 />
@@ -742,13 +818,13 @@ export default function SettingsScreen({ navigation }) {
                         <TouchableOpacity
                           onPress={() => {
                             setEditingWallet(w);
-                            setWalletForm({ currencyCode: w.currencyCode, initialBalance: String(w.initialBalance ?? 0) });
+                            setWalletForm({ currencyCode: '', initialBalance: '' });
                             setShowEditWalletModal(true);
                           }}
                           style={[styles.walletActionBtn, { backgroundColor: colors.backgroundSecondary }]}
                           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                         >
-                          <Ionicons name="pencil" size={18} color={colors.text} />
+                          <Ionicons name="swap-horizontal" size={18} color={colors.text} />
                         </TouchableOpacity>
                         <TouchableOpacity
                           onPress={async () => {
@@ -765,12 +841,11 @@ export default function SettingsScreen({ navigation }) {
                             setRemovingWalletId(null);
                             if (result.success) {
                               toast({ type: 'success', title: 'Removed', message: `${w.currencyCode} removed.` });
+                            } else if (result.transactionCount > 0) {
+                              setWalletToRemove({ ...w, transactionCount: result.transactionCount });
+                              setShowRemoveCurrencyOptionsModal(true);
                             } else {
-                              if (result.transactionCount > 0) {
-                                showError(result.error, { fallbackTitle: 'Cannot remove' });
-                              } else {
-                                toast({ type: 'error', title: 'Cannot remove', message: result.error });
-                              }
+                              toast({ type: 'error', title: 'Cannot remove', message: result.error });
                             }
                           }}
                           disabled={removingWalletId !== null}
@@ -924,229 +999,371 @@ export default function SettingsScreen({ navigation }) {
 
       {/* Add Wallet Modal */}
       <Modal visible={showAddWalletModal} animationType="slide" transparent onRequestClose={() => setShowAddWalletModal(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 0}
+        >
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowAddWalletModal(false)} />
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+          <View style={[styles.modalContent, styles.modalContentScrollable, { backgroundColor: colors.background }]}>
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
-            <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('addCurrency')}</Text>
-            <Text style={[styles.walletModalLabel, { color: colors.textSecondary }]}>Currency</Text>
-            <ScrollView style={{ maxHeight: 260 }} keyboardShouldPersistTaps="handled">
-              {CURRENCIES.filter(c => !wallets.some(w => w.currencyCode === c.code)).length === 0 ? (
-                <Text style={[styles.walletModalHint, { color: colors.textTertiary, marginVertical: 12 }]}>{i18n.t('maxCurrenciesReached')}</Text>
-              ) : (
-                CURRENCIES.filter(c => !wallets.some(w => w.currencyCode === c.code)).map((curr) => (
-                  <TouchableOpacity
-                    key={curr.code}
-                    style={[styles.themeOpt, { backgroundColor: walletForm.currencyCode === curr.code ? colors.accentLight : colors.backgroundSecondary }]}
-                    onPress={() => setWalletForm(f => ({ ...f, currencyCode: curr.code }))}
-                  >
-                    <Text style={[styles.currencySymbol, { color: walletForm.currencyCode === curr.code ? colors.accent : colors.textSecondary }]}>{curr.symbol}</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.themeOptText, { color: colors.text }]}>{curr.name}</Text>
-                      <Text style={[styles.currencyCode, { color: colors.textSecondary }]}>{curr.code}</Text>
-                    </View>
-                    {walletForm.currencyCode === curr.code && <Ionicons name="checkmark" size={20} color={colors.accent} />}
-                  </TouchableOpacity>
-                ))
-              )}
-            </ScrollView>
-            <Text style={[styles.walletModalLabel, { color: colors.textSecondary, marginTop: 16 }]}>{i18n.t('initialBalance')}</Text>
-            <TextInput
-              style={[styles.walletInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}
-              placeholder="0"
-              placeholderTextColor={colors.textTertiary}
-              keyboardType="decimal-pad"
-              value={walletForm.initialBalance}
-              onChangeText={(t) => setWalletForm(f => ({ ...f, initialBalance: t.replace(/[^0-9.-]/g, '') }))}
-            />
-            <TouchableOpacity
-              style={[styles.walletSubmitBtn, { backgroundColor: colors.accent, opacity: walletForm.currencyCode ? 1 : 0.5 }]}
-              disabled={!walletForm.currencyCode}
-              onPress={async () => {
-                if (!walletForm.currencyCode) {
-                  toast({ type: 'warning', title: 'Select currency', message: i18n.t('selectCurrency') });
-                  return;
-                }
-                const result = await addWallet({
-                  currencyCode: walletForm.currencyCode,
-                  initialBalance: parseFloat(walletForm.initialBalance) || 0,
-                });
-                if (result.success) {
-                  setShowAddWalletModal(false);
-                  toast({ type: 'success', title: 'Added', message: `${result.wallet.currencyCode} added.` });
-                } else {
-                  toast({ type: 'error', title: 'Error', message: result.error });
-                }
-              }}
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 24 }}
             >
-              <Text style={[styles.walletSubmitText, { color: colors.onAccent }]}>{i18n.t('addCurrency')}</Text>
-            </TouchableOpacity>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('addCurrency')}</Text>
+              <Text style={[styles.walletModalLabel, { color: colors.textSecondary }]}>Currency</Text>
+              <ScrollView style={{ maxHeight: 260 }} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
+                {CURRENCIES.filter(c => !wallets.some(w => w.currencyCode === c.code)).length === 0 ? (
+                  <Text style={[styles.walletModalHint, { color: colors.textTertiary, marginVertical: 12 }]}>{i18n.t('maxCurrenciesReached')}</Text>
+                ) : (
+                  CURRENCIES.filter(c => !wallets.some(w => w.currencyCode === c.code)).map((curr) => (
+                    <TouchableOpacity
+                      key={curr.code}
+                      style={[styles.themeOpt, { backgroundColor: walletForm.currencyCode === curr.code ? colors.accentLight : colors.backgroundSecondary }]}
+                      onPress={() => setWalletForm(f => ({ ...f, currencyCode: curr.code }))}
+                    >
+                      <Text style={[styles.currencySymbol, { color: walletForm.currencyCode === curr.code ? colors.accent : colors.textSecondary }]}>{curr.symbol}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.themeOptText, { color: colors.text }]}>{curr.name}</Text>
+                        <Text style={[styles.currencyCode, { color: colors.textSecondary }]}>{curr.code}</Text>
+                      </View>
+                      {walletForm.currencyCode === curr.code && <Ionicons name="checkmark" size={20} color={colors.accent} />}
+                    </TouchableOpacity>
+                  ))
+                )}
+              </ScrollView>
+              <TouchableOpacity
+                style={[styles.walletSubmitBtn, { backgroundColor: colors.accent, opacity: walletForm.currencyCode ? 1 : 0.5 }]}
+                disabled={!walletForm.currencyCode}
+                onPress={async () => {
+                  if (!walletForm.currencyCode) {
+                    toast({ type: 'warning', title: 'Select currency', message: i18n.t('selectCurrency') });
+                    return;
+                  }
+                  const result = await addWallet({
+                    currencyCode: walletForm.currencyCode,
+                    initialBalance: 0,
+                  });
+                  if (result.success) {
+                    setShowAddWalletModal(false);
+                    toast({ type: 'success', title: 'Added', message: `${result.wallet.currencyCode} added.` });
+                  } else {
+                    toast({ type: 'error', title: 'Error', message: result.error });
+                  }
+                }}
+              >
+                <Text style={[styles.walletSubmitText, { color: colors.onAccent }]}>{i18n.t('addCurrency')}</Text>
+              </TouchableOpacity>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Edit Wallet Modal */}
+      {/* Change currency Modal */}
       <Modal visible={showEditWalletModal} animationType="slide" transparent onRequestClose={() => setShowEditWalletModal(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 0}
+        >
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowEditWalletModal(false)} />
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+          <View style={[styles.modalContent, styles.modalContentScrollable, { backgroundColor: colors.background }]}>
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
-            <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('editWallet')}</Text>
-            {editingWallet && (
-              <>
-                <Text style={[styles.walletModalLabel, { color: colors.textSecondary }]}>
-                  {CURRENCIES.find(c => c.code === editingWallet.currencyCode)?.name || editingWallet.currencyCode}
-                </Text>
-                <Text style={[styles.walletModalHint, { color: colors.textTertiary }]}>{i18n.t('changingInitialBalance')}</Text>
-                <Text style={[styles.walletModalLabel, { color: colors.textSecondary, marginTop: 12 }]}>{i18n.t('initialBalance')}</Text>
-                <TextInput
-                  style={[styles.walletInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}
-                  placeholder="0"
-                  placeholderTextColor={colors.textTertiary}
-                  keyboardType="decimal-pad"
-                  value={walletForm.initialBalance}
-                  onChangeText={(t) => setWalletForm(f => ({ ...f, initialBalance: t.replace(/[^0-9.-]/g, '') }))}
-                />
-                <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
-                  <TouchableOpacity
-                    style={[styles.walletSubmitBtn, { flex: 1, backgroundColor: colors.backgroundSecondary }]}
-                    onPress={() => { setShowEditWalletModal(false); setEditingWallet(null); }}
-                  >
-                    <Text style={[styles.walletSubmitText, { color: colors.text }]}>{i18n.t('cancel')}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.walletSubmitBtn, { flex: 1, backgroundColor: colors.accent }]}
-                    onPress={async () => {
-                      const num = parseFloat(walletForm.initialBalance);
-                      if (Number.isNaN(num)) {
-                        toast({ type: 'warning', title: 'Invalid', message: i18n.t('enterValidNumber') });
-                        return;
-                      }
-                      const result = await updateWallet(editingWallet.id, { initialBalance: num });
-                      if (result.success) {
-                        setShowEditWalletModal(false);
-                        setEditingWallet(null);
-                        toast({ type: 'success', title: 'Updated', message: 'Initial balance updated.' });
-                      } else {
-                        toast({ type: 'error', title: 'Error', message: result.error });
-                      }
-                    }}
-                  >
-                    <Text style={[styles.walletSubmitText, { color: colors.onAccent }]}>Save</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('changeCurrency')}</Text>
+              {editingWallet && (
+                <>
+                  <Text style={[styles.walletModalHint, { color: colors.textSecondary, marginBottom: 12 }]}>
+                    Current: {CURRENCIES.find(c => c.code === editingWallet.currencyCode)?.name || editingWallet.currencyCode} ({editingWallet.currencyCode})
+                  </Text>
+                  <Text style={[styles.walletModalLabel, { color: colors.textSecondary }]}>New currency</Text>
+                  <ScrollView style={{ maxHeight: 260 }} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
+                    {CURRENCIES.filter(c => c.code !== editingWallet.currencyCode && !wallets.some(w => w.id !== editingWallet.id && w.currencyCode === c.code)).map((curr) => (
+                      <TouchableOpacity
+                        key={curr.code}
+                        style={[styles.themeOpt, { backgroundColor: walletForm.currencyCode === curr.code ? colors.accentLight : colors.backgroundSecondary }]}
+                        onPress={() => setWalletForm(f => ({ ...f, currencyCode: curr.code }))}
+                      >
+                        <Text style={[styles.currencySymbol, { color: walletForm.currencyCode === curr.code ? colors.accent : colors.textSecondary }]}>{curr.symbol}</Text>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.themeOptText, { color: colors.text }]}>{curr.name}</Text>
+                          <Text style={[styles.currencyCode, { color: colors.textSecondary }]}>{curr.code}</Text>
+                        </View>
+                        {walletForm.currencyCode === curr.code && <Ionicons name="checkmark" size={20} color={colors.accent} />}
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                  <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
+                    <TouchableOpacity
+                      style={[styles.walletSubmitBtn, { flex: 1, backgroundColor: colors.backgroundSecondary }]}
+                      onPress={() => { setShowEditWalletModal(false); setEditingWallet(null); }}
+                    >
+                      <Text style={[styles.walletSubmitText, { color: colors.text }]}>{i18n.t('cancel')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.walletSubmitBtn, { flex: 1, backgroundColor: colors.accent, opacity: walletForm.currencyCode ? 1 : 0.5 }]}
+                      disabled={!walletForm.currencyCode}
+                      onPress={async () => {
+                        if (!walletForm.currencyCode) return;
+                        const result = await updateWallet(editingWallet.id, { currencyCode: walletForm.currencyCode });
+                        if (result.success) {
+                          setShowEditWalletModal(false);
+                          setEditingWallet(null);
+                          setWalletForm({ currencyCode: '', initialBalance: '' });
+                          toast({ type: 'success', title: i18n.t('success'), message: `Currency changed to ${walletForm.currencyCode}.` });
+                        } else {
+                          toast({ type: 'error', title: i18n.t('error'), message: result.error });
+                        }
+                      }}
+                    >
+                      <Text style={[styles.walletSubmitText, { color: colors.onAccent }]}>{i18n.t('changeCurrency')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
       {/* Delete all transactions verification modal */}
       <Modal visible={showDeleteAllModal} animationType="slide" transparent onRequestClose={() => !deletingAll && setShowDeleteAllModal(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 0}
+        >
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => deletingAll ? null : setShowDeleteAllModal(false)} />
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+          <View style={[styles.modalContent, styles.modalContentScrollable, { backgroundColor: colors.background }]}>
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
-            <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('deleteAllTransactionsConfirmTitle')}</Text>
-            <Text style={[styles.walletModalHint, { color: colors.textSecondary, marginBottom: 12 }]}>{i18n.t('deleteAllTransactionsTypeToConfirm')}</Text>
-            <TextInput
-              style={[styles.walletInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}
-              placeholder="DELETE"
-              placeholderTextColor={colors.textTertiary}
-              autoCapitalize="characters"
-              autoCorrect={false}
-              value={deleteAllVerification}
-              onChangeText={setDeleteAllVerification}
-              editable={!deletingAll}
-            />
-            <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
-              <TouchableOpacity
-                style={[styles.walletSubmitBtn, { flex: 1, backgroundColor: colors.backgroundSecondary }]}
-                onPress={() => { setShowDeleteAllModal(false); setDeleteAllVerification(''); }}
-                disabled={deletingAll}
-              >
-                <Text style={[styles.walletSubmitText, { color: colors.text }]}>{i18n.t('cancel')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.walletSubmitBtn, { flex: 1, backgroundColor: colors.error, opacity: deleteAllVerification.trim().toUpperCase() === 'DELETE' ? 1 : 0.5 }]}
-                onPress={handleConfirmDeleteAllTransactions}
-                disabled={deletingAll || deleteAllVerification.trim().toUpperCase() !== 'DELETE'}
-              >
-                {deletingAll ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={[styles.walletSubmitText, { color: '#fff' }]}>{i18n.t('delete')}</Text>
-                )}
-              </TouchableOpacity>
-            </View>
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('deleteAllTransactionsConfirmTitle')}</Text>
+              <Text style={[styles.walletModalHint, { color: colors.textSecondary, marginBottom: 12 }]}>{i18n.t('deleteAllTransactionsTypeToConfirm')}</Text>
+              <TextInput
+                style={[styles.walletInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}
+                placeholder="DELETE"
+                placeholderTextColor={colors.textTertiary}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                value={deleteAllVerification}
+                onChangeText={setDeleteAllVerification}
+                editable={!deletingAll}
+              />
+              <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
+                <TouchableOpacity
+                  style={[styles.walletSubmitBtn, { flex: 1, backgroundColor: colors.backgroundSecondary }]}
+                  onPress={() => { setShowDeleteAllModal(false); setDeleteAllVerification(''); }}
+                  disabled={deletingAll}
+                >
+                  <Text style={[styles.walletSubmitText, { color: colors.text }]}>{i18n.t('cancel')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.walletSubmitBtn, { flex: 1, backgroundColor: colors.error, opacity: deleteAllVerification.trim().toUpperCase() === 'DELETE' ? 1 : 0.5 }]}
+                  onPress={handleConfirmDeleteAllTransactions}
+                  disabled={deletingAll || deleteAllVerification.trim().toUpperCase() !== 'DELETE'}
+                >
+                  {deletingAll ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={[styles.walletSubmitText, { color: '#fff' }]}>{i18n.t('delete')}</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
       {/* Exchange rates modal */}
       <Modal visible={showExchangeRatesModal} animationType="slide" transparent onRequestClose={() => setShowExchangeRatesModal(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 0}
+        >
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowExchangeRatesModal(false)} />
-          <View style={[styles.modalContent, { backgroundColor: colors.background, maxHeight: '90%' }]}>
+          <View style={[styles.modalContent, styles.modalContentScrollable, { backgroundColor: colors.background, maxHeight: '90%' }]}>
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
-            <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('exchangeRates')}</Text>
-            <Text style={[styles.walletModalHint, { color: colors.textSecondary, marginBottom: 12 }]}>
-              {i18n.t('exchangeRatesHint')}
-            </Text>
-            <Text style={[styles.walletModalLabel, { color: colors.textSecondary }]}>{i18n.t('baseCurrency')}</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-              {CURRENCIES.map((c) => (
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 24 }}
+              style={{ maxHeight: '100%' }}
+            >
+              <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('exchangeRates')}</Text>
+              <Text style={[styles.walletModalHint, { color: colors.textSecondary, marginBottom: 12 }]}>
+                {i18n.t('exchangeRatesHint')}
+              </Text>
+              {walletBalances.length === 0 ? (
+                <Text style={[styles.walletModalHint, { color: colors.textTertiary, marginVertical: 16 }]}>{i18n.t('addCurrencyInSettingsFirst')}</Text>
+              ) : (
+                <>
+                  <Text style={[styles.walletModalLabel, { color: colors.textSecondary }]}>{i18n.t('baseCurrency')}</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }} keyboardShouldPersistTaps="handled">
+                    {walletBalances.map((w) => (
+                      <TouchableOpacity
+                        key={w.id}
+                        onPress={() => setExchangeRateForm(f => ({ ...f, baseCurrency: w.currencyCode }))}
+                        style={[
+                          styles.themeOpt,
+                          { marginRight: 8, marginBottom: 0, minWidth: 80 },
+                          exchangeRateForm.baseCurrency === w.currencyCode ? { backgroundColor: colors.accentLight } : { backgroundColor: colors.backgroundSecondary },
+                        ]}
+                      >
+                        <Text style={[styles.currencyCode, { color: exchangeRateForm.baseCurrency === w.currencyCode ? colors.accent : colors.textSecondary }]}>{w.currencyCode}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                  <Text style={[styles.walletModalLabel, { color: colors.textSecondary }]}>{i18n.t('ratePerBase')}</Text>
+                  {walletBalances.filter(w => w.currencyCode !== exchangeRateForm.baseCurrency).map((w) => (
+                    <View key={w.id} style={[styles.walletRow, { borderBottomWidth: 0, paddingVertical: 8 }]}>
+                      <Text style={[styles.walletBalance, { color: colors.text, flex: 0, width: 80 }]}>
+                        1 {exchangeRateForm.baseCurrency} =
+                      </Text>
+                      <TextInput
+                        style={[styles.walletInput, { flex: 1, color: colors.text, borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}
+                        placeholder="0"
+                        placeholderTextColor={colors.textTertiary}
+                        keyboardType="decimal-pad"
+                        value={exchangeRateForm.rates[w.currencyCode] ?? ''}
+                        onChangeText={(t) => setExchangeRateForm(f => ({
+                          ...f,
+                          rates: { ...(f.rates || {}), [w.currencyCode]: t.replace(/[^0-9.]/g, '') },
+                        }))}
+                      />
+                      <Text style={[styles.walletName, { color: colors.textSecondary, marginLeft: 8, flex: 0 }]}>{w.currencyCode}</Text>
+                    </View>
+                  ))}
+                </>
+              )}
+              <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
                 <TouchableOpacity
-                  key={c.code}
-                  onPress={() => setExchangeRateForm(f => ({ ...f, baseCurrency: c.code }))}
-                  style={[
-                    styles.themeOpt,
-                    { marginRight: 8, marginBottom: 0, minWidth: 80 },
-                    exchangeRateForm.baseCurrency === c.code ? { backgroundColor: colors.accentLight } : { backgroundColor: colors.backgroundSecondary },
-                  ]}
+                  style={[styles.walletSubmitBtn, { flex: 1, backgroundColor: colors.backgroundSecondary }]}
+                  onPress={() => setShowExchangeRatesModal(false)}
+                  disabled={savingRates}
                 >
-                  <Text style={[styles.currencyCode, { color: exchangeRateForm.baseCurrency === c.code ? colors.accent : colors.textSecondary }]}>{c.code}</Text>
+                  <Text style={[styles.walletSubmitText, { color: colors.text }]}>{i18n.t('cancel')}</Text>
                 </TouchableOpacity>
-              ))}
+                <TouchableOpacity
+                  style={[styles.walletSubmitBtn, { flex: 1, backgroundColor: colors.accent }]}
+                  onPress={handleSaveExchangeRates}
+                  disabled={savingRates}
+                >
+                  {savingRates ? <ActivityIndicator size="small" color={colors.onAccent} /> : <Text style={[styles.walletSubmitText, { color: colors.onAccent }]}>{i18n.t('save')}</Text>}
+                </TouchableOpacity>
+              </View>
             </ScrollView>
-            <Text style={[styles.walletModalLabel, { color: colors.textSecondary }]}>{i18n.t('ratePerBase')}</Text>
-            <ScrollView style={{ maxHeight: 280 }} keyboardShouldPersistTaps="handled">
-              {CURRENCIES.filter(c => c.code !== exchangeRateForm.baseCurrency).map((c) => (
-                <View key={c.code} style={[styles.walletRow, { borderBottomWidth: 0, paddingVertical: 8 }]}>
-                  <Text style={[styles.walletBalance, { color: colors.text, flex: 0, width: 80 }]}>
-                    1 {exchangeRateForm.baseCurrency} =
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Remove currency: options when currency has transactions */}
+      <Modal visible={showRemoveCurrencyOptionsModal} animationType="slide" transparent onRequestClose={() => !convertingOrDeleting && setShowRemoveCurrencyOptionsModal(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => convertingOrDeleting ? null : setShowRemoveCurrencyOptionsModal(false)} />
+        <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+          <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
+          <Text style={[styles.modalTitle, { color: colors.text }]}>
+            {walletToRemove?.currencyCode} has {walletToRemove?.transactionCount ?? 0} transaction(s)
+          </Text>
+          <Text style={[styles.walletModalHint, { color: colors.textSecondary, marginBottom: 20 }]}>
+            Choose how to proceed:
+          </Text>
+          <TouchableOpacity
+            style={[styles.walletSubmitBtn, { backgroundColor: colors.accentLight, marginBottom: 12 }]}
+            onPress={handleChooseConvertCurrency}
+            disabled={convertingOrDeleting || (walletBalances.filter(w => w.id !== walletToRemove?.id).length === 0)}
+          >
+            <Text style={[styles.walletSubmitText, { color: colors.accent }]}>Convert to another currency</Text>
+          </TouchableOpacity>
+          <Text style={[styles.walletModalHint, { color: colors.textTertiary, marginBottom: 12, fontSize: 13 }]}>
+            Transactions will be converted at a rate you provide, then this currency will be removed.
+          </Text>
+          <TouchableOpacity
+            style={[styles.walletSubmitBtn, { backgroundColor: colors.error + '25', marginBottom: 12 }]}
+            onPress={handleChooseDeleteTransactions}
+            disabled={convertingOrDeleting}
+          >
+            <Text style={[styles.walletSubmitText, { color: colors.error }]}>Delete all transactions with this currency</Text>
+          </TouchableOpacity>
+          <Text style={[styles.walletModalHint, { color: colors.textTertiary, fontSize: 13 }]}>
+            Permanently delete these transactions and remove the currency.
+          </Text>
+          <TouchableOpacity
+            style={[styles.walletSubmitBtn, { marginTop: 20, backgroundColor: colors.backgroundSecondary }]}
+            onPress={() => { setShowRemoveCurrencyOptionsModal(false); setWalletToRemove(null); }}
+            disabled={convertingOrDeleting}
+          >
+            <Text style={[styles.walletSubmitText, { color: colors.text }]}>{i18n.t('cancel')}</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
+      {/* Convert currency: pick target and rate */}
+      <Modal visible={showConvertCurrencyModal} animationType="slide" transparent onRequestClose={() => !convertingOrDeleting && setShowConvertCurrencyModal(false)}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 0}
+        >
+          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); if (!convertingOrDeleting) setShowConvertCurrencyModal(false); }} />
+          <View style={[styles.modalContent, styles.modalContentScrollable, { backgroundColor: colors.background }]}>
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Convert to another currency</Text>
+              <Text style={[styles.walletModalHint, { color: colors.textSecondary, marginBottom: 12 }]}>
+                All {walletToRemove?.transactionCount ?? 0} transaction(s) in {walletToRemove?.currencyCode} will be converted using the rate below.
+              </Text>
+              <Text style={[styles.walletModalLabel, { color: colors.textSecondary }]}>Target currency</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                {walletBalances.filter(w => w.id !== walletToRemove?.id).map((w) => (
+                  <TouchableOpacity
+                    key={w.id}
+                    onPress={() => setConvertTargetCurrency(w.currencyCode)}
+                    style={[
+                      styles.themeOpt,
+                      { marginRight: 0, minWidth: 72 },
+                      convertTargetCurrency === w.currencyCode ? { backgroundColor: colors.accentLight } : { backgroundColor: colors.backgroundSecondary },
+                    ]}
+                  >
+                    <Text style={[styles.currencyCode, { color: convertTargetCurrency === w.currencyCode ? colors.accent : colors.textSecondary }]}>{w.currencyCode}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {convertTargetCurrency ? (
+                <>
+                  <Text style={[styles.walletModalLabel, { color: colors.textSecondary }]}>
+                    Rate: 1 {walletToRemove?.currencyCode} = ? {convertTargetCurrency}
                   </Text>
                   <TextInput
-                    style={[styles.walletInput, { flex: 1, color: colors.text, borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}
-                    placeholder="0"
+                    style={[styles.walletInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.backgroundSecondary, marginBottom: 20 }]}
+                    placeholder="e.g. 0.014"
                     placeholderTextColor={colors.textTertiary}
                     keyboardType="decimal-pad"
-                    value={exchangeRateForm.rates[c.code] ?? ''}
-                    onChangeText={(t) => setExchangeRateForm(f => ({
-                      ...f,
-                      rates: { ...(f.rates || {}), [c.code]: t.replace(/[^0-9.]/g, '') },
-                    }))}
+                    value={convertRate}
+                    onChangeText={(t) => setConvertRate(t.replace(/[^0-9.]/g, ''))}
+                    editable={!convertingOrDeleting}
                   />
-                  <Text style={[styles.walletName, { color: colors.textSecondary, marginLeft: 8, flex: 0 }]}>{c.code}</Text>
-                </View>
-              ))}
+                </>
+              ) : null}
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                <TouchableOpacity
+                  style={[styles.walletSubmitBtn, { flex: 1, backgroundColor: colors.backgroundSecondary }]}
+                  onPress={() => { setShowConvertCurrencyModal(false); setWalletToRemove(null); setConvertTargetCurrency(''); setConvertRate(''); }}
+                  disabled={convertingOrDeleting}
+                >
+                  <Text style={[styles.walletSubmitText, { color: colors.text }]}>{i18n.t('cancel')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.walletSubmitBtn, { flex: 1, backgroundColor: colors.accent, opacity: convertTargetCurrency && convertRate ? 1 : 0.5 }]}
+                  onPress={handleConfirmConvertCurrency}
+                  disabled={convertingOrDeleting || !convertTargetCurrency || !convertRate}
+                >
+                  {convertingOrDeleting ? <ActivityIndicator size="small" color={colors.onAccent} /> : <Text style={[styles.walletSubmitText, { color: colors.onAccent }]}>Convert & Remove</Text>}
+                </TouchableOpacity>
+              </View>
             </ScrollView>
-            <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
-              <TouchableOpacity
-                style={[styles.walletSubmitBtn, { flex: 1, backgroundColor: colors.backgroundSecondary }]}
-                onPress={() => setShowExchangeRatesModal(false)}
-                disabled={savingRates}
-              >
-                <Text style={[styles.walletSubmitText, { color: colors.text }]}>{i18n.t('cancel')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.walletSubmitBtn, { flex: 1, backgroundColor: colors.accent }]}
-                onPress={handleSaveExchangeRates}
-                disabled={savingRates}
-              >
-                {savingRates ? <ActivityIndicator size="small" color={colors.onAccent} /> : <Text style={[styles.walletSubmitText, { color: colors.onAccent }]}>{i18n.t('save')}</Text>}
-              </TouchableOpacity>
-            </View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -1216,6 +1433,7 @@ const styles = StyleSheet.create({
   footerCopyright: { fontSize: 11 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'flex-end' },
   modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: Platform.OS === 'ios' ? 40 : 20 },
+  modalContentScrollable: { maxHeight: '85%' },
   modalHandle: { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
   modalTitle: { fontSize: 20, fontWeight: '600', marginBottom: 16, textAlign: 'center' },
   themeOpt: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 12, marginBottom: 8, gap: 12 },
