@@ -1,5 +1,6 @@
 import React, { useContext, useEffect, useRef } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer, CommonActions } from '@react-navigation/native';
 import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
@@ -169,13 +170,15 @@ function AppContent() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <LanguageProvider>
-        <CurrencyProvider>
-          <AppContent />
-        </CurrencyProvider>
-      </LanguageProvider>
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <LanguageProvider>
+          <CurrencyProvider>
+            <AppContent />
+          </CurrencyProvider>
+        </LanguageProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
 
