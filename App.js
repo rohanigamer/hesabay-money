@@ -8,6 +8,7 @@ import { LanguageProvider } from './src/context/LanguageContext';
 import { CurrencyProvider } from './src/context/CurrencyContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { AppLockProvider, useAppLock } from './src/context/AppLockContext';
+import { FeedbackOverlay, FeedbackProvider } from './src/context/FeedbackContext';
 
 // Screens
 import LoginScreen from './src/screens/LoginScreen';
@@ -157,7 +158,10 @@ function AppContent() {
   return (
     <AppLockProvider>
       <AuthProvider>
-        <AppNavigator />
+        <FeedbackProvider>
+          <AppNavigator />
+          <FeedbackOverlay />
+        </FeedbackProvider>
       </AuthProvider>
     </AppLockProvider>
   );

@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Storage } from '../utils/Storage';
 import { ThemeContext } from '../context/ThemeContext';
 import { useAppLock } from '../context/AppLockContext';
+import AnimatedBackground from '../components/AnimatedBackground';
 
 export default function PasscodeScreen({ navigation, route, onSuccess }) {
   const { colors } = useContext(ThemeContext);
@@ -16,18 +17,34 @@ export default function PasscodeScreen({ navigation, route, onSuccess }) {
 
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.92)).current;
+  const dotScale = useRef([0, 0, 0, 0].map(() => new Animated.Value(0))).current;
 
   useEffect(() => {
-    Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 350, useNativeDriver: true }),
+      Animated.spring(scaleAnim, { toValue: 1, tension: 55, friction: 9, useNativeDriver: true }),
+    ]).start();
   }, []);
 
+  useEffect(() => {
+    dotScale.forEach((anim, i) => {
+      Animated.spring(anim, {
+        toValue: i < passcode.length ? 1 : 0,
+        tension: 120,
+        friction: 10,
+        useNativeDriver: true,
+      }).start();
+    });
+  }, [passcode.length]);
+
   const shake = () => {
-    if (Platform.OS !== 'web') Vibration.vibrate(100);
+    if (Platform.OS !== 'web') Vibration.vibrate(80);
     Animated.sequence([
-      Animated.timing(shakeAnim, { toValue: 15, duration: 50, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: -15, duration: 50, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: -10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 18, duration: 45, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -18, duration: 45, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 12, duration: 45, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -12, duration: 45, useNativeDriver: true }),
       Animated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
     ]).start();
   };
@@ -79,13 +96,38 @@ export default function PasscodeScreen({ navigation, route, onSuccess }) {
     }
   };
 
-  const Dot = ({ filled }) => (
-    <View style={[styles.dot, { borderColor: colors.text, backgroundColor: filled ? colors.text : 'transparent' }]} />
+  const radius = colors.radius?.md ?? 14;
+  const keyRadius = 38;
+
+  const Dot = ({ filled, index }) => (
+    <Animated.View
+      style={[
+        styles.dotOuter,
+        { borderColor: filled ? colors.accent : colors.border },
+      ]}
+    >
+      <Animated.View
+        style={[
+          styles.dotInner,
+          {
+            backgroundColor: colors.accent,
+            transform: [{ scale: dotScale[index] }],
+          },
+        ]}
+      />
+    </Animated.View>
   );
 
   const Key = ({ num, onPress }) => (
     <TouchableOpacity
-      style={[styles.key, { backgroundColor: colors.surface, borderColor: colors.border }]}
+      style={[
+        styles.key,
+        {
+          backgroundColor: colors.surface,
+          borderColor: colors.border,
+          borderRadius: keyRadius,
+        },
+      ]}
       onPress={onPress}
       activeOpacity={0.6}
     >
@@ -93,74 +135,186 @@ export default function PasscodeScreen({ navigation, route, onSuccess }) {
     </TouchableOpacity>
   );
 
+  const title = isSettingUp
+    ? (isConfirming ? 'Confirm your passcode' : 'Create a passcode')
+    : 'Enter your passcode';
+  const subtitle = isSettingUp
+    ? (isConfirming ? 'Enter the same 4 digits again' : 'Choose 4 digits to secure the app')
+    : 'Unlock Hesabay Money';
+
   return (
-    <Animated.View style={[styles.container, { backgroundColor: colors.background, opacity: fadeAnim }]}>
-      <View style={styles.content}>
-        {/* Logo */}
-        <View style={[styles.logo, { backgroundColor: colors.accent }]}>
-          <Text style={[styles.logoText, { color: colors.onAccent }]}>H</Text>
-        </View>
-
-        {/* Title */}
-        <Text style={[styles.title, { color: colors.text }]}>
-          {isSettingUp ? (isConfirming ? 'Confirm Passcode' : 'Create Passcode') : 'Enter Passcode'}
-        </Text>
-
-        {/* Dots */}
-        <Animated.View style={[styles.dots, { transform: [{ translateX: shakeAnim }] }]}>
-          {[0, 1, 2, 3].map((i) => <Dot key={i} filled={i < passcode.length} />)}
-        </Animated.View>
-
-        {/* Error */}
-        {error ? <Text style={[styles.error, { color: colors.error }]}>{error}</Text> : <View style={styles.errorPlaceholder} />}
-
-        {/* Keypad */}
-        <View style={styles.keypad}>
-          <View style={styles.keyRow}>
-            {['1', '2', '3'].map((n) => <Key key={n} num={n} onPress={() => handlePress(n)} />)}
+    <AnimatedBackground>
+      <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
+        <Animated.View style={[styles.content, { transform: [{ scale: scaleAnim }] }]}>
+          {/* Logo */}
+          <View style={[styles.logo, { backgroundColor: colors.accent, borderRadius: radius }]}>
+            <Text style={[styles.logoText, { color: colors.onAccent }]}>H</Text>
           </View>
-          <View style={styles.keyRow}>
-            {['4', '5', '6'].map((n) => <Key key={n} num={n} onPress={() => handlePress(n)} />)}
+
+          <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
+
+          {/* Dots */}
+          <Animated.View style={[styles.dotsRow, { transform: [{ translateX: shakeAnim }] }]}>
+            {[0, 1, 2, 3].map((i) => (
+              <Dot key={i} filled={i < passcode.length} index={i} />
+            ))}
+          </Animated.View>
+
+          {error ? (
+            <View style={[styles.errorWrap, { backgroundColor: colors.error + '18' }]}>
+              <Ionicons name="alert-circle" size={18} color={colors.error} />
+              <Text style={[styles.error, { color: colors.error }]}>{error}</Text>
+            </View>
+          ) : (
+            <View style={styles.errorPlaceholder} />
+          )}
+
+          {/* Keypad */}
+          <View style={styles.keypad}>
+            <View style={styles.keyRow}>
+              {['1', '2', '3'].map((n) => (
+                <Key key={n} num={n} onPress={() => handlePress(n)} />
+              ))}
+            </View>
+            <View style={styles.keyRow}>
+              {['4', '5', '6'].map((n) => (
+                <Key key={n} num={n} onPress={() => handlePress(n)} />
+              ))}
+            </View>
+            <View style={styles.keyRow}>
+              {['7', '8', '9'].map((n) => (
+                <Key key={n} num={n} onPress={() => handlePress(n)} />
+              ))}
+            </View>
+            <View style={styles.keyRow}>
+              <View style={styles.keySpacer} />
+              <Key num="0" onPress={() => handlePress('0')} />
+              <TouchableOpacity
+                style={[styles.deleteKey, { backgroundColor: colors.surface, borderRadius: keyRadius }]}
+                onPress={handleDelete}
+                activeOpacity={0.6}
+              >
+                <Ionicons name="backspace-outline" size={26} color={colors.text} />
+              </TouchableOpacity>
+            </View>
           </View>
-          <View style={styles.keyRow}>
-            {['7', '8', '9'].map((n) => <Key key={n} num={n} onPress={() => handlePress(n)} />)}
-          </View>
-          <View style={styles.keyRow}>
-            <View style={styles.keySpacer} />
-            <Key num="0" onPress={() => handlePress('0')} />
-            <TouchableOpacity style={styles.deleteKey} onPress={handleDelete} activeOpacity={0.6}>
-              <Ionicons name="backspace-outline" size={24} color={colors.text} />
+
+          {isSettingUp && (
+            <TouchableOpacity
+              style={[styles.cancelBtn, { marginTop: 28 }]}
+              onPress={() => navigation.goBack()}
+            >
+              <Text style={[styles.cancelText, { color: colors.accent }]}>Cancel</Text>
             </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Cancel */}
-        {isSettingUp && (
-          <TouchableOpacity style={styles.cancelBtn} onPress={() => navigation.goBack()}>
-            <Text style={[styles.cancelText, { color: colors.accent }]}>Cancel</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    </Animated.View>
+          )}
+        </Animated.View>
+      </Animated.View>
+    </AnimatedBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40 },
-  logo: { width: 64, height: 64, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
-  logoText: { fontSize: 30, fontWeight: '700' },
-  title: { fontSize: 22, fontWeight: '600', marginBottom: 32 },
-  dots: { flexDirection: 'row', gap: 16, marginBottom: 16 },
-  dot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1.5 },
-  error: { fontSize: 14, height: 20 },
-  errorPlaceholder: { height: 20 },
-  keypad: { marginTop: 32, gap: 12 },
-  keyRow: { flexDirection: 'row', justifyContent: 'center', gap: 20 },
-  key: { width: 72, height: 72, borderRadius: 36, justifyContent: 'center', alignItems: 'center', borderWidth: 0.5 },
-  keyText: { fontSize: 28, fontWeight: '400' },
-  keySpacer: { width: 72, height: 72 },
-  deleteKey: { width: 72, height: 72, justifyContent: 'center', alignItems: 'center' },
-  cancelBtn: { marginTop: 32 },
-  cancelText: { fontSize: 16, fontWeight: '500' },
+  container: {
+    flex: 1,
+  },
+  content: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 36,
+  },
+  logo: {
+    width: 68,
+    height: 68,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 28,
+  },
+  logoText: {
+    fontSize: 34,
+    fontWeight: '800',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '800',
+    marginBottom: 6,
+    letterSpacing: -0.3,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 15,
+    textAlign: 'center',
+    marginBottom: 28,
+  },
+  dotsRow: {
+    flexDirection: 'row',
+    gap: 20,
+    marginBottom: 20,
+  },
+  dotOuter: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dotInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  errorWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  error: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  errorPlaceholder: {
+    height: 42,
+    marginBottom: 8,
+  },
+  keypad: {
+    marginTop: 16,
+    gap: 16,
+  },
+  keyRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 24,
+  },
+  key: {
+    width: 76,
+    height: 76,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  keyText: {
+    fontSize: 30,
+    fontWeight: '600',
+  },
+  keySpacer: {
+    width: 76,
+    height: 76,
+  },
+  deleteKey: {
+    width: 76,
+    height: 76,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cancelBtn: {},
+  cancelText: {
+    fontSize: 17,
+    fontWeight: '600',
+  },
 });

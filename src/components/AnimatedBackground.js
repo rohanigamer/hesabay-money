@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ThemeContext } from '../context/ThemeContext';
 
 /**
- * AnimatedBackground - Simple clean background
+ * Modern animated background: subtle gradient shift
  */
 export default function AnimatedBackground({ children }) {
   const { colors, isDark } = useContext(ThemeContext);
@@ -14,8 +14,8 @@ export default function AnimatedBackground({ children }) {
     shift.setValue(0);
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(shift, { toValue: 1, duration: 9000, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        Animated.timing(shift, { toValue: 0, duration: 9000, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(shift, { toValue: 1, duration: 12000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(shift, { toValue: 0, duration: 12000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
       ])
     );
     loop.start();
@@ -23,7 +23,7 @@ export default function AnimatedBackground({ children }) {
   }, [shift]);
 
   const gradientColors = useMemo(() => {
-    if (isDark) return [colors.gradientStart, colors.gradientEnd];
+    if (isDark) return [colors.gradientStart, colors.gradientEnd, colors.accentLight];
     return [colors.gradientStart, colors.gradientEnd, colors.accentLight];
   }, [colors, isDark]);
 
@@ -31,18 +31,16 @@ export default function AnimatedBackground({ children }) {
     <Animated.View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
       <Animated.View
         pointerEvents="none"
-        style={{
-          ...StyleSheet.absoluteFillObject,
-          opacity: isDark ? 0.55 : 0.85,
-          transform: [
-            {
-              translateX: shift.interpolate({ inputRange: [0, 1], outputRange: [-40, 40] }),
-            },
-            {
-              translateY: shift.interpolate({ inputRange: [0, 1], outputRange: [-20, 20] }),
-            },
-          ],
-        }}
+        style={[
+          StyleSheet.absoluteFillObject,
+          {
+            opacity: isDark ? 0.4 : 0.6,
+            transform: [
+              { translateX: shift.interpolate({ inputRange: [0, 1], outputRange: [-30, 30] }) },
+              { translateY: shift.interpolate({ inputRange: [0, 1], outputRange: [-15, 15] }) },
+            ],
+          },
+        ]}
       >
         <LinearGradient
           colors={gradientColors}

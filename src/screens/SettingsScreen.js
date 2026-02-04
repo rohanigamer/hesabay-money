@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Switch,
-  Alert,
   Modal,
   Platform,
   Animated,
@@ -27,6 +26,10 @@ import GlassCard from '../components/GlassCard';
 import { firebaseSync } from '../services/FirebaseSync';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BOTTOM_NAV_HEIGHT } from '../constants/layout';
+import { useFeedback } from '../context/FeedbackContext';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import * as DocumentPicker from 'expo-document-picker';
 
 export default function SettingsScreen({ navigation }) {
   const { colors, theme, changeTheme } = useContext(ThemeContext);
@@ -34,11 +37,13 @@ export default function SettingsScreen({ navigation }) {
   const { currency, changeCurrency } = useCurrency();
   const { user, logOut, syncData } = useAuth();
   const { lockTimeout, updateLockTimeout, updateAuthMethod } = useAppLock();
+  const { toast, confirm, alert } = useFeedback();
   const [authMethod, setAuthMethod] = useState('none');
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [showCurrencyModal, setShowCurrencyModal] = useState(false);
   const [showLockTimeoutModal, setShowLockTimeoutModal] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [backupRestoreBusy, setBackupRestoreBusy] = useState(false);
 
   const headerAnim = useRef(new Animated.Value(0)).current;
   const sectionsAnim = useRef(new Animated.Value(0)).current;
@@ -70,64 +75,170 @@ export default function SettingsScreen({ navigation }) {
 
   const loadSettings = async () => setAuthMethod(await Storage.getAuthMethod() || 'none');
 
+  const handleBackupData = async () => {
+    if (backupRestoreBusy) return;
+    setBackupRestoreBusy(true);
+    try {
+      const jsonString = await Storage.exportBackup();
+      if (!jsonString) {
+        toast({ type: 'error', title: 'Backup failed', message: 'Could not export data.' });
+        return;
+      }
+      const filename = 'Mbackup.Mbackup';
+      if (Platform.OS === 'web') {
+        const blob = new Blob([jsonString], { type: 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast({ type: 'success', title: 'Backup saved', message: 'File saved as ' + filename });
+      } else {
+        const path = FileSystem.cacheDirectory + filename;
+        await FileSystem.writeAsStringAsync(path, jsonString);
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(path, { mimeType: 'application/octet-stream', dialogTitle: 'Save backup' });
+          toast({ type: 'success', title: 'Backup ready', message: 'Share or save the file Mbackup.Mbackup' });
+        } else {
+          toast({ type: 'success', title: 'Backup saved', message: 'Saved to ' + path });
+        }
+      }
+    } catch (e) {
+      console.error('Backup error:', e);
+      toast({ type: 'error', title: 'Backup failed', message: e.message || 'Could not create backup.' });
+    } finally {
+      setBackupRestoreBusy(false);
+    }
+  };
+
+  const handleImportData = async () => {
+    if (backupRestoreBusy) return;
+    setBackupRestoreBusy(true);
+    try {
+      let content = null;
+      if (Platform.OS === 'web') {
+        const result = await DocumentPicker.getDocumentAsync({
+          type: '*/*',
+          copyToCacheDirectory: false,
+        });
+        if (result.canceled) {
+          setBackupRestoreBusy(false);
+          return;
+        }
+        const asset = result.assets[0];
+        if (asset.file) {
+          content = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsText(asset.file);
+          });
+        } else if (asset.uri) {
+          const res = await fetch(asset.uri);
+          content = await res.text();
+        } else {
+          throw new Error('Could not read file');
+        }
+      } else {
+        const result = await DocumentPicker.getDocumentAsync({
+          type: '*/*',
+          copyToCacheDirectory: true,
+        });
+        if (result.canceled) {
+          setBackupRestoreBusy(false);
+          return;
+        }
+        content = await FileSystem.readAsStringAsync(result.assets[0].uri);
+      }
+      const importResult = await Storage.importBackup(content);
+      if (importResult.success) {
+        toast({
+          type: 'success',
+          title: 'Import complete',
+          message: `Restored ${importResult.customers} customers and ${importResult.transactions} transactions.`,
+        });
+        navigation.navigate('Transaction');
+      } else {
+        toast({ type: 'error', title: 'Import failed', message: importResult.error || 'Invalid backup file.' });
+      }
+    } catch (e) {
+      console.error('Import error:', e);
+      toast({ type: 'error', title: 'Import failed', message: e.message || 'Could not read backup file.' });
+    } finally {
+      setBackupRestoreBusy(false);
+    }
+  };
+
   const handlePasscodeToggle = (enabled) => {
     if (enabled) {
       navigation.navigate('PasscodeSetup', { isSettingUp: true, onPasscodeSet: loadSettings });
     } else {
-      Alert.alert('🔓 Disable Passcode', 'Are you sure you want to disable passcode protection?', [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Disable', 
-          style: 'destructive', 
-          onPress: async () => { 
-            await Storage.deletePasscode(); 
-            await Storage.setAuthMethod('none'); 
-            updateAuthMethod('none');
-            loadSettings(); 
-            Alert.alert('✅ Done', 'Passcode has been disabled.');
-          } 
-        },
-      ]);
+      (async () => {
+        const ok = await confirm({
+          title: 'Disable passcode?',
+          message: 'Are you sure you want to disable passcode protection?',
+          confirmText: 'Disable',
+          cancelText: 'Cancel',
+          destructive: true,
+        });
+        if (!ok) return;
+        await Storage.deletePasscode();
+        await Storage.setAuthMethod('none');
+        updateAuthMethod('none');
+        loadSettings();
+        toast({ type: 'success', title: 'Updated', message: 'Passcode has been disabled.' });
+      })();
     }
   };
 
   const handleBiometricToggle = async (enabled) => {
     if (enabled) {
-      if (Platform.OS === 'web') return Alert.alert('⚠️ Not Available', 'Biometric authentication is not available on web.');
+      if (Platform.OS === 'web') {
+        toast({ type: 'warning', title: 'Not available', message: 'Biometric authentication is not available on web.' });
+        return;
+      }
       try {
         const hasHardware = await LocalAuthentication.hasHardwareAsync();
         const isEnrolled = await LocalAuthentication.isEnrolledAsync();
-        if (!hasHardware || !isEnrolled) return Alert.alert('⚠️ Not Available', 'Your device does not support biometric authentication or has no biometrics enrolled.');
+        if (!hasHardware || !isEnrolled) {
+          toast({
+            type: 'warning',
+            title: 'Not available',
+            message: 'Your device does not support biometrics or none are enrolled.',
+          });
+          return;
+        }
         const result = await LocalAuthentication.authenticateAsync({ promptMessage: 'Enable biometric authentication' });
         if (result.success) { 
           await Storage.setAuthMethod('biometric'); 
           updateAuthMethod('biometric');
           loadSettings(); 
-          Alert.alert('✅ Enabled', 'Biometric authentication has been enabled.');
+          toast({ type: 'success', title: 'Enabled', message: 'Biometric authentication has been enabled.' });
         }
       } catch { 
-        Alert.alert('❌ Error', 'Failed to enable biometric authentication.'); 
+        toast({ type: 'error', title: 'Error', message: 'Failed to enable biometric authentication.' });
       }
     } else {
-      Alert.alert('🔓 Disable Biometric', 'Are you sure you want to disable biometric protection?', [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Disable', 
-          style: 'destructive', 
-          onPress: async () => { 
-            await Storage.setAuthMethod('none'); 
-            updateAuthMethod('none');
-            loadSettings(); 
-            Alert.alert('✅ Done', 'Biometric authentication has been disabled.');
-          } 
-        },
-      ]);
+      const ok = await confirm({
+        title: 'Disable biometric?',
+        message: 'Are you sure you want to disable biometric protection?',
+        confirmText: 'Disable',
+        cancelText: 'Cancel',
+        destructive: true,
+      });
+      if (!ok) return;
+      await Storage.setAuthMethod('none');
+      updateAuthMethod('none');
+      loadSettings();
+      toast({ type: 'success', title: 'Updated', message: 'Biometric authentication has been disabled.' });
     }
   };
 
   const handleManualSync = async () => {
     if (!user || user.isGuest) {
-      Alert.alert('⚠️ Guest Mode', 'Data sync is not available in guest mode. Please sign in to sync your data to the cloud.');
+      toast({ type: 'warning', title: 'Guest mode', message: 'Sign in to sync your data to the cloud.' });
       return;
     }
 
@@ -136,33 +247,27 @@ export default function SettingsScreen({ navigation }) {
     setSyncing(false);
 
     if (result.success) {
-      Alert.alert('✅ Sync Complete', 'Your data has been synced to the cloud.');
+      toast({ type: 'success', title: 'Sync complete', message: 'Your data has been synced to the cloud.' });
     } else if (result.pending) {
-      Alert.alert('📴 Offline', 'You are currently offline. Data will sync automatically when you reconnect.');
+      toast({ type: 'info', title: 'Offline', message: 'Data will sync automatically when you reconnect.' });
     } else {
-      Alert.alert('❌ Sync Failed', result.error || 'Could not sync data. Please try again.');
+      toast({ type: 'error', title: 'Sync failed', message: result.error || 'Could not sync data. Please try again.' });
     }
   };
 
   const handleRefreshFromFirebase = async () => {
     if (!user || user.isGuest) {
-      Alert.alert('⚠️ Guest Mode', 'Data refresh is not available in guest mode. Please sign in to access cloud data.');
+      toast({ type: 'warning', title: 'Guest mode', message: 'Sign in to access cloud data.' });
       return;
     }
 
     // Confirm action
-    const confirmAction = Platform.OS === 'web' 
-      ? window.confirm('This will replace your local data with data from Firebase. Continue?')
-      : await new Promise(resolve => {
-          Alert.alert(
-            '🔄 Refresh from Firebase',
-            'This will replace your local data with the latest data from the cloud. Continue?',
-            [
-              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-              { text: 'Refresh', style: 'default', onPress: () => resolve(true) }
-            ]
-          );
-        });
+    const confirmAction = await confirm({
+      title: 'Refresh from cloud?',
+      message: 'This will replace your local data with the latest data from the cloud.',
+      confirmText: 'Refresh',
+      cancelText: 'Cancel',
+    });
 
     if (!confirmAction) return;
 
@@ -171,34 +276,21 @@ export default function SettingsScreen({ navigation }) {
     setSyncing(false);
 
     if (result.success) {
-      const message = Platform.OS === 'web'
-        ? `Refreshed ${result.customersCount} customers and ${result.transactionsCount} transactions from Firebase.\n\nPlease refresh the page to see updated data.`
-        : `Refreshed ${result.customersCount} customers and ${result.transactionsCount} transactions from Firebase.`;
-      
-      if (Platform.OS === 'web') {
-        window.alert('✅ ' + message);
-        window.location.reload();
-      } else {
-        Alert.alert('✅ Refresh Complete', message, [
-          { text: 'OK', onPress: () => {
-            // Navigate to Transaction screen to refresh the view
-            navigation.navigate('Transaction');
-          }}
-        ]);
-      }
+      toast({
+        type: 'success',
+        title: 'Refresh complete',
+        message: `Loaded ${result.customersCount} customers and ${result.transactionsCount} transactions.`,
+      });
+      navigation.navigate('Transaction');
     } else {
       const errorMsg = result.error || 'Could not refresh data. Please try again.';
-      if (Platform.OS === 'web') {
-        window.alert('❌ Refresh Failed: ' + errorMsg);
-      } else {
-        Alert.alert('❌ Refresh Failed', errorMsg);
-      }
+      toast({ type: 'error', title: 'Refresh failed', message: errorMsg });
     }
   };
 
   const handlePasswordReset = async () => {
     if (!user || user.isGuest || !user.email) {
-      Alert.alert('Error', 'No email address found for password reset.');
+      toast({ type: 'error', title: 'Not available', message: 'No email address found for password reset.' });
       return;
     }
 
@@ -208,39 +300,28 @@ export default function SettingsScreen({ navigation }) {
         const { auth } = await import('../config/firebase');
         const { sendPasswordResetEmail } = await import('firebase/auth');
         await sendPasswordResetEmail(auth, user.email);
-        window.alert('Password reset email sent! Check your inbox.');
       } else {
         const { firebaseAuthREST } = await import('../services/FirebaseAuthREST');
         await firebaseAuthREST.sendPasswordResetEmail(user.email);
-        Alert.alert('Success', 'Password reset email sent! Check your inbox.');
       }
+      toast({ type: 'success', title: 'Email sent', message: 'Password reset email sent! Check your inbox.' });
     } catch (error) {
       console.error('Password reset error:', error);
       const errorMsg = error.message || 'Failed to send password reset email.';
-      if (Platform.OS === 'web') {
-        window.alert('Error: ' + errorMsg);
-      } else {
-        Alert.alert('Error', errorMsg);
-      }
+      toast({ type: 'error', title: 'Error', message: errorMsg });
     }
   };
 
   const handleLogout = async () => {
     console.log('handleLogout called');
     
-    // Use window.confirm for web, Alert for native
-    const confirmLogout = Platform.OS === 'web' 
-      ? window.confirm('Are you sure you want to sign out?')
-      : await new Promise(resolve => {
-          Alert.alert(
-            '🚪 Sign Out',
-            'Are you sure you want to sign out?',
-            [
-              { text: 'Cancel', onPress: () => resolve(false), style: 'cancel' },
-              { text: 'Sign Out', onPress: () => resolve(true), style: 'destructive' },
-            ]
-          );
-        });
+    const confirmLogout = await confirm({
+      title: 'Sign out?',
+      message: 'Are you sure you want to sign out?',
+      confirmText: 'Sign Out',
+      cancelText: 'Cancel',
+      destructive: true,
+    });
 
     if (!confirmLogout) {
       console.log('Logout cancelled');
@@ -253,27 +334,15 @@ export default function SettingsScreen({ navigation }) {
       console.log('Logout result:', result);
       
       if (result.success) {
-        if (Platform.OS === 'web') {
-          window.alert('Signed out successfully!');
-        } else {
-          Alert.alert('✅ Signed Out', 'You have been signed out successfully.');
-        }
+        toast({ type: 'success', title: 'Signed out', message: 'You have been signed out successfully.' });
         console.log('Navigating to Login...');
         navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
       } else {
-        if (Platform.OS === 'web') {
-          window.alert('Error: ' + (result.error || 'Could not sign out'));
-        } else {
-          Alert.alert('Error', result.error || 'Could not sign out');
-        }
+        toast({ type: 'error', title: 'Error', message: result.error || 'Could not sign out' });
       }
     } catch (error) {
       console.error('Logout error:', error);
-      if (Platform.OS === 'web') {
-        window.alert('Error: Could not sign out. Please try again.');
-      } else {
-        Alert.alert('Error', 'Could not sign out. Please try again.');
-      }
+      toast({ type: 'error', title: 'Error', message: 'Could not sign out. Please try again.' });
     }
   };
 
@@ -331,16 +400,14 @@ export default function SettingsScreen({ navigation }) {
                   icon="key"
                   title="Change Password"
                   subtitle="Update your password"
-                  onPress={() => {
-                    if (Platform.OS === 'web') {
-                      window.alert('A password reset link will be sent to ' + user.email);
-                    } else {
-                      Alert.alert(
-                        'Change Password',
-                        `A password reset link will be sent to ${user.email}`,
-                        [{ text: 'Cancel', style: 'cancel' }, { text: 'Send Link', onPress: handlePasswordReset }]
-                      );
-                    }
+                  onPress={async () => {
+                    const ok = await confirm({
+                      title: 'Send password reset email?',
+                      message: `A password reset link will be sent to ${user.email}.`,
+                      confirmText: 'Send Link',
+                      cancelText: 'Cancel',
+                    });
+                    if (ok) handlePasswordReset();
                   }}
                   iconColor={colors.warning}
                   right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
@@ -395,14 +462,15 @@ export default function SettingsScreen({ navigation }) {
                   title="Sign In"
                   subtitle="Sign in to sync your data"
                   onPress={() => {
-                    Alert.alert(
-                      '⚠️ Switch Account',
-                      'If you sign in, your guest data will remain on this device. Would you like to continue?',
-                      [
-                        { text: 'Cancel', style: 'cancel' },
-                        { text: 'Continue', onPress: () => navigation.navigate('Login') }
-                      ]
-                    );
+                    (async () => {
+                      const ok = await confirm({
+                        title: 'Switch account?',
+                        message: 'If you sign in, your guest data will remain on this device.',
+                        confirmText: 'Continue',
+                        cancelText: 'Cancel',
+                      });
+                      if (ok) navigation.navigate('Login');
+                    })();
                   }}
                   right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
                 />
@@ -436,13 +504,47 @@ export default function SettingsScreen({ navigation }) {
             )}
           </GlassCard>
 
+          {/* Backup & restore - available to all */}
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Backup & restore</Text>
+          <GlassCard style={styles.section}>
+            <Item
+              icon="save-outline"
+              title="Backup data"
+              subtitle="Save to file Mbackup.Mbackup"
+              onPress={handleBackupData}
+              iconColor={colors.success}
+              right={
+                backupRestoreBusy ? (
+                  <ActivityIndicator size="small" color={colors.accent} />
+                ) : (
+                  <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+                )
+              }
+            />
+            <Item
+              icon="document-attach-outline"
+              title="Import backup"
+              subtitle="Restore from Mbackup.Mbackup file"
+              onPress={handleImportData}
+              iconColor={colors.accent}
+              last
+              right={
+                backupRestoreBusy ? (
+                  <ActivityIndicator size="small" color={colors.accent} />
+                ) : (
+                  <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+                )
+              }
+            />
+          </GlassCard>
+
           {/* Sync Status (for logged in users) */}
           {user && !isGuest && (
             <>
               <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Data Status</Text>
               <GlassCard style={[styles.statusCard, { backgroundColor: colors.surface }]}>
                 <View style={styles.statusRow}>
-                  <Ionicons name="cloud-done" size={24} color="#34C759" />
+                  <Ionicons name="cloud-done" size={24} color={colors.success} />
                   <View style={styles.statusInfo}>
                     <Text style={[styles.statusTitle, { color: colors.text }]}>Cloud Sync Active</Text>
                     <Text style={[styles.statusSub, { color: colors.textSecondary }]}>
@@ -526,7 +628,7 @@ export default function SettingsScreen({ navigation }) {
               iconColor={colors.success}
               onPress={() => {
                 const url = 'https://wa.me/93790285355';
-                Linking.openURL(url).catch(() => Alert.alert('Error', 'Could not open WhatsApp'));
+                Linking.openURL(url).catch(() => toast({ type: 'error', title: 'Error', message: 'Could not open WhatsApp' }));
               }}
               right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
             />
@@ -537,7 +639,7 @@ export default function SettingsScreen({ navigation }) {
               iconColor={colors.warning}
               onPress={() => {
                 const url = 'mailto:rohanidgtl@gmail.com?subject=Hesabay Money Support';
-                Linking.openURL(url).catch(() => Alert.alert('Error', 'Could not open email'));
+                Linking.openURL(url).catch(() => toast({ type: 'error', title: 'Error', message: 'Could not open email' }));
               }}
               right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
             />
@@ -546,24 +648,16 @@ export default function SettingsScreen({ navigation }) {
               title="Rate App"
               subtitle="Share your feedback"
               iconColor={colors.warning}
-              onPress={() => {
-                Alert.alert(
-                  '⭐ Rate Hesabay Money',
-                  'Thank you for using Hesabay Money! Would you like to rate us on the Play Store?',
-                  [
-                    { text: 'Later', style: 'cancel' },
-                    { 
-                      text: 'Rate Now', 
-                      onPress: () => {
-                        // Replace with actual Play Store URL when published
-                        const url = Platform.OS === 'ios' 
-                          ? 'https://apps.apple.com' 
-                          : 'https://play.google.com/store';
-                        Linking.openURL(url).catch(() => {});
-                      }
-                    }
-                  ]
-                );
+              onPress={async () => {
+                const ok = await confirm({
+                  title: 'Rate Hesabay Money',
+                  message: 'Would you like to rate us on the store?',
+                  confirmText: 'Rate Now',
+                  cancelText: 'Later',
+                });
+                if (!ok) return;
+                const url = Platform.OS === 'ios' ? 'https://apps.apple.com' : 'https://play.google.com/store';
+                Linking.openURL(url).catch(() => toast({ type: 'error', title: 'Error', message: 'Could not open store link' }));
               }}
               last
               right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
@@ -577,7 +671,7 @@ export default function SettingsScreen({ navigation }) {
               <Text style={[styles.logoText, { color: colors.onAccent }]}>H</Text>
             </View>
             <Text style={[styles.appName, { color: colors.text }]}>Hesabay Money</Text>
-            <Text style={[styles.version, { color: colors.textSecondary }]}>Version 1.0.0</Text>
+            <Text style={[styles.version, { color: colors.textSecondary }]}>Version 2.0.0</Text>
           </GlassCard>
 
           {/* Footer */}
@@ -598,7 +692,7 @@ export default function SettingsScreen({ navigation }) {
         <View style={styles.modalOverlay}>
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowThemeModal(false)} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-            <View style={styles.modalHandle} />
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>Theme</Text>
             {themeOptions.map((opt) => (
               <TouchableOpacity
@@ -607,7 +701,7 @@ export default function SettingsScreen({ navigation }) {
                 onPress={() => { 
                   changeTheme(opt.code); 
                   setShowThemeModal(false); 
-                  Alert.alert('✅ Theme Changed', `Theme set to ${opt.name}`);
+                  toast({ type: 'success', title: 'Theme updated', message: `Theme set to ${opt.name}.` });
                 }}
               >
                 <Ionicons name={opt.icon} size={20} color={theme === opt.code ? colors.accent : colors.textSecondary} />
@@ -624,7 +718,7 @@ export default function SettingsScreen({ navigation }) {
         <View style={styles.modalOverlay}>
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowCurrencyModal(false)} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-            <View style={styles.modalHandle} />
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>Currency</Text>
             <ScrollView style={{ maxHeight: 400 }}>
               {CURRENCIES.map((curr) => (
@@ -634,7 +728,7 @@ export default function SettingsScreen({ navigation }) {
                   onPress={() => { 
                     changeCurrency(curr.code); 
                     setShowCurrencyModal(false); 
-                    Alert.alert('✅ Currency Changed', `Currency set to ${curr.name} (${curr.symbol})`);
+                    toast({ type: 'success', title: 'Currency updated', message: `Currency set to ${curr.name} (${curr.symbol}).` });
                   }}
                 >
                   <Text style={[styles.currencySymbol, { color: currency === curr.code ? colors.accent : colors.textSecondary }]}>
@@ -657,7 +751,7 @@ export default function SettingsScreen({ navigation }) {
         <View style={styles.modalOverlay}>
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowLockTimeoutModal(false)} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-            <View style={styles.modalHandle} />
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>Auto-Lock Timeout</Text>
             <ScrollView style={{ maxHeight: 400 }}>
               {lockTimeoutOptions.map((option) => (
@@ -667,7 +761,7 @@ export default function SettingsScreen({ navigation }) {
                   onPress={async () => { 
                     await updateLockTimeout(option.value); 
                     setShowLockTimeoutModal(false); 
-                    Alert.alert('✅ Auto-Lock Updated', `App will lock ${option.label.toLowerCase()}`);
+                    toast({ type: 'success', title: 'Auto-lock updated', message: `App will lock ${option.label.toLowerCase()}.` });
                   }}
                 >
                   <Ionicons 
@@ -708,7 +802,7 @@ const styles = StyleSheet.create({
   statusSub: { fontSize: 12, marginTop: 2 },
   aboutCard: { padding: 24, alignItems: 'center', marginBottom: 24 },
   logo: { width: 56, height: 56, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
-  logoText: { color: '#fff', fontSize: 26, fontWeight: '700' },
+  logoText: { fontSize: 26, fontWeight: '700' },
   appName: { fontSize: 18, fontWeight: '600', marginBottom: 4 },
   version: { fontSize: 13 },
   footer: { marginTop: 32, marginBottom: 16, alignItems: 'center', gap: 4 },
@@ -717,7 +811,7 @@ const styles = StyleSheet.create({
   footerCopyright: { fontSize: 11 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'flex-end' },
   modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: Platform.OS === 'ios' ? 40 : 20 },
-  modalHandle: { width: 36, height: 4, backgroundColor: '#ccc', borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
+  modalHandle: { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
   modalTitle: { fontSize: 20, fontWeight: '600', marginBottom: 16, textAlign: 'center' },
   themeOpt: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 12, marginBottom: 8, gap: 12 },
   themeOptText: { flex: 1, fontSize: 16, fontWeight: '500' },

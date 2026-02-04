@@ -122,7 +122,7 @@ export default function CalculationScreen({ navigation }) {
               icon="arrow-down"
               label="Total Income"
               value={format(stats.totalIncome)}
-              color="#4CAF50"
+              color={colors.success}
             />
           </View>
           <View style={{ flex: 1 }}>
@@ -130,7 +130,7 @@ export default function CalculationScreen({ navigation }) {
               icon="arrow-up"
               label="Total Expenses"
               value={format(stats.totalExpenses)}
-              color="#f44336"
+              color={colors.error}
             />
           </View>
         </View>
@@ -142,7 +142,7 @@ export default function CalculationScreen({ navigation }) {
               icon="people"
               label="Customers"
               value={stats.totalCustomers.toString()}
-              color="#2196F3"
+              color={colors.info}
             />
           </View>
           <View style={{ flex: 1 }}>
@@ -150,7 +150,7 @@ export default function CalculationScreen({ navigation }) {
               icon="receipt"
               label="Transactions"
               value={stats.totalTransactions.toString()}
-              color="#FF9800"
+              color={colors.warning}
             />
           </View>
         </View>
@@ -164,7 +164,7 @@ export default function CalculationScreen({ navigation }) {
         >
           <GlassCard style={styles.customerBalanceCard}>
             <View style={styles.customerBalanceHeader}>
-              <Ionicons name="wallet" size={24} color="#9C27B0" />
+              <Ionicons name="wallet" size={24} color={colors.accent} />
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <Text style={[styles.customerBalanceLabel, { color: colors.textSecondary }]}>
                   Customer Balance
@@ -291,30 +291,30 @@ export default function CalculationScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { padding: 16, paddingTop: Platform.OS === 'ios' ? 60 : 50, paddingBottom: 120 },
-  header: { marginBottom: 20 },
-  title: { fontSize: 34, fontWeight: '700', letterSpacing: -0.5 },
+  header: { marginBottom: 24 },
+  title: { fontSize: 32, fontWeight: '800', letterSpacing: -0.5 },
   
-  balanceCard: { padding: 24, marginBottom: 16, alignItems: 'center' },
-  balanceLabel: { fontSize: 14, fontWeight: '500', marginBottom: 8, includeFontPadding: false },
-  balanceAmount: { fontSize: 42, fontWeight: '700', letterSpacing: -1, flexShrink: 0, includeFontPadding: false },
+  balanceCard: { padding: 28, marginBottom: 20, alignItems: 'center' },
+  balanceLabel: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
+  balanceAmount: { fontSize: 44, fontWeight: '800', letterSpacing: -1, flexShrink: 0 },
   
-  row: { flexDirection: 'row', gap: 12, marginBottom: 16 },
-  statCard: { padding: 16, alignItems: 'center' },
-  statIcon: { width: 48, height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
-  statLabel: { fontSize: 12, fontWeight: '500', marginBottom: 4, textAlign: 'center', includeFontPadding: false },
-  statValue: { fontSize: 20, fontWeight: '700', textAlign: 'center', flexShrink: 0, includeFontPadding: false },
+  row: { flexDirection: 'row', gap: 14, marginBottom: 18 },
+  statCard: { padding: 18, alignItems: 'center' },
+  statIcon: { width: 52, height: 52, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  statLabel: { fontSize: 12, fontWeight: '500', marginBottom: 4, textAlign: 'center' },
+  statValue: { fontSize: 20, fontWeight: '700', textAlign: 'center', flexShrink: 0 },
   
   customerBalanceCard: { padding: 16, marginBottom: 16 },
   customerBalanceHeader: { flexDirection: 'row', alignItems: 'center' },
-  customerBalanceLabel: { fontSize: 13, fontWeight: '500', marginBottom: 4, includeFontPadding: false },
-  customerBalanceValue: { fontSize: 24, fontWeight: '700', flexShrink: 0, includeFontPadding: false },
+  customerBalanceLabel: { fontSize: 13, fontWeight: '500', marginBottom: 4 },
+  customerBalanceValue: { fontSize: 24, fontWeight: '700', flexShrink: 0 },
   
   sectionTitle: { fontSize: 20, fontWeight: '600', marginBottom: 12, marginTop: 8 },
   listCard: { overflow: 'hidden', marginBottom: 16 },
   
   customerItem: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12 },
   avatar: { width: 40, height: 40, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  avatarText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  avatarText: { color: '#fff', fontSize: 16, fontWeight: '600' }, // avatar bg is custom; keep light text
   customerInfo: { flex: 1 },
   customerName: { fontSize: 15, fontWeight: '500', marginBottom: 2 },
   customerNumber: { fontSize: 12 },

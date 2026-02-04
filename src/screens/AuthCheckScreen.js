@@ -118,7 +118,7 @@ export default function AuthCheckScreen({ navigation }) {
             ]}
           >
             <View style={[styles.logo, { backgroundColor: colors.accent }]}>
-              <Text style={styles.logoText}>H</Text>
+              <Text style={[styles.logoText, { color: colors.onAccent }]}>H</Text>
             </View>
           </Animated.View>
 
@@ -180,7 +180,6 @@ const styles = StyleSheet.create({
   logoText: {
     fontSize: 40,
     fontWeight: '700',
-    color: '#fff',
   },
   title: {
     fontSize: 34,

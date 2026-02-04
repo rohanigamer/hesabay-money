@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Modal,
   TextInput,
-  Alert,
   Platform,
   Animated,
   KeyboardAvoidingView,
@@ -22,10 +21,12 @@ import GlassCard from '../components/GlassCard';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BOTTOM_NAV_HEIGHT } from '../constants/layout';
+import { useFeedback } from '../context/FeedbackContext';
 
 export default function CustomersScreen({ navigation }) {
   const { colors } = useContext(ThemeContext);
   const { formatWithSign } = useCurrency();
+  const { toast } = useFeedback();
   const insets = useSafeAreaInsets();
   const [customers, setCustomers] = useState([]);
   const [filteredCustomers, setFilteredCustomers] = useState([]);
@@ -78,7 +79,7 @@ export default function CustomersScreen({ navigation }) {
 
   const handleAdd = async () => {
     if (!formData.name.trim()) {
-      Alert.alert('Error', 'Please enter a name');
+      toast({ type: 'warning', title: 'Missing name', message: 'Please enter a customer name.' });
       return;
     }
     const result = await Storage.addCustomer({ name: formData.name.trim(), number: formData.number.trim(), balance: 0 });
@@ -125,7 +126,7 @@ export default function CustomersScreen({ navigation }) {
       setSelectedCustomer(null);
       loadCustomers();
     } else {
-      Alert.alert('Error', 'Customer name does not match. Please try again.');
+      toast({ type: 'error', title: 'Name does not match', message: 'Type the exact customer name to confirm deletion.' });
     }
   };
 
@@ -222,17 +223,20 @@ export default function CustomersScreen({ navigation }) {
       {/* Add Modal */}
       <Modal visible={showAddModal} animationType="slide" transparent onRequestClose={() => setShowAddModal(false)}>
         <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
         >
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowAddModal(false); }} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-            <View style={styles.modalHandle} />
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>New Customer</Text>
             <ScrollView 
-              style={{ width: '100%' }} 
+              style={{ width: '100%', maxHeight: '85%' }}
+              contentContainerStyle={{ paddingBottom: 100 }}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
+              keyboardDismissMode="on-drag"
             >
               <TextInput
                 style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
@@ -255,7 +259,6 @@ export default function CustomersScreen({ navigation }) {
               <TouchableOpacity style={[styles.submitBtn, { backgroundColor: colors.accent }]} onPress={handleAdd}>
                 <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>Add Customer</Text>
               </TouchableOpacity>
-              <View style={{ height: 50 }} />
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
@@ -264,7 +267,7 @@ export default function CustomersScreen({ navigation }) {
       {/* Menu Modal */}
       <Modal visible={showMenuModal} animationType="fade" transparent onRequestClose={() => setShowMenuModal(false)}>
         <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setShowMenuModal(false)}>
-          <View style={[styles.menuContent, { backgroundColor: colors.background }]}>
+          <View style={[styles.menuContent, { backgroundColor: colors.background, shadowColor: colors.shadow }]}>
             <TouchableOpacity style={styles.menuItem} onPress={openEdit}>
               <Ionicons name="create-outline" size={22} color={colors.text} />
               <Text style={[styles.menuText, { color: colors.text }]}>Edit Customer</Text>
@@ -281,17 +284,20 @@ export default function CustomersScreen({ navigation }) {
       {/* Edit Modal */}
       <Modal visible={showEditModal} animationType="slide" transparent onRequestClose={() => setShowEditModal(false)}>
         <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
         >
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowEditModal(false); }} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-            <View style={styles.modalHandle} />
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>Edit Customer</Text>
             <ScrollView 
-              style={{ width: '100%' }} 
+              style={{ width: '100%', maxHeight: '85%' }}
+              contentContainerStyle={{ paddingBottom: 100 }}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
+              keyboardDismissMode="on-drag"
             >
               <TextInput
                 style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
@@ -314,7 +320,6 @@ export default function CustomersScreen({ navigation }) {
               <TouchableOpacity style={[styles.submitBtn, { backgroundColor: colors.accent }]} onPress={handleEdit}>
                 <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>Save</Text>
               </TouchableOpacity>
-              <View style={{ height: 50 }} />
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
@@ -323,18 +328,21 @@ export default function CustomersScreen({ navigation }) {
       {/* Delete Confirmation Modal */}
       <Modal visible={showDeleteConfirmModal} animationType="slide" transparent onRequestClose={() => setShowDeleteConfirmModal(false)}>
         <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
         >
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowDeleteConfirmModal(false); setDeleteConfirmText(''); }} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-            <View style={styles.modalHandle} />
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Ionicons name="warning" size={48} color={colors.error} style={{ alignSelf: 'center', marginBottom: 16 }} />
             <Text style={[styles.modalTitle, { color: colors.error }]}>Delete Customer</Text>
             <ScrollView 
-              style={{ width: '100%' }} 
+              style={{ width: '100%', maxHeight: '85%' }}
+              contentContainerStyle={{ paddingBottom: 80 }}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
+              keyboardDismissMode="on-drag"
             >
               {selectedCustomer && (
                 <>
@@ -376,7 +384,6 @@ export default function CustomersScreen({ navigation }) {
                       <Text style={styles.submitBtnText}>DELETE PERMANENTLY</Text>
                     </TouchableOpacity>
                   </View>
-                  <View style={{ height: 50 }} />
                 </>
               )}
             </ScrollView>
@@ -411,14 +418,14 @@ const styles = StyleSheet.create({
   
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'flex-end' },
   modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: Platform.OS === 'ios' ? 40 : 20 },
-  modalHandle: { width: 36, height: 4, backgroundColor: '#ccc', borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
+  modalHandle: { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
   modalTitle: { fontSize: 20, fontWeight: '600', marginBottom: 20, textAlign: 'center' },
   input: { padding: 14, borderRadius: 12, fontSize: 16, marginBottom: 12 },
   submitBtn: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
   submitBtnText: { fontSize: 16, fontWeight: '600' },
 
   menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' },
-  menuContent: { borderRadius: 12, padding: 8, minWidth: 180, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 5 },
+  menuContent: { borderRadius: 12, padding: 8, minWidth: 180, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 5 },
   menuItem: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12 },
   menuText: { fontSize: 15, fontWeight: '500' },
   menuDivider: { height: 1, marginVertical: 4 },

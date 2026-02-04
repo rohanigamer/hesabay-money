@@ -9,16 +9,18 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemeContext } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import PasswordStrength from '../components/PasswordStrength';
+import AnimatedBackground from '../components/AnimatedBackground';
+import { useFeedback } from '../context/FeedbackContext';
 
 export default function SignupScreen({ navigation }) {
   const { colors } = useContext(ThemeContext);
   const { signUp, signInWithGoogle } = useAuth();
+  const { toast } = useFeedback();
   
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -36,27 +38,27 @@ export default function SignupScreen({ navigation }) {
   const handleSignup = async () => {
     // Validation
     if (!name.trim()) {
-      Alert.alert('Error', 'Please enter your full name');
+      toast({ type: 'warning', title: 'Missing name', message: 'Please enter your full name.' });
       return;
     }
     if (!email.trim()) {
-      Alert.alert('Error', 'Please enter your email address');
+      toast({ type: 'warning', title: 'Missing email', message: 'Please enter your email address.' });
       return;
     }
     if (!validateEmail(email.trim())) {
-      Alert.alert('Error', 'Please enter a valid email address');
+      toast({ type: 'warning', title: 'Invalid email', message: 'Please enter a valid email address.' });
       return;
     }
     if (!password) {
-      Alert.alert('Error', 'Please enter a password');
+      toast({ type: 'warning', title: 'Missing password', message: 'Please enter a password.' });
       return;
     }
     if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
+      toast({ type: 'warning', title: 'Weak password', message: 'Password must be at least 6 characters.' });
       return;
     }
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      toast({ type: 'warning', title: 'Passwords do not match', message: 'Please re-check your password.' });
       return;
     }
 
@@ -68,14 +70,11 @@ export default function SignupScreen({ navigation }) {
 
     if (result.success) {
       setStep(2); // Show verification sent screen
+      toast({ type: 'success', title: 'Check your email', message: result.message || 'Verification link sent.' });
     } else {
       console.log('Showing error alert:', result.error);
       const errorMsg = result.error || 'An error occurred. Please try again.';
-      if (Platform.OS === 'web') {
-        window.alert('Sign Up Failed: ' + errorMsg);
-      } else {
-        Alert.alert('❌ Sign Up Failed', errorMsg, [{ text: 'OK' }]);
-      }
+      toast({ type: 'error', title: 'Sign up failed', message: errorMsg });
     }
   };
 
@@ -97,8 +96,8 @@ export default function SignupScreen({ navigation }) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.verificationContainer}>
-          <View style={[styles.iconCircle, { backgroundColor: '#4CAF50' + '20' }]}>
-            <Ionicons name="mail-open" size={50} color="#4CAF50" />
+          <View style={[styles.iconCircle, { backgroundColor: colors.success + '20' }]}>
+            <Ionicons name="mail-open" size={50} color={colors.success} />
           </View>
           
           <Text style={[styles.verificationTitle, { color: colors.text }]}>
@@ -128,7 +127,7 @@ export default function SignupScreen({ navigation }) {
             style={[styles.loginBtn, { backgroundColor: colors.accent, marginTop: 30 }]}
             onPress={() => navigation.navigate('Login')}
           >
-            <Text style={styles.loginBtnText}>Go to Login</Text>
+            <Text style={[styles.loginBtnText, { color: colors.onAccent }]}>Go to Login</Text>
           </TouchableOpacity>
           
           <TouchableOpacity
@@ -145,15 +144,22 @@ export default function SignupScreen({ navigation }) {
   }
 
   return (
+    <AnimatedBackground>
     <KeyboardAvoidingView 
-      style={[styles.container, { backgroundColor: colors.background }]}
+      style={[styles.container, { backgroundColor: 'transparent' }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
         {/* Header */}
         <View style={styles.header}>
-          <View style={[styles.iconCircle, { backgroundColor: colors.accent + '15' }]}>
-            <Ionicons name="person-add" size={40} color={colors.accent} />
+          <View style={[styles.iconCircle, { backgroundColor: colors.accentLight }]}>
+            <Ionicons name="person-add" size={44} color={colors.accent} />
           </View>
           <Text style={[styles.title, { color: colors.text }]}>Create Account</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
@@ -237,7 +243,7 @@ export default function SignupScreen({ navigation }) {
                 autoCapitalize="none"
               />
               {confirmPassword && password === confirmPassword && (
-                <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                <Ionicons name="checkmark-circle" size={20} color={colors.success} />
               )}
             </View>
           </View>
@@ -249,9 +255,9 @@ export default function SignupScreen({ navigation }) {
             disabled={loading}
           >
             {loading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={colors.onAccent} />
             ) : (
-              <Text style={styles.signupBtnText}>Create Account</Text>
+              <Text style={[styles.signupBtnText, { color: colors.onAccent }]}>Create Account</Text>
             )}
           </TouchableOpacity>
 
@@ -291,26 +297,27 @@ export default function SignupScreen({ navigation }) {
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
+    </AnimatedBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContent: { flexGrow: 1, padding: 24, justifyContent: 'center' },
+  scrollContent: { flexGrow: 1, padding: 24, paddingBottom: 80, justifyContent: 'center', minHeight: '100%' },
   
   header: { alignItems: 'center', marginBottom: 30 },
-  iconCircle: { width: 80, height: 80, borderRadius: 40, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
-  title: { fontSize: 28, fontWeight: '700', marginBottom: 8 },
-  subtitle: { fontSize: 14, textAlign: 'center', maxWidth: 280 },
+  iconCircle: { width: 88, height: 88, borderRadius: 44, justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
+  title: { fontSize: 30, fontWeight: '800', marginBottom: 8, letterSpacing: -0.5 },
+  subtitle: { fontSize: 15, textAlign: 'center', maxWidth: 280 },
   
   form: { width: '100%' },
-  inputGroup: { marginBottom: 16 },
-  label: { fontSize: 14, fontWeight: '500', marginBottom: 8 },
-  inputContainer: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, gap: 12 },
+  inputGroup: { marginBottom: 20 },
+  label: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
+  inputContainer: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 16, gap: 12 },
   input: { flex: 1, fontSize: 16 },
   
-  signupBtn: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
-  signupBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  signupBtn: { paddingVertical: 18, borderRadius: 14, alignItems: 'center', marginTop: 8 },
+  signupBtnText: { fontSize: 16, fontWeight: '600' },
   
   termsText: { fontSize: 12, textAlign: 'center', marginTop: 16, lineHeight: 18 },
   
@@ -333,7 +340,7 @@ const styles = StyleSheet.create({
   verificationNote: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 24, padding: 16, backgroundColor: 'rgba(128,128,128,0.1)', borderRadius: 12 },
   noteText: { fontSize: 13, flex: 1 },
   loginBtn: { paddingVertical: 16, paddingHorizontal: 32, borderRadius: 12, alignItems: 'center', width: '100%' },
-  loginBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  loginBtnText: { fontSize: 16, fontWeight: '600' },
   resendBtn: { marginTop: 16 },
   resendBtnText: { fontSize: 14 },
 });

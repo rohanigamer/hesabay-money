@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import { Platform, Alert } from 'react-native';
+import { Platform } from 'react-native';
 import { setCurrentUserId } from '../utils/Storage';
 import { isFirebaseReady, initializeFirebase, isWeb } from '../config/firebase';
 import { firebaseAuthREST } from '../services/FirebaseAuthREST';

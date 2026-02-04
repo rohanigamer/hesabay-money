@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Modal,
   TextInput,
-  Alert,
   Platform,
   Animated,
   Share,
@@ -27,11 +26,13 @@ import CalculatorInput from '../components/CalculatorInput';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BOTTOM_NAV_HEIGHT } from '../constants/layout';
+import { useFeedback } from '../context/FeedbackContext';
 
 export default function TransactionScreen({ navigation }) {
   const { colors } = useContext(ThemeContext);
   const { getSymbol, format } = useCurrency();
   const insets = useSafeAreaInsets();
+  const { toast } = useFeedback();
   
   const [transactions, setTransactions] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -86,7 +87,7 @@ export default function TransactionScreen({ navigation }) {
 
   const handleAddTransaction = async () => {
     if (!formData.amount || parseFloat(formData.amount) <= 0) {
-      Alert.alert('Error', 'Please enter a valid amount');
+      toast({ type: 'warning', title: 'Invalid amount', message: 'Please enter a valid amount.' });
       return;
     }
 
@@ -107,7 +108,7 @@ export default function TransactionScreen({ navigation }) {
 
   const handleEditTransaction = async () => {
     if (!editData.amount || parseFloat(editData.amount) <= 0) {
-      Alert.alert('Error', 'Please enter a valid amount');
+      toast({ type: 'warning', title: 'Invalid amount', message: 'Please enter a valid amount.' });
       return;
     }
 
@@ -137,7 +138,7 @@ export default function TransactionScreen({ navigation }) {
 
   const handleAddCustomer = async () => {
     if (!newCustomerData.name.trim()) {
-      Alert.alert('Error', 'Please enter customer name');
+      toast({ type: 'warning', title: 'Missing name', message: 'Please enter customer name.' });
       return;
     }
 
@@ -226,7 +227,7 @@ export default function TransactionScreen({ navigation }) {
       });
       setShowExportModal(false);
     } catch (error) {
-      Alert.alert('Error', 'Could not export report');
+      toast({ type: 'error', title: 'Export failed', message: 'Could not export report.' });
     }
   };
 
@@ -256,13 +257,13 @@ export default function TransactionScreen({ navigation }) {
         if (canShare) {
           await Sharing.shareAsync(fileUri);
         } else {
-          Alert.alert('Exported', 'File saved to: ' + fileUri);
+          toast({ type: 'success', title: 'Exported', message: 'File saved to: ' + fileUri });
         }
       }
       setShowExportModal(false);
     } catch (error) {
       console.error('Export error:', error);
-      Alert.alert('Error', 'Could not export CSV');
+      toast({ type: 'error', title: 'Export failed', message: 'Could not export CSV.' });
     }
   };
 
@@ -450,25 +451,28 @@ export default function TransactionScreen({ navigation }) {
       {/* Add Modal */}
       <Modal visible={showAddModal} animationType="slide" transparent onRequestClose={() => setShowAddModal(false)}>
         <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
         >
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowAddModal(false); }} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-            <View style={styles.modalHandle} />
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>
               {selectedType === 'income' ? 'Cash In' : 'Cash Out'}
             </Text>
 
             <ScrollView 
-              style={{ width: '100%' }} 
+              style={{ width: '100%', maxHeight: '85%' }}
+              contentContainerStyle={{ paddingBottom: 120 }}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
+              keyboardDismissMode="on-drag"
             >
               {/* Type Toggle */}
               <View style={[styles.typeToggle, { backgroundColor: colors.backgroundSecondary }]}>
                 <TouchableOpacity
-                  style={[styles.typeBtn, selectedType === 'income' && styles.typeBtnActive]}
+                  style={[styles.typeBtn, selectedType === 'income' && { backgroundColor: colors.success + '20' }]}
                   onPress={() => setSelectedType('income')}
                 >
                   <Text style={[styles.typeBtnText, { color: selectedType === 'income' ? colors.success : colors.textSecondary }]}>
@@ -476,7 +480,7 @@ export default function TransactionScreen({ navigation }) {
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.typeBtn, selectedType === 'expense' && styles.typeBtnActiveRed]}
+                  style={[styles.typeBtn, selectedType === 'expense' && { backgroundColor: colors.error + '20' }]}
                   onPress={() => setSelectedType('expense')}
                 >
                   <Text style={[styles.typeBtnText, { color: selectedType === 'expense' ? colors.error : colors.textSecondary }]}>
@@ -524,11 +528,8 @@ export default function TransactionScreen({ navigation }) {
                 style={[styles.submitBtn, { backgroundColor: selectedType === 'income' ? colors.success : colors.error }]}
                 onPress={handleAddTransaction}
               >
-                <Text style={styles.submitBtnText}>Add {selectedType === 'income' ? 'Income' : 'Expense'}</Text>
+                <Text style={[styles.submitBtnText, { color: selectedType === 'income' ? colors.onSuccess : colors.onError }]}>Add {selectedType === 'income' ? 'Income' : 'Expense'}</Text>
               </TouchableOpacity>
-              
-              {/* Extra space at bottom for keyboard */}
-              <View style={{ height: 50 }} />
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
@@ -537,12 +538,13 @@ export default function TransactionScreen({ navigation }) {
       {/* Edit Modal */}
       <Modal visible={showEditModal} animationType="slide" transparent onRequestClose={() => setShowEditModal(false)}>
         <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
         >
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowEditModal(false); }} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-            <View style={styles.modalHandle} />
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Edit Transaction</Text>
               <TouchableOpacity onPress={() => { setShowEditModal(false); openDeleteModal(editData); }} style={styles.deleteIconBtn}>
@@ -551,16 +553,18 @@ export default function TransactionScreen({ navigation }) {
             </View>
 
             <ScrollView 
-              style={{ width: '100%' }} 
+              style={{ width: '100%', maxHeight: '85%' }}
+              contentContainerStyle={{ paddingBottom: 120 }}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
+              keyboardDismissMode="on-drag"
             >
               {editData && (
                 <>
                   {/* Type Toggle */}
                   <View style={[styles.typeToggle, { backgroundColor: colors.backgroundSecondary }]}>
                     <TouchableOpacity
-                      style={[styles.typeBtn, (editData.type === 'income' || editData.type === 'credit') && styles.typeBtnActive]}
+                      style={[styles.typeBtn, (editData.type === 'income' || editData.type === 'credit') && { backgroundColor: colors.success + '20' }]}
                       onPress={() => setEditData({ ...editData, type: 'income' })}
                     >
                       <Text style={[styles.typeBtnText, { color: (editData.type === 'income' || editData.type === 'credit') ? colors.success : colors.textSecondary }]}>
@@ -568,7 +572,7 @@ export default function TransactionScreen({ navigation }) {
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={[styles.typeBtn, (editData.type === 'expense' || editData.type === 'debit') && styles.typeBtnActiveRed]}
+                      style={[styles.typeBtn, (editData.type === 'expense' || editData.type === 'debit') && { backgroundColor: colors.error + '20' }]}
                       onPress={() => setEditData({ ...editData, type: 'expense' })}
                     >
                       <Text style={[styles.typeBtnText, { color: (editData.type === 'expense' || editData.type === 'debit') ? colors.error : colors.textSecondary }]}>
@@ -616,11 +620,8 @@ export default function TransactionScreen({ navigation }) {
                     style={[styles.submitBtn, { backgroundColor: colors.accent }]}
                     onPress={handleEditTransaction}
                   >
-                    <Text style={styles.submitBtnText}>Save Changes</Text>
+                    <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>Save Changes</Text>
                   </TouchableOpacity>
-                  
-                  {/* Extra space at bottom for keyboard */}
-                  <View style={{ height: 50 }} />
                 </>
               )}
             </ScrollView>
@@ -661,107 +662,125 @@ export default function TransactionScreen({ navigation }) {
                 style={[styles.deleteConfirmBtn, { backgroundColor: colors.error }]}
                 onPress={handleDeleteTransaction}
               >
-                <Text style={styles.deleteConfirmText}>Delete</Text>
+                <Text style={[styles.deleteConfirmText, { color: colors.onError }]}>Delete</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Customer Picker */}
+      {/* Customer Picker - KeyboardAvoidingView so list stays visible when searching */}
       <Modal visible={showCustomerPicker} animationType="slide" transparent onRequestClose={() => setShowCustomerPicker(false)}>
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowCustomerPicker(false)} />
-          <View style={[styles.pickerContent, { backgroundColor: colors.background }]}>
-            <View style={styles.modalHandle} />
-            <View style={styles.pickerHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Select Customer</Text>
-              <TouchableOpacity onPress={() => { setShowCustomerPicker(false); setShowAddCustomerModal(true); }} style={styles.addCustomerBtn}>
-                <Ionicons name="add-circle" size={24} color={colors.accent} />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
+          <View style={styles.modalOverlay}>
+            <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowCustomerPicker(false); }} />
+            <View style={[styles.pickerContent, { backgroundColor: colors.background }]}>
+              <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
+              <View style={styles.pickerHeader}>
+                <Text style={[styles.modalTitle, { color: colors.text }]}>Select Customer</Text>
+                <TouchableOpacity onPress={() => { setShowCustomerPicker(false); setShowAddCustomerModal(true); }} style={styles.addCustomerBtn}>
+                  <Ionicons name="add-circle" size={24} color={colors.accent} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Search */}
+              <View style={[styles.searchBar, { backgroundColor: colors.backgroundSecondary }]}>
+                <Ionicons name="search" size={18} color={colors.textTertiary} />
+                <TextInput
+                  style={[styles.searchInput, { color: colors.text }]}
+                  placeholder="Search customers..."
+                  placeholderTextColor={colors.textTertiary}
+                  value={customerSearch}
+                  onChangeText={setCustomerSearch}
+                  returnKeyType="search"
+                />
+                {customerSearch.length > 0 && (
+                  <TouchableOpacity onPress={() => setCustomerSearch('')}>
+                    <Ionicons name="close-circle" size={18} color={colors.textTertiary} />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <TouchableOpacity
+                style={[styles.pickerItem, { borderBottomColor: colors.border }]}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  if (showEditModal) {
+                    setEditData({ ...editData, customerId: null, customerName: '' });
+                  } else {
+                    setFormData({ ...formData, customerId: null, customerName: '' });
+                  }
+                  setShowCustomerPicker(false);
+                  setCustomerSearch('');
+                }}
+              >
+                <Text style={{ color: colors.textSecondary }}>None</Text>
               </TouchableOpacity>
-            </View>
 
-            {/* Search */}
-            <View style={[styles.searchBar, { backgroundColor: colors.backgroundSecondary }]}>
-              <Ionicons name="search" size={18} color={colors.textTertiary} />
-              <TextInput
-                style={[styles.searchInput, { color: colors.text }]}
-                placeholder="Search customers..."
-                placeholderTextColor={colors.textTertiary}
-                value={customerSearch}
-                onChangeText={setCustomerSearch}
-              />
-              {customerSearch.length > 0 && (
-                <TouchableOpacity onPress={() => setCustomerSearch('')}>
-                  <Ionicons name="close-circle" size={18} color={colors.textTertiary} />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            <TouchableOpacity
-              style={[styles.pickerItem, { borderBottomColor: colors.border }]}
-              onPress={() => {
-                if (showEditModal) {
-                  setEditData({ ...editData, customerId: null, customerName: '' });
-                } else {
-                  setFormData({ ...formData, customerId: null, customerName: '' });
-                }
-                setShowCustomerPicker(false);
-                setCustomerSearch('');
-              }}
-            >
-              <Text style={{ color: colors.textSecondary }}>None</Text>
-            </TouchableOpacity>
-
-            <ScrollView style={{ maxHeight: 300 }}>
-              {filteredCustomers.map((c) => (
-                <TouchableOpacity
-                  key={c.id}
-                  style={[styles.pickerItem, { borderBottomColor: colors.border }]}
-                  onPress={() => {
-                    if (showEditModal) {
-                      setEditData({ ...editData, customerId: c.id, customerName: c.name });
-                    } else {
-                      setFormData({ ...formData, customerId: c.id, customerName: c.name });
-                    }
-                    setShowCustomerPicker(false);
-                    setCustomerSearch('');
-                  }}
+              <ScrollView
+                  style={{ maxHeight: 300 }}
+                  contentContainerStyle={{ paddingBottom: 24 }}
+                  keyboardShouldPersistTaps="handled"
+                  keyboardDismissMode="on-drag"
+                  showsVerticalScrollIndicator={true}
                 >
-                  <View style={[styles.avatar, { backgroundColor: colors.accent }]}>
-                    <Text style={styles.avatarText}>{c.name.charAt(0)}</Text>
+                {filteredCustomers.map((c) => (
+                  <TouchableOpacity
+                    key={c.id}
+                    style={[styles.pickerItem, { borderBottomColor: colors.border }]}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      if (showEditModal) {
+                        setEditData({ ...editData, customerId: c.id, customerName: c.name });
+                      } else {
+                        setFormData({ ...formData, customerId: c.id, customerName: c.name });
+                      }
+                      setShowCustomerPicker(false);
+                      setCustomerSearch('');
+                    }}
+                  >
+                    <View style={[styles.avatar, { backgroundColor: colors.accent }]}>
+                      <Text style={[styles.avatarText, { color: colors.onAccent }]}>{c.name.charAt(0)}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: colors.text, fontWeight: '500' }}>{c.name}</Text>
+                      {c.number && <Text style={{ color: colors.textTertiary, fontSize: 12 }}>{c.number}</Text>}
+                    </View>
+                  </TouchableOpacity>
+                ))}
+                {filteredCustomers.length === 0 && customerSearch.length > 0 && (
+                  <View style={styles.noResults}>
+                    <Text style={{ color: colors.textSecondary }}>No customers found</Text>
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: colors.text, fontWeight: '500' }}>{c.name}</Text>
-                    {c.number && <Text style={{ color: colors.textTertiary, fontSize: 12 }}>{c.number}</Text>}
-                  </View>
-                </TouchableOpacity>
-              ))}
-              {filteredCustomers.length === 0 && customerSearch.length > 0 && (
-                <View style={styles.noResults}>
-                  <Text style={{ color: colors.textSecondary }}>No customers found</Text>
-                </View>
-              )}
-            </ScrollView>
+                )}
+                </ScrollView>
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Add Customer Modal */}
       <Modal visible={showAddCustomerModal} animationType="slide" transparent onRequestClose={() => setShowAddCustomerModal(false)}>
         <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
         >
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowAddCustomerModal(false); }} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-            <View style={styles.modalHandle} />
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>Add Customer</Text>
 
             <ScrollView 
-              style={{ width: '100%' }} 
+              style={{ width: '100%', maxHeight: '85%' }}
+              contentContainerStyle={{ paddingBottom: 100 }}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
+              keyboardDismissMode="on-drag"
             >
               <TextInput
                 style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
@@ -787,11 +806,8 @@ export default function TransactionScreen({ navigation }) {
                 style={[styles.submitBtn, { backgroundColor: colors.accent }]}
                 onPress={handleAddCustomer}
               >
-                <Text style={styles.submitBtnText}>Add Customer</Text>
+                <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>Add Customer</Text>
               </TouchableOpacity>
-              
-              {/* Extra space at bottom for keyboard */}
-              <View style={{ height: 50 }} />
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
@@ -802,15 +818,15 @@ export default function TransactionScreen({ navigation }) {
         <View style={styles.modalOverlay}>
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowExportModal(false)} />
           <View style={[styles.exportModalContent, { backgroundColor: colors.background }]}>
-            <View style={styles.modalHandle} />
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>Export Transactions</Text>
             
             <TouchableOpacity 
               style={[styles.exportOption, { backgroundColor: colors.backgroundSecondary }]} 
               onPress={exportToCSV}
             >
-              <View style={[styles.exportIconBox, { backgroundColor: '#4CAF50' }]}>
-                <Ionicons name="document-text-outline" size={24} color="#fff" />
+              <View style={[styles.exportIconBox, { backgroundColor: colors.success }]}>
+                <Ionicons name="document-text-outline" size={24} color={colors.onSuccess} />
               </View>
               <View style={styles.exportOptionText}>
                 <Text style={[styles.exportOptionTitle, { color: colors.text }]}>Export as CSV</Text>
@@ -823,8 +839,8 @@ export default function TransactionScreen({ navigation }) {
               style={[styles.exportOption, { backgroundColor: colors.backgroundSecondary }]} 
               onPress={exportToPDF}
             >
-              <View style={[styles.exportIconBox, { backgroundColor: '#FF5722' }]}>
-                <Ionicons name="newspaper-outline" size={24} color="#fff" />
+              <View style={[styles.exportIconBox, { backgroundColor: colors.warning }]}>
+                <Ionicons name="newspaper-outline" size={24} color={colors.onWarning} />
               </View>
               <View style={styles.exportOptionText}>
                 <Text style={[styles.exportOptionTitle, { color: colors.text }]}>Share Report</Text>
@@ -851,10 +867,10 @@ export default function TransactionScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { padding: 16, paddingTop: Platform.OS === 'ios' ? 60 : 50 },
-  header: { marginBottom: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontSize: 34, fontWeight: '700', letterSpacing: -0.5 },
-  exportBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
-  transSearchBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, marginBottom: 16, borderWidth: 1, gap: 10 },
+  header: { marginBottom: 24, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  title: { fontSize: 32, fontWeight: '800', letterSpacing: -0.5 },
+  exportBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
+  transSearchBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 14, marginBottom: 18, borderWidth: 1, gap: 10 },
   transSearchInput: { flex: 1, fontSize: 15, padding: 0 },
   balanceCard: { marginBottom: 24, padding: 20 },
   balanceContent: { alignItems: 'center' },
@@ -865,8 +881,8 @@ const styles = StyleSheet.create({
   balanceItemLabel: { fontSize: 12 },
   balanceItemValue: { fontSize: 16, fontWeight: '600', flexShrink: 0 },
   balanceDivider: { width: 1, height: 40, marginHorizontal: 16 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  sectionTitle: { fontSize: 20, fontWeight: '600' },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
+  sectionTitle: { fontSize: 20, fontWeight: '700' },
   entriesCount: { fontSize: 13 },
   dateHeader: { fontSize: 13, fontWeight: '500', marginTop: 16, marginBottom: 8 },
   empty: { alignItems: 'center', paddingVertical: 60, gap: 8 },
@@ -894,21 +910,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, 
     gap: 12,
   },
-  cashInBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 8, gap: 6 },
-  cashOutBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 8, gap: 6 },
+  cashInBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, borderRadius: 14, gap: 6 },
+  cashOutBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, borderRadius: 14, gap: 6 },
   cashBtnText: { fontSize: 14, fontWeight: '700' },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: Platform.OS === 'ios' ? 40 : 20 },
-  modalHandle: { width: 40, height: 4, backgroundColor: '#ddd', borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   modalTitle: { fontSize: 20, fontWeight: '600', textAlign: 'center', flex: 1 },
   deleteIconBtn: { padding: 4 },
   
   typeToggle: { flexDirection: 'row', borderRadius: 8, padding: 4, marginBottom: 24 },
   typeBtn: { flex: 1, paddingVertical: 12, borderRadius: 6, alignItems: 'center' },
-  typeBtnActive: { backgroundColor: '#e8f5e9' },
-  typeBtnActiveRed: { backgroundColor: '#ffebee' },
+  typeBtnActive: {},
+  typeBtnActiveRed: {},
   typeBtnText: { fontSize: 14, fontWeight: '600' },
   
   amountRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
@@ -918,7 +934,7 @@ const styles = StyleSheet.create({
   input: { padding: 14, borderRadius: 12, fontSize: 16, marginBottom: 12 },
   customerBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   submitBtn: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
-  submitBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  submitBtnText: { fontSize: 16, fontWeight: '600' },
   
   deleteModalContent: { marginHorizontal: 20, borderRadius: 16, padding: 24, alignItems: 'center' },
   deleteTitle: { fontSize: 20, fontWeight: '700', marginBottom: 8 },
@@ -930,7 +946,7 @@ const styles = StyleSheet.create({
   deleteCancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
   deleteCancelText: { fontSize: 15, fontWeight: '600' },
   deleteConfirmBtn: { flex: 1, paddingVertical: 14, borderRadius: 10, alignItems: 'center' },
-  deleteConfirmText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  deleteConfirmText: { fontSize: 15, fontWeight: '600' },
   
   pickerContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: Platform.OS === 'ios' ? 40 : 20, maxHeight: '80%' },
   pickerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
@@ -939,7 +955,7 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 15 },
   pickerItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 0.5, gap: 12 },
   avatar: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  avatarText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  avatarText: { fontSize: 15, fontWeight: '600' },
   noResults: { paddingVertical: 40, alignItems: 'center' },
   
   exportModalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: Platform.OS === 'ios' ? 40 : 24 },

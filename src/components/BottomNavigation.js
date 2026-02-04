@@ -114,7 +114,7 @@ export default function BottomNavigation({ navigation }) {
       style={[
         styles.container,
         {
-          backgroundColor: colors.background,
+          backgroundColor: colors.surface,
           borderTopColor: colors.border,
           height: BOTTOM_NAV_HEIGHT + insets.bottom,
           paddingBottom: Math.max(insets.bottom, Platform.OS === 'ios' ? 12 : 10),
@@ -151,14 +151,14 @@ const styles = StyleSheet.create({
   },
   activeIndicator: {
     position: 'absolute',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    opacity: 0.3,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    opacity: 0.25,
   },
   label: {
-    fontSize: 10,
-    fontWeight: '500',
-    letterSpacing: 0.1,
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
 });

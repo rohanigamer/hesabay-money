@@ -507,4 +507,50 @@ export const Storage = {
       };
     }
   },
+
+  // Backup: export all app data as JSON for .Mbackup file
+  async exportBackup() {
+    try {
+      const [customers, transactions, theme, currency, language] = await Promise.all([
+        this.getCustomers(),
+        this.getTransactions(),
+        this.getTheme(),
+        this.getCurrency(),
+        this.getLanguage(),
+      ]);
+      const payload = {
+        version: 1,
+        app: 'HesabayMoney',
+        exportedAt: new Date().toISOString(),
+        customers: customers || [],
+        transactions: transactions || [],
+        theme: theme || 'light',
+        currency: currency || 'USD',
+        language: language || 'en',
+      };
+      return JSON.stringify(payload, null, 0);
+    } catch (error) {
+      console.error('Export backup error:', error);
+      return null;
+    }
+  },
+
+  // Import: restore from .Mbackup file content (JSON string)
+  async importBackup(jsonString) {
+    try {
+      const data = JSON.parse(jsonString);
+      if (!data || typeof data.app !== 'string' || !Array.isArray(data.customers) || !Array.isArray(data.transactions)) {
+        return { success: false, error: 'Invalid backup file format.' };
+      }
+      await this.saveCustomers(data.customers || []);
+      await this.saveTransactions(data.transactions || []);
+      if (data.theme) await this.setTheme(data.theme);
+      if (data.currency) await this.setCurrency(data.currency);
+      if (data.language) await this.setLanguage(data.language);
+      return { success: true, customers: (data.customers || []).length, transactions: (data.transactions || []).length };
+    } catch (error) {
+      console.error('Import backup error:', error);
+      return { success: false, error: error.message || 'Invalid or corrupted backup file.' };
+    }
+  },
 };

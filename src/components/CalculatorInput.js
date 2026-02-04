@@ -133,7 +133,7 @@ export default function CalculatorInput({ value, onChangeText, placeholder, styl
         <View style={styles.calcOverlay}>
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowCalc(false)} />
           <View style={[styles.calcModal, { backgroundColor: colors.background }]}>
-            <View style={styles.calcHandle} />
+            <View style={[styles.calcHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.calcTitle, { color: colors.text }]}>Calculator</Text>
             
             {/* Display */}
@@ -214,7 +214,6 @@ const styles = StyleSheet.create({
   calcHandle: {
     width: 40,
     height: 4,
-    backgroundColor: '#ccc',
     borderRadius: 2,
     alignSelf: 'center',
     marginBottom: 16,

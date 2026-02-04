@@ -7,21 +7,24 @@ import {
   TouchableOpacity,
   Modal,
   TextInput,
-  Alert,
   Platform,
   Animated,
   Share,
   StatusBar,
+  KeyboardAvoidingView,
+  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemeContext } from '../context/ThemeContext';
 import { useCurrency } from '../context/CurrencyContext';
 import { Storage } from '../utils/Storage';
 import { useFocusEffect } from '@react-navigation/native';
+import { useFeedback } from '../context/FeedbackContext';
 
 export default function CustomerDetailScreen({ navigation, route }) {
-  const { colors } = useContext(ThemeContext);
+  const { colors, isDark } = useContext(ThemeContext);
   const { getSymbol, format, formatWithSign } = useCurrency();
+  const { toast } = useFeedback();
   const { customerId } = route.params;
   
   // Data states
@@ -128,7 +131,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
   // Add new entry
   const handleAdd = async () => {
     if (!formData.amount || parseFloat(formData.amount) <= 0) {
-      Alert.alert('Error', 'Enter a valid amount');
+      toast({ type: 'warning', title: 'Invalid amount', message: 'Enter a valid amount.' });
       return;
     }
     await Storage.addTransaction({
@@ -146,7 +149,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
   // Edit customer
   const handleEditCustomer = async () => {
     if (!editCustomerData.name.trim()) {
-      Alert.alert('Error', 'Name is required');
+      toast({ type: 'warning', title: 'Missing name', message: 'Name is required.' });
       return;
     }
     await Storage.updateCustomer(customerId, {
@@ -168,7 +171,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
       await Storage.deleteCustomer(customerId);
       navigation.goBack();
     } else {
-      Alert.alert('Error', 'Customer name does not match. Please try again.');
+      toast({ type: 'error', title: 'Name does not match', message: 'Type the exact customer name to confirm deletion.' });
     }
   };
 
@@ -200,7 +203,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
 
   const handleEditEntry = async () => {
     if (!editEntryData.amount || parseFloat(editEntryData.amount) <= 0) {
-      Alert.alert('Error', 'Enter a valid amount');
+      toast({ type: 'warning', title: 'Invalid amount', message: 'Enter a valid amount.' });
       return;
     }
     
@@ -227,7 +230,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
         title: `${customer.name} - Account Statement`,
       });
     } catch (error) {
-      Alert.alert('Error', 'Could not share report');
+      toast({ type: 'error', title: 'Share failed', message: 'Could not share report.' });
     }
   };
 
@@ -315,7 +318,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <StatusBar barStyle={colors.background === '#ffffff' ? 'dark-content' : 'light-content'} />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       {/* Header */}
       <Animated.View style={[styles.header, { backgroundColor: colors.background, opacity: headerAnim }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
@@ -363,21 +366,21 @@ export default function CustomerDetailScreen({ navigation, route }) {
           <Ionicons name="options-outline" size={18} color={colors.textSecondary} />
         </TouchableOpacity>
         <TouchableOpacity 
-          style={[styles.filterBtn, { borderColor: colors.border, backgroundColor: dateFilter !== 'all' ? '#e3f2fd' : 'transparent' }]}
+          style={[styles.filterBtn, { borderColor: colors.border, backgroundColor: dateFilter !== 'all' ? colors.accentLight : 'transparent' }]}
           onPress={() => setShowDateModal(true)}
         >
-          <Ionicons name="calendar-outline" size={16} color={dateFilter !== 'all' ? '#2196F3' : colors.textSecondary} />
-          <Text style={[styles.filterText, { color: dateFilter !== 'all' ? '#2196F3' : colors.text }]}>{getDateFilterLabel()}</Text>
-          <Ionicons name="chevron-down" size={16} color={dateFilter !== 'all' ? '#2196F3' : colors.textSecondary} />
+          <Ionicons name="calendar-outline" size={16} color={dateFilter !== 'all' ? colors.info : colors.textSecondary} />
+          <Text style={[styles.filterText, { color: dateFilter !== 'all' ? colors.info : colors.text }]}>{getDateFilterLabel()}</Text>
+          <Ionicons name="chevron-down" size={16} color={dateFilter !== 'all' ? colors.info : colors.textSecondary} />
         </TouchableOpacity>
         <TouchableOpacity 
-          style={[styles.filterBtn, { borderColor: colors.border, backgroundColor: filterType !== 'all' ? '#e3f2fd' : 'transparent' }]}
+          style={[styles.filterBtn, { borderColor: colors.border, backgroundColor: filterType !== 'all' ? colors.accentLight : 'transparent' }]}
           onPress={() => setFilterType(filterType === 'all' ? 'credit' : filterType === 'credit' ? 'debit' : 'all')}
         >
-          <Text style={[styles.filterText, { color: filterType !== 'all' ? '#2196F3' : colors.text }]}>
+          <Text style={[styles.filterText, { color: filterType !== 'all' ? colors.info : colors.text }]}>
             {filterType === 'all' ? 'Entry Type' : filterType === 'credit' ? 'Cash In' : 'Cash Out'}
                   </Text>
-          <Ionicons name="chevron-down" size={16} color={filterType !== 'all' ? '#2196F3' : colors.textSecondary} />
+          <Ionicons name="chevron-down" size={16} color={filterType !== 'all' ? colors.info : colors.textSecondary} />
         </TouchableOpacity>
                 </View>
 
@@ -394,15 +397,15 @@ export default function CustomerDetailScreen({ navigation, route }) {
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
             <View style={styles.summaryRow}>
               <Text style={[styles.summaryLabel, { color: colors.text }]}>Total In (+)</Text>
-              <Text style={[styles.summaryValueBlue]}>{format(totalIn)}</Text>
+              <Text style={[styles.summaryValueBlue, { color: colors.info }]}>{format(totalIn)}</Text>
             </View>
             <View style={styles.summaryRow}>
               <Text style={[styles.summaryLabel, { color: colors.text }]}>Total Out (-)</Text>
               <Text style={[styles.summaryValueRed, { color: colors.error }]}>{format(totalOut)}</Text>
             </View>
             <TouchableOpacity style={styles.viewReportsBtn} onPress={() => setShowReportsModal(true)}>
-              <Text style={styles.viewReportsText}>VIEW REPORTS</Text>
-              <Ionicons name="chevron-forward" size={18} color="#2196F3" />
+              <Text style={[styles.viewReportsText, { color: colors.info }]}>VIEW REPORTS</Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.info} />
             </TouchableOpacity>
           </View>
 
@@ -431,14 +434,14 @@ export default function CustomerDetailScreen({ navigation, route }) {
                   >
                       <View style={styles.transactionLeft}>
                       <View style={styles.badgeRow}>
-                        <View style={[styles.typeBadge, { backgroundColor: isCredit ? '#e3f2fd' : '#ffebee' }]}>
-                          <Text style={[styles.typeBadgeText, { color: isCredit ? '#2196F3' : colors.error }]}>
+                        <View style={[styles.typeBadge, { backgroundColor: isCredit ? colors.accentLight : colors.error + '20' }]}>
+                          <Text style={[styles.typeBadgeText, { color: isCredit ? colors.info : colors.error }]}>
                             Cash
                           </Text>
                         </View>
                         {item.type === 'credit' && (
-                          <View style={[styles.typeBadge, { backgroundColor: '#e8f5e9', marginLeft: 6 }]}>
-                            <Text style={[styles.typeBadgeText, { color: '#4CAF50' }]}>Cash</Text>
+                          <View style={[styles.typeBadge, { backgroundColor: colors.success + '20', marginLeft: 6 }]}>
+                            <Text style={[styles.typeBadgeText, { color: colors.success }]}>Cash</Text>
                           </View>
                         )}
                       </View>
@@ -447,12 +450,12 @@ export default function CustomerDetailScreen({ navigation, route }) {
                           {item.description}
                         </Text>
                       )}
-                      <Text style={[styles.entryBy]}>
+                      <Text style={[styles.entryBy, { color: colors.info }]}>
                         Entry by You <Text style={{ color: colors.textTertiary }}>at {formatTime(item.createdAt)}</Text>
                       </Text>
                     </View>
                     <View style={styles.transactionRight}>
-                      <Text style={[styles.transactionAmount, { color: isCredit ? '#4CAF50' : colors.error }]}>
+                      <Text style={[styles.transactionAmount, { color: isCredit ? colors.success : colors.error }]}>
                         {format(item.amount)}
                       </Text>
                       <Text style={[styles.balanceAfter, { color: colors.textSecondary }]}>
@@ -485,43 +488,54 @@ export default function CustomerDetailScreen({ navigation, route }) {
       <View style={[styles.bottomActionsWrapper, { backgroundColor: colors.background, borderTopColor: colors.border }]}>
         <View style={styles.bottomActions}>
           <TouchableOpacity
-            style={styles.cashInBtn}
+            style={[styles.cashInBtn, { backgroundColor: colors.success }]}
             onPress={() => { setSelectedType('credit'); setFormData({ amount: '', description: '' }); setShowAddModal(true); }}
           >
-            <Ionicons name="add" size={20} color="#fff" />
-            <Text style={styles.cashBtnText}>CASH IN</Text>
+            <Ionicons name="add" size={20} color={colors.onSuccess} />
+            <Text style={[styles.cashBtnText, { color: colors.onSuccess }]}>CASH IN</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.cashOutBtn}
+            style={[styles.cashOutBtn, { backgroundColor: colors.error }]}
             onPress={() => { setSelectedType('debit'); setFormData({ amount: '', description: '' }); setShowAddModal(true); }}
           >
-            <Ionicons name="remove" size={20} color="#fff" />
-            <Text style={styles.cashBtnText}>CASH OUT</Text>
+            <Ionicons name="remove" size={20} color={colors.onError} />
+            <Text style={[styles.cashBtnText, { color: colors.onError }]}>CASH OUT</Text>
           </TouchableOpacity>
         </View>
       </View>
 
       {/* Add Entry Modal */}
       <Modal visible={showAddModal} animationType="slide" transparent onRequestClose={() => setShowAddModal(false)}>
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowAddModal(false)} />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+        >
+          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowAddModal(false); }} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-            <View style={styles.modalHandle} />
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>
               {selectedType === 'credit' ? 'Cash In' : 'Cash Out'}
             </Text>
 
+            <ScrollView
+              style={{ width: '100%' }}
+              contentContainerStyle={{ paddingBottom: 100 }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              keyboardDismissMode="on-drag"
+            >
             <View style={[styles.typeToggle, { backgroundColor: colors.backgroundSecondary }]}>
               <TouchableOpacity
-                style={[styles.typeBtn, selectedType === 'credit' && styles.typeBtnActive]}
+                style={[styles.typeBtn, selectedType === 'credit' && { backgroundColor: colors.success + '20' }]}
                 onPress={() => setSelectedType('credit')}
               >
-                <Text style={[styles.typeBtnText2, { color: selectedType === 'credit' ? '#4CAF50' : colors.textSecondary }]}>
+                <Text style={[styles.typeBtnText2, { color: selectedType === 'credit' ? colors.success : colors.textSecondary }]}>
                   + CASH IN
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.typeBtn, selectedType === 'debit' && styles.typeBtnActiveRed]}
+                style={[styles.typeBtn, selectedType === 'debit' && { backgroundColor: colors.error + '20' }]}
                 onPress={() => setSelectedType('debit')}
               >
                 <Text style={[styles.typeBtnText2, { color: selectedType === 'debit' ? colors.error : colors.textSecondary }]}>
@@ -530,7 +544,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
               </TouchableOpacity>
             </View>
 
-            <View style={[styles.amountInputContainer, { borderColor: selectedType === 'credit' ? '#4CAF50' : colors.error }]}>
+            <View style={[styles.amountInputContainer, { borderColor: selectedType === 'credit' ? colors.success : colors.error }]}>
               <Text style={[styles.currencySymbol, { color: colors.textSecondary }]}>{getSymbol()}</Text>
                 <TextInput
                 style={[styles.amountInputLarge, { color: colors.text }]}
@@ -552,34 +566,46 @@ export default function CustomerDetailScreen({ navigation, route }) {
             />
 
             <TouchableOpacity
-              style={[styles.submitBtn, { backgroundColor: selectedType === 'credit' ? '#4CAF50' : colors.error }]}
+              style={[styles.submitBtn, { backgroundColor: selectedType === 'credit' ? colors.success : colors.error }]}
               onPress={handleAdd}
             >
-              <Text style={styles.submitBtnText}>SAVE ENTRY</Text>
+              <Text style={[styles.submitBtnText, { color: selectedType === 'credit' ? colors.onSuccess : colors.onError }]}>SAVE ENTRY</Text>
             </TouchableOpacity>
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Edit Entry Modal */}
       <Modal visible={showEditEntryModal} animationType="slide" transparent onRequestClose={() => setShowEditEntryModal(false)}>
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowEditEntryModal(false)} />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+        >
+          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowEditEntryModal(false); }} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-            <View style={styles.modalHandle} />
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>Edit Entry</Text>
 
+            <ScrollView
+              style={{ width: '100%' }}
+              contentContainerStyle={{ paddingBottom: 100 }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              keyboardDismissMode="on-drag"
+            >
             <View style={[styles.typeToggle, { backgroundColor: colors.backgroundSecondary }]}>
               <TouchableOpacity
-                style={[styles.typeBtn, editEntryData.type === 'credit' && styles.typeBtnActive]}
+                style={[styles.typeBtn, editEntryData.type === 'credit' && { backgroundColor: colors.success + '20' }]}
                 onPress={() => setEditEntryData({ ...editEntryData, type: 'credit' })}
               >
-                <Text style={[styles.typeBtnText2, { color: editEntryData.type === 'credit' ? '#4CAF50' : colors.textSecondary }]}>
+                <Text style={[styles.typeBtnText2, { color: editEntryData.type === 'credit' ? colors.success : colors.textSecondary }]}>
                   + CASH IN
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.typeBtn, editEntryData.type === 'debit' && styles.typeBtnActiveRed]}
+                style={[styles.typeBtn, editEntryData.type === 'debit' && { backgroundColor: colors.error + '20' }]}
                 onPress={() => setEditEntryData({ ...editEntryData, type: 'debit' })}
               >
                 <Text style={[styles.typeBtnText2, { color: editEntryData.type === 'debit' ? colors.error : colors.textSecondary }]}>
@@ -588,7 +614,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
               </TouchableOpacity>
             </View>
 
-            <View style={[styles.amountInputContainer, { borderColor: editEntryData.type === 'credit' ? '#4CAF50' : colors.error }]}>
+            <View style={[styles.amountInputContainer, { borderColor: editEntryData.type === 'credit' ? colors.success : colors.error }]}>
               <Text style={[styles.currencySymbol, { color: colors.textSecondary }]}>{getSymbol()}</Text>
               <TextInput
                 style={[styles.amountInputLarge, { color: colors.text }]}
@@ -610,26 +636,27 @@ export default function CustomerDetailScreen({ navigation, route }) {
 
             <View style={styles.editBtnRow}>
               <TouchableOpacity
-                style={[styles.editDeleteBtn, { backgroundColor: '#ffebee' }]}
+                style={[styles.editDeleteBtn, { backgroundColor: colors.error + '15' }]}
                 onPress={() => handleDeleteEntry({ id: editEntryData.id, description: editEntryData.description, amount: editEntryData.amount, type: editEntryData.type })}
               >
                 <Ionicons name="trash-outline" size={20} color={colors.error} />
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.editSaveBtn, { backgroundColor: editEntryData.type === 'credit' ? '#4CAF50' : colors.error }]}
+                style={[styles.editSaveBtn, { backgroundColor: editEntryData.type === 'credit' ? colors.success : colors.error }]}
                 onPress={handleEditEntry}
               >
-                <Text style={styles.submitBtnText}>UPDATE ENTRY</Text>
+                <Text style={[styles.submitBtnText, { color: editEntryData.type === 'credit' ? colors.onSuccess : colors.onError }]}>UPDATE ENTRY</Text>
               </TouchableOpacity>
             </View>
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Menu Modal */}
       <Modal visible={showMenuModal} animationType="fade" transparent onRequestClose={() => setShowMenuModal(false)}>
         <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setShowMenuModal(false)}>
-          <View style={[styles.menuContent, { backgroundColor: colors.background }]}>
+          <View style={[styles.menuContent, { backgroundColor: colors.background, shadowColor: colors.shadow }]}>
             <TouchableOpacity style={styles.menuItem} onPress={() => { setShowMenuModal(false); setShowEditModal(true); }}>
               <Ionicons name="create-outline" size={22} color={colors.text} />
               <Text style={[styles.menuText, { color: colors.text }]}>Edit Customer</Text>
@@ -645,12 +672,23 @@ export default function CustomerDetailScreen({ navigation, route }) {
 
       {/* Delete Customer Confirmation Modal */}
       <Modal visible={showDeleteConfirmModal} animationType="slide" transparent onRequestClose={() => setShowDeleteConfirmModal(false)}>
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { setShowDeleteConfirmModal(false); setDeleteConfirmText(''); }} />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+        >
+          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowDeleteConfirmModal(false); setDeleteConfirmText(''); }} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-            <View style={styles.modalHandle} />
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Ionicons name="warning" size={48} color={colors.error} style={{ alignSelf: 'center', marginBottom: 16 }} />
             <Text style={[styles.modalTitle, { color: colors.error }]}>Delete Customer</Text>
+            <ScrollView
+              style={{ width: '100%' }}
+              contentContainerStyle={{ paddingBottom: 40 }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              keyboardDismissMode="on-drag"
+            >
             <Text style={[styles.deleteWarning, { color: colors.textSecondary }]}>
               This will permanently delete "{customer.name}" and all their {transactions.length} entries. This action cannot be undone.
             </Text>
@@ -684,11 +722,12 @@ export default function CustomerDetailScreen({ navigation, route }) {
                 onPress={confirmDeleteCustomer}
                 disabled={deleteConfirmText.trim().toLowerCase() !== customer.name.trim().toLowerCase()}
               >
-                <Text style={styles.submitBtnText}>DELETE PERMANENTLY</Text>
+                <Text style={[styles.submitBtnText, { color: colors.onError }]}>DELETE PERMANENTLY</Text>
               </TouchableOpacity>
             </View>
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Delete Entry Confirmation Modal */}
@@ -696,19 +735,19 @@ export default function CustomerDetailScreen({ navigation, route }) {
         <View style={styles.modalOverlay}>
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { setShowDeleteEntryModal(false); setEntryToDelete(null); }} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-            <View style={styles.modalHandle} />
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Ionicons name="trash" size={48} color={colors.error} style={{ alignSelf: 'center', marginBottom: 16 }} />
             <Text style={[styles.modalTitle, { color: colors.error }]}>Delete Entry</Text>
             {entryToDelete && (
               <>
-                <View style={[styles.entryDeleteCard, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
+                  <View style={[styles.entryDeleteCard, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
                   <View style={styles.entryDeleteRow}>
                     <Text style={[styles.entryDeleteLabel, { color: colors.textSecondary }]}>Type</Text>
                     <View style={[styles.typeBadge, { 
-                      backgroundColor: (entryToDelete.type === 'credit' || entryToDelete.type === 'income') ? '#e3f2fd' : '#ffebee' 
+                      backgroundColor: (entryToDelete.type === 'credit' || entryToDelete.type === 'income') ? colors.accentLight : colors.error + '15'
                     }]}>
                       <Text style={[styles.typeBadgeText, { 
-                        color: (entryToDelete.type === 'credit' || entryToDelete.type === 'income') ? '#2196F3' : colors.error 
+                        color: (entryToDelete.type === 'credit' || entryToDelete.type === 'income') ? colors.accent : colors.error 
                       }]}>
                         {(entryToDelete.type === 'credit' || entryToDelete.type === 'income') ? 'Cash In' : 'Cash Out'}
                       </Text>
@@ -717,7 +756,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
                   <View style={styles.entryDeleteRow}>
                     <Text style={[styles.entryDeleteLabel, { color: colors.textSecondary }]}>Amount</Text>
                     <Text style={[styles.entryDeleteValue, { 
-                      color: (entryToDelete.type === 'credit' || entryToDelete.type === 'income') ? '#4CAF50' : colors.error 
+                      color: (entryToDelete.type === 'credit' || entryToDelete.type === 'income') ? colors.success : colors.error 
                     }]}>
                       {format(entryToDelete.amount)}
                     </Text>
@@ -745,8 +784,8 @@ export default function CustomerDetailScreen({ navigation, route }) {
                     style={[styles.confirmDeleteBtn, { backgroundColor: colors.error }]}
                     onPress={confirmDeleteEntry}
                   >
-                    <Ionicons name="trash" size={18} color="#fff" style={{ marginRight: 6 }} />
-                    <Text style={styles.submitBtnText}>DELETE ENTRY</Text>
+                    <Ionicons name="trash" size={18} color={colors.onError} style={{ marginRight: 6 }} />
+                    <Text style={[styles.submitBtnText, { color: colors.onError }]}>DELETE ENTRY</Text>
                   </TouchableOpacity>
                 </View>
               </>
@@ -757,12 +796,23 @@ export default function CustomerDetailScreen({ navigation, route }) {
 
       {/* Edit Customer Modal */}
       <Modal visible={showEditModal} animationType="slide" transparent onRequestClose={() => setShowEditModal(false)}>
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowEditModal(false)} />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+        >
+          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowEditModal(false); }} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-            <View style={styles.modalHandle} />
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>Edit Customer</Text>
 
+            <ScrollView
+              style={{ width: '100%' }}
+              contentContainerStyle={{ paddingBottom: 60 }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              keyboardDismissMode="on-drag"
+            >
             <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Name</Text>
             <TextInput
               style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
@@ -782,11 +832,12 @@ export default function CustomerDetailScreen({ navigation, route }) {
               keyboardType="phone-pad"
             />
 
-            <TouchableOpacity style={[styles.submitBtn, { backgroundColor: '#2196F3' }]} onPress={handleEditCustomer}>
-              <Text style={styles.submitBtnText}>SAVE CHANGES</Text>
+            <TouchableOpacity style={[styles.submitBtn, { backgroundColor: colors.accent }]} onPress={handleEditCustomer}>
+              <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>SAVE CHANGES</Text>
             </TouchableOpacity>
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Date Filter Modal */}
@@ -794,7 +845,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
         <View style={styles.modalOverlay}>
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowDateModal(false)} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-            <View style={styles.modalHandle} />
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>Filter by Date</Text>
 
             {[
@@ -805,13 +856,13 @@ export default function CustomerDetailScreen({ navigation, route }) {
             ].map((opt) => (
               <TouchableOpacity
                 key={opt.key}
-                style={[styles.dateOption, dateFilter === opt.key && { backgroundColor: '#e3f2fd' }]}
+                style={[styles.dateOption, dateFilter === opt.key && { backgroundColor: colors.accentLight }]}
                 onPress={() => { setDateFilter(opt.key); setShowDateModal(false); }}
               >
-                <Text style={[styles.dateOptionText, { color: dateFilter === opt.key ? '#2196F3' : colors.text }]}>
+                <Text style={[styles.dateOptionText, { color: dateFilter === opt.key ? colors.info : colors.text }]}>
                   {opt.label}
                 </Text>
-                {dateFilter === opt.key && <Ionicons name="checkmark" size={22} color="#2196F3" />}
+                {dateFilter === opt.key && <Ionicons name="checkmark" size={22} color={colors.info} />}
               </TouchableOpacity>
             ))}
           </View>
@@ -823,7 +874,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
         <View style={styles.modalOverlay}>
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowReportsModal(false)} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-            <View style={styles.modalHandle} />
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>Reports</Text>
 
             <View style={[styles.reportCard, { backgroundColor: colors.backgroundSecondary }]}>
@@ -832,19 +883,19 @@ export default function CustomerDetailScreen({ navigation, route }) {
             </View>
 
               <View style={styles.reportRow}>
-              <View style={[styles.reportCard, styles.reportCardHalf, { backgroundColor: '#e8f5e9' }]}>
-                <Text style={[styles.reportLabel, { color: '#4CAF50' }]}>Total In</Text>
-                <Text style={[styles.reportValue, { color: '#4CAF50' }]}>{format(totalIn)}</Text>
+              <View style={[styles.reportCard, styles.reportCardHalf, { backgroundColor: colors.success + '20' }]}>
+                <Text style={[styles.reportLabel, { color: colors.success }]}>Total In</Text>
+                <Text style={[styles.reportValue, { color: colors.success }]}>{format(totalIn)}</Text>
               </View>
-              <View style={[styles.reportCard, styles.reportCardHalf, { backgroundColor: '#ffebee' }]}>
+              <View style={[styles.reportCard, styles.reportCardHalf, { backgroundColor: colors.error + '20' }]}>
                 <Text style={[styles.reportLabel, { color: colors.error }]}>Total Out</Text>
                 <Text style={[styles.reportValue, { color: colors.error }]}>{format(totalOut)}</Text>
               </View>
             </View>
 
-            <View style={[styles.reportCard, { backgroundColor: netBalance >= 0 ? '#e3f2fd' : '#ffebee' }]}>
-              <Text style={[styles.reportLabel, { color: netBalance >= 0 ? '#2196F3' : colors.error }]}>Net Balance</Text>
-              <Text style={[styles.reportValueLarge, { color: netBalance >= 0 ? '#2196F3' : colors.error }]}>
+            <View style={[styles.reportCard, { backgroundColor: netBalance >= 0 ? colors.accentLight : colors.error + '20' }]}>
+              <Text style={[styles.reportLabel, { color: netBalance >= 0 ? colors.info : colors.error }]}>Net Balance</Text>
+              <Text style={[styles.reportValueLarge, { color: netBalance >= 0 ? colors.info : colors.error }]}>
                 {formatWithSign(netBalance)}
               </Text>
             </View>
@@ -854,9 +905,9 @@ export default function CustomerDetailScreen({ navigation, route }) {
               <Text style={[styles.reportValue, { color: colors.text }]}>{transactions.length}</Text>
             </View>
 
-            <TouchableOpacity style={[styles.submitBtn, { backgroundColor: '#2196F3' }]} onPress={() => { setShowReportsModal(false); handleSharePDF(); }}>
-              <Ionicons name="share-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
-              <Text style={styles.submitBtnText}>SHARE REPORT</Text>
+            <TouchableOpacity style={[styles.submitBtn, { backgroundColor: colors.accent }]} onPress={() => { setShowReportsModal(false); handleSharePDF(); }}>
+              <Ionicons name="share-outline" size={20} color={colors.onAccent} style={{ marginRight: 8 }} />
+              <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>SHARE REPORT</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -889,11 +940,11 @@ const styles = StyleSheet.create({
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8 },
   summaryLabel: { fontSize: 15, fontWeight: '500' },
   summaryValue: { fontSize: 18, fontWeight: '700', flexShrink: 0, minWidth: 100, textAlign: 'right' },
-  summaryValueBlue: { fontSize: 16, fontWeight: '600', color: '#2196F3', flexShrink: 0, minWidth: 100, textAlign: 'right' },
+  summaryValueBlue: { fontSize: 16, fontWeight: '600', flexShrink: 0, minWidth: 100, textAlign: 'right' },
   summaryValueRed: { fontSize: 16, fontWeight: '600', flexShrink: 0, minWidth: 100, textAlign: 'right' },
   divider: { height: 1, marginVertical: 8 },
   viewReportsBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingTop: 12, gap: 4 },
-  viewReportsText: { fontSize: 14, fontWeight: '600', color: '#2196F3' },
+  viewReportsText: { fontSize: 14, fontWeight: '600' },
 
   entriesCount: { textAlign: 'center', fontSize: 13, paddingVertical: 12 },
   dateHeader: { fontSize: 13, fontWeight: '500', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
@@ -904,7 +955,7 @@ const styles = StyleSheet.create({
   typeBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 4 },
   typeBadgeText: { fontSize: 12, fontWeight: '600' },
   transactionDesc: { fontSize: 13 },
-  entryBy: { fontSize: 12, fontWeight: '500', color: '#2196F3' },
+  entryBy: { fontSize: 12, fontWeight: '500' },
   transactionRight: { alignItems: 'flex-end', gap: 4, minWidth: 100 },
   transactionAmount: { fontSize: 16, fontWeight: '600', flexShrink: 0, textAlign: 'right' },
   balanceAfter: { fontSize: 12, flexShrink: 0, textAlign: 'right' },
@@ -927,19 +978,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, 
     gap: 12,
   },
-  cashInBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#4CAF50', paddingVertical: 14, borderRadius: 8, gap: 6 },
-  cashOutBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#c62828', paddingVertical: 14, borderRadius: 8, gap: 6 },
-  cashBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  cashInBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 8, gap: 6 },
+  cashOutBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 8, gap: 6 },
+  cashBtnText: { fontSize: 14, fontWeight: '700' },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: Platform.OS === 'ios' ? 40 : 20 },
-  modalHandle: { width: 40, height: 4, backgroundColor: '#ddd', borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
   modalTitle: { fontSize: 20, fontWeight: '600', textAlign: 'center', marginBottom: 20 },
   
   typeToggle: { flexDirection: 'row', borderRadius: 8, padding: 4, marginBottom: 24 },
   typeBtn: { flex: 1, paddingVertical: 12, borderRadius: 6, alignItems: 'center' },
-  typeBtnActive: { backgroundColor: '#e8f5e9' },
-  typeBtnActiveRed: { backgroundColor: '#ffebee' },
+  typeBtnActive: {},
+  typeBtnActiveRed: {},
   typeBtnText2: { fontSize: 14, fontWeight: '600' },
   
   amountInputContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 20, borderBottomWidth: 2, marginBottom: 20 },
@@ -949,14 +1000,14 @@ const styles = StyleSheet.create({
   inputLabel: { fontSize: 13, fontWeight: '500', marginBottom: 8, marginLeft: 4 },
   input: { padding: 14, borderRadius: 8, fontSize: 16, marginBottom: 16 },
   submitBtn: { flexDirection: 'row', paddingVertical: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  submitBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  submitBtnText: { fontSize: 15, fontWeight: '700' },
 
   editBtnRow: { flexDirection: 'row', gap: 12 },
   editDeleteBtn: { width: 56, height: 56, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   editSaveBtn: { flex: 1, paddingVertical: 16, borderRadius: 8, alignItems: 'center' },
 
   menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'flex-start', alignItems: 'flex-end', paddingTop: Platform.OS === 'ios' ? 100 : 60, paddingRight: 16 },
-  menuContent: { borderRadius: 12, padding: 8, minWidth: 180, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 5 },
+  menuContent: { borderRadius: 12, padding: 8, minWidth: 180, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 5 },
   menuItem: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12 },
   menuText: { fontSize: 15, fontWeight: '500' },
   menuDivider: { height: 1, marginVertical: 4 },

@@ -52,99 +52,106 @@ export const ThemeProvider = ({ children }) => {
   );
 };
 
+// Modern design system: spacing (px), typography scale, radius scale
+const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 };
+const typeScale = {
+  display: 34,
+  title: 28,
+  title2: 22,
+  headline: 17,
+  body: 16,
+  callout: 15,
+  subhead: 14,
+  footnote: 12,
+  caption: 11,
+};
+
 const getColors = (theme) => {
+  const base = {
+    spacing,
+    typeScale,
+  };
+
   if (theme === 'light') {
     return {
+      ...base,
       isDark: false,
-      // Clean backgrounds
-      background: '#ffffff',
-      backgroundSecondary: '#f8f9fa',
-      
-      // Surfaces
-      surface: '#ffffff',
-      card: '#ffffff',
-      
-      // Text - clean and readable
-      text: '#000000',
-      textSecondary: '#6c757d',
-      textTertiary: '#adb5bd',
-      
-      // Accent color
-      accent: '#007AFF',
-      accentLight: '#e7f3ff',
-      onAccent: '#ffffff',
-      onSurface: '#000000',
+      // Modern light: soft neutral background
+      background: '#FFFFFF',
+      backgroundSecondary: '#F5F6F8',
+      backgroundTertiary: '#EBECF0',
 
-      // Informational color (used in About)
-      info: '#0A84FF',
+      surface: '#FFFFFF',
+      card: '#FFFFFF',
 
-      // Gradient stops (used in About/AnimatedBackground)
-      gradientStart: '#ffffff',
-      gradientEnd: '#f1f5ff',
-      
-      // Borders
-      border: '#e9ecef',
+      text: '#111827',
+      textSecondary: '#6B7280',
+      textTertiary: '#9CA3AF',
 
-      // Shadows (soft, iOS-like; Android uses elevation elsewhere)
-      shadow: 'rgba(15, 23, 42, 0.10)',
+      // Primary accent - modern indigo
+      accent: '#6366F1',
+      accentLight: '#EEF2FF',
+      onAccent: '#FFFFFF',
+      onSurface: '#111827',
 
-      // Radius scale
-      radius: { sm: 10, md: 14, lg: 18, xl: 24 },
-      
-      // Status colors
-      success: '#34C759',
-      onSuccess: '#ffffff',
-      error: '#FF3B30',
-      onError: '#ffffff',
-      warning: '#FF9500',
+      info: '#3B82F6',
+      gradientStart: '#FFFFFF',
+      gradientEnd: '#F5F3FF',
+
+      border: '#E5E7EB',
+      borderLight: '#F3F4F6',
+
+      shadow: 'rgba(0, 0, 0, 0.06)',
+      shadowStrong: 'rgba(0, 0, 0, 0.12)',
+
+      radius: { sm: 10, md: 14, lg: 18, xl: 24, full: 9999 },
+
+      success: '#10B981',
+      onSuccess: '#FFFFFF',
+      error: '#EF4444',
+      onError: '#FFFFFF',
+      warning: '#F59E0B',
       onWarning: '#000000',
     };
   }
-  
-  // Dark theme
+
+  // Dark theme - deep slate, not pure black
   return {
+    ...base,
     isDark: true,
-    // Dark backgrounds
-    background: '#000000',
-    backgroundSecondary: '#1c1c1e',
-    
-    // Surfaces
-    surface: '#2c2c2e',
-    card: '#2c2c2e',
-    
-    // Text
-    text: '#ffffff',
-    textSecondary: '#98989d',
-    textTertiary: '#636366',
-    
-    // Accent color
-    accent: '#0A84FF',
-    accentLight: '#1a2332',
-    onAccent: '#ffffff',
-    onSurface: '#ffffff',
+    background: '#0F0F12',
+    backgroundSecondary: '#18181B',
+    backgroundTertiary: '#27272A',
 
-    // Informational color
-    info: '#64D2FF',
+    surface: '#18181B',
+    card: '#1F1F23',
 
-    // Gradient stops
-    gradientStart: '#0b0b0c',
-    gradientEnd: '#1c1c1e',
-    
-    // Borders
-    border: '#38383a',
+    text: '#FAFAFA',
+    textSecondary: '#A1A1AA',
+    textTertiary: '#71717A',
 
-    // Shadows
-    shadow: 'rgba(0, 0, 0, 0.35)',
+    accent: '#818CF8',
+    accentLight: '#312E81',
+    onAccent: '#FFFFFF',
+    onSurface: '#FAFAFA',
 
-    // Radius scale
-    radius: { sm: 10, md: 14, lg: 18, xl: 24 },
-    
-    // Status colors
-    success: '#30D158',
+    info: '#60A5FA',
+    gradientStart: '#0F0F12',
+    gradientEnd: '#1E1B4B',
+
+    border: '#3F3F46',
+    borderLight: '#27272A',
+
+    shadow: 'rgba(0, 0, 0, 0.4)',
+    shadowStrong: 'rgba(0, 0, 0, 0.6)',
+
+    radius: { sm: 10, md: 14, lg: 18, xl: 24, full: 9999 },
+
+    success: '#34D399',
     onSuccess: '#000000',
-    error: '#FF453A',
+    error: '#F87171',
     onError: '#000000',
-    warning: '#FF9F0A',
+    warning: '#FBBF24',
     onWarning: '#000000',
   };
 };
