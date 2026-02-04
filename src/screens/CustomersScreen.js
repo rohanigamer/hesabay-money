@@ -215,8 +215,7 @@ export default function CustomersScreen({ navigation }) {
                     </TouchableOpacity>
                   </View>
                 </TouchableOpacity>
-              );
-              })}
+              ))}
             </GlassCard>
           )}
         </Animated.View>
