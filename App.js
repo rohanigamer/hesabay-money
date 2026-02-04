@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useRef } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, Easing } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer, CommonActions } from '@react-navigation/native';
 import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
@@ -10,6 +10,7 @@ import { CurrencyProvider } from './src/context/CurrencyContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { AppLockProvider, useAppLock } from './src/context/AppLockContext';
 import { FeedbackOverlay, FeedbackProvider } from './src/context/FeedbackContext';
+import ErrorBoundary from './src/components/ErrorBoundary';
 
 // Screens
 import LoginScreen from './src/screens/LoginScreen';
@@ -24,12 +25,28 @@ import BiometricScreen from './src/screens/BiometricScreen';
 
 const Stack = createStackNavigator();
 
-// No animation - instant switch for crisp rendering
-const forNoAnimation = () => ({
+// Smooth cross-fade when switching between main tabs (no blink)
+const easeOutCubic = Easing.bezier(0.33, 1, 0.68, 1);
+const smoothFadeInterpolator = ({ current }) => ({
   cardStyle: {
-    opacity: 1,
+    opacity: current.progress.interpolate({
+      inputRange: [0, 0.2, 0.5, 0.85, 1],
+      outputRange: [0, 0.12, 0.45, 0.82, 1],
+      extrapolate: 'clamp',
+    }),
   },
 });
+
+const smoothFadeTransition = {
+  open: {
+    animation: 'timing',
+    config: { duration: 360, easing: easeOutCubic },
+  },
+  close: {
+    animation: 'timing',
+    config: { duration: 280, easing: Easing.bezier(0.32, 0, 0.67, 0) },
+  },
+};
 
 function AppNavigator() {
   const { colors, isDark } = useContext(ThemeContext);
@@ -113,18 +130,10 @@ function AppNavigator() {
         initialRouteName={user ? "Transaction" : "Login"}
         screenOptions={{
           headerShown: false,
-          cardStyleInterpolator: forNoAnimation,
-          transitionSpec: {
-            open: {
-              animation: 'timing',
-              config: { duration: 0 },
-            },
-            close: {
-              animation: 'timing',
-              config: { duration: 0 },
-            },
-          },
+          cardStyleInterpolator: smoothFadeInterpolator,
+          transitionSpec: smoothFadeTransition,
           cardStyle: { backgroundColor: colors.backgroundSecondary },
+          detachInactiveScreens: false,
         }}
       >
         <Stack.Screen name="Login" component={LoginScreen} />
@@ -172,11 +181,13 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <LanguageProvider>
-          <CurrencyProvider>
-            <AppContent />
-          </CurrencyProvider>
-        </LanguageProvider>
+        <ErrorBoundary>
+          <LanguageProvider>
+            <CurrencyProvider>
+              <AppContent />
+            </CurrencyProvider>
+          </LanguageProvider>
+        </ErrorBoundary>
       </ThemeProvider>
     </SafeAreaProvider>
   );

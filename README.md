@@ -1,107 +1,79 @@
 # Hesabay Money
 
-A beautiful and functional Android financial management app built with React Native and Expo.
+A cross-platform financial management app (Android, iOS, Web) built with React Native and Expo. Manage customers, multi-currency transactions, and calculations with optional cloud sync.
 
 ## Features
 
-- ✨ Beautiful splash screen with animations
-- 🔐 Secure login system (default password: 123)
-- 📊 Modern dashboard with 5 main sections
-- 👥 Customer management
-- 💰 Transaction tracking
-- 🧮 Financial calculations
-- ⚙️ Settings management
-- ℹ️ About page
+- **Auth**: Sign up / Sign in with email (Firebase), Guest mode, Google Sign-In (web)
+- **Transactions**: Income & expense tracking, link to customers, multi-currency (up to 3 wallets)
+- **Customers**: Customer list with balances, detail screen with linked transactions
+- **Calculation (Summary)**: Per-currency balances, exchange-rate conversion, top customers, recent activity
+- **Exchange rates**: Set rates in Settings; view totals in another currency on the Summary page
+- **Settings**: Theme, language (EN / Dari / Pashto), passcode & biometric lock, backup/restore (.Mbackup), sync/refresh from Firebase, delete all transactions (with verification)
+- **Offline-first**: Data stored locally; syncs to Firebase when signed in and online
 
 ## Installation
 
-1. Install dependencies:
 ```bash
 npm install
-```
-
-2. Start the development server:
-```bash
 npm start
 ```
 
-3. Run on Android:
-```bash
-npm run android
-```
+Then run on a device/emulator or web:
 
-Or scan the QR code with Expo Go app on your Android device.
+- **Android**: `npm run android` or scan QR with Expo Go
+- **iOS**: `npm run ios`
+- **Web**: `npm run web`
 
-## Building for Android
+## Building for production
 
-### Prerequisites
+### Assets
 
-**IMPORTANT**: Before building, you need to create asset files in the `assets/` folder:
-- `icon.png` (1024x1024px)
-- `splash.png` (1242x2436px recommended)
-- `adaptive-icon.png` (1024x1024px)
-- `favicon.png` (48x48px)
+Ensure these exist in `assets/`:
 
-See `QUICK_FIX.md` for detailed instructions on creating these assets.
+- `icon.png` (1024×1024)
+- `splash.png` (e.g. 1242×2436)
+- `adaptive-icon.png` (1024×1024, Android)
+- `favicon.png` (48×48, web)
 
-### Build Steps
+### Android (EAS)
 
-1. **Install EAS CLI** (if not already installed):
 ```bash
 npm install -g eas-cli
-```
-
-2. **Login to Expo**:
-```bash
 eas login
-```
-
-3. **Build for Android**:
-```bash
 eas build --platform android
 ```
 
-4. **Download APK**: After build completes, download from the provided URL or Expo dashboard.
+### Firebase
 
-### Troubleshooting
+The app uses Firebase for auth and Firestore for optional cloud sync. Configure your project and ensure:
 
-If build fails:
-- Check `QUICK_FIX.md` for asset creation instructions
-- Verify all assets are PNG format and correct sizes
-- Run `npx expo-doctor` to check for issues
-- Check build logs at the URL provided in error message
+- **Authentication**: Email/Password and (optional) Google sign-in
+- **Firestore**: Database with security rules so users can only read/write their own document under `users/{userId}`
 
-## Default Login
+Firebase config is in `src/config/firebase.js`. For production, ensure Firestore rules restrict access by `request.auth.uid`.
 
-- Password: `123`
-
-## Project Structure
+## Project structure
 
 ```
-├── App.js                 # Main app component with navigation
+├── App.js                    # Root: providers, navigation, Error Boundary
 ├── src/
-│   └── screens/
-│       ├── SplashScreen.js
-│       ├── LoginScreen.js
-│       ├── DashboardScreen.js
-│       ├── CustomersScreen.js
-│       ├── TransactionScreen.js
-│       ├── CalculationScreen.js
-│       ├── SettingsScreen.js
-│       └── AboutScreen.js
-├── package.json
-└── app.json
+│   ├── components/           # ErrorBoundary, BottomNavigation, GlassCard, etc.
+│   ├── config/               # firebase.js
+│   ├── context/              # Theme, Auth, Currency, Feedback, AppLock, Language
+│   ├── screens/              # Login, Signup, Transaction, Customers, Calculation, Settings, About
+│   ├── services/             # FirebaseSync, FirebaseAuthREST
+│   └── utils/                # Storage, Currency, i18n
+├── app.json
+└── package.json
 ```
 
-## Technologies Used
+## Security notes
 
-- React Native
-- Expo
-- React Navigation
-- Expo Linear Gradient
-- Expo Vector Icons
+- No default password: users sign up or use Guest mode.
+- Passcode/biometric and app lock are optional; data is stored in SecureStore (native) or AsyncStorage (web).
+- Firebase API keys in source are normal for client apps; security is enforced by Firebase Auth and Firestore rules.
 
 ## License
 
-© 2025 Hesabay Money - All rights reserved
-
+© 2025 Hesabay Money. All rights reserved.

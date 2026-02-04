@@ -98,12 +98,18 @@ class FirebaseSyncService {
 
     try {
       // Get local data
-      const customers = await Storage.getCustomers();
-      const transactions = await Storage.getTransactions();
+      const [customers, transactions, wallets, exchangeRates] = await Promise.all([
+        Storage.getCustomers(),
+        Storage.getTransactions(),
+        Storage.getWallets(),
+        Storage.getExchangeRates(),
+      ]);
       
       const dataToSync = {
         customers: customers,
         transactions: transactions,
+        wallets: wallets || [],
+        exchangeRates: exchangeRates || { baseCurrency: 'USD', rates: {} },
         lastSyncedAt: new Date().toISOString(),
         deviceInfo: {
           platform: Platform.OS,
@@ -157,11 +163,14 @@ class FirebaseSyncService {
 
     const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/users/${userId}`;
     
-    // Convert data to Firestore format
+    const wallets = data.wallets || [];
+    const exchangeRates = data.exchangeRates || { baseCurrency: 'USD', rates: {} };
     const firestoreData = {
       fields: {
         customers: { arrayValue: { values: data.customers.map(c => ({ mapValue: { fields: this.convertToFirestoreFields(c) } })) } },
         transactions: { arrayValue: { values: data.transactions.map(t => ({ mapValue: { fields: this.convertToFirestoreFields(t) } })) } },
+        wallets: { arrayValue: { values: wallets.map(w => ({ mapValue: { fields: this.convertToFirestoreFields(w) } })) } },
+        exchangeRates: { mapValue: { fields: this.convertToFirestoreFields(exchangeRates) } },
         lastSyncedAt: { stringValue: data.lastSyncedAt },
         deviceInfo: { mapValue: { fields: this.convertToFirestoreFields(data.deviceInfo) } }
       }
@@ -271,9 +280,14 @@ class FirebaseSyncService {
     if (snapshot.exists()) {
       const data = snapshot.data();
       console.log('📥 Loaded data from Firebase (SDK)');
+      const exchangeRates = data.exchangeRates && typeof data.exchangeRates === 'object'
+        ? { baseCurrency: data.exchangeRates.baseCurrency || 'USD', rates: data.exchangeRates.rates || {} }
+        : { baseCurrency: 'USD', rates: {} };
       return {
         customers: data.customers || [],
-        transactions: data.transactions || []
+        transactions: data.transactions || [],
+        wallets: Array.isArray(data.wallets) ? data.wallets : [],
+        exchangeRates,
       };
     }
     return null;
@@ -301,13 +315,26 @@ class FirebaseSyncService {
     console.log('📥 Loaded data from Firebase (REST)');
     
     const fields = data.fields || {};
+    const wallets = fields.wallets?.arrayValue?.values?.map(v =>
+      this.convertFromFirestoreFields(v.mapValue?.fields || {})
+    ) || [];
+    const exchangeRatesRaw = fields.exchangeRates?.mapValue?.fields;
+    let exchangeRates = { baseCurrency: 'USD', rates: {} };
+    if (exchangeRatesRaw) {
+      exchangeRates.baseCurrency = exchangeRatesRaw.baseCurrency?.stringValue || 'USD';
+      const ratesMap = exchangeRatesRaw.rates?.mapValue?.fields;
+      exchangeRates.rates = ratesMap ? this.convertFromFirestoreFields(ratesMap) : {};
+      if (typeof exchangeRates.rates !== 'object') exchangeRates.rates = {};
+    }
     return {
-      customers: fields.customers?.arrayValue?.values?.map(v => 
+      customers: fields.customers?.arrayValue?.values?.map(v =>
         this.convertFromFirestoreFields(v.mapValue?.fields || {})
       ) || [],
-      transactions: fields.transactions?.arrayValue?.values?.map(v => 
+      transactions: fields.transactions?.arrayValue?.values?.map(v =>
         this.convertFromFirestoreFields(v.mapValue?.fields || {})
-      ) || []
+      ) || [],
+      wallets: Array.isArray(wallets) ? wallets : [],
+      exchangeRates,
     };
   }
 
@@ -316,8 +343,24 @@ class FirebaseSyncService {
     const firebaseData = await this.loadFromFirebase();
     if (!firebaseData) return;
 
-    const localCustomers = await Storage.getCustomers();
-    const localTransactions = await Storage.getTransactions();
+    const [localCustomers, localTransactions, localWallets] = await Promise.all([
+      Storage.getCustomers(),
+      Storage.getTransactions(),
+      Storage.getWallets(),
+    ]);
+
+    if (localWallets.length === 0 && firebaseData.wallets && firebaseData.wallets.length > 0) {
+      await Storage.saveWallets(firebaseData.wallets);
+      console.log('📥 Merged wallets from Firebase');
+    }
+
+    if (firebaseData.exchangeRates && firebaseData.exchangeRates.baseCurrency) {
+      await Storage.saveExchangeRates({
+        baseCurrency: firebaseData.exchangeRates.baseCurrency,
+        rates: firebaseData.exchangeRates.rates || {},
+      });
+      console.log('📥 Merged exchange rates from Firebase');
+    }
 
     // If local is empty, use Firebase data
     if (localCustomers.length === 0 && firebaseData.customers.length > 0) {
@@ -378,9 +421,23 @@ class FirebaseSyncService {
         return { success: false, error: 'No data found in Firebase' };
       }
 
+      const userId = getCurrentUserId();
+      
+      if (Array.isArray(firebaseData.wallets)) {
+        await Storage.saveWallets(firebaseData.wallets);
+        console.log(`✅ Refreshed ${firebaseData.wallets.length} wallets from Firebase`);
+      }
+
+      if (firebaseData.exchangeRates && firebaseData.exchangeRates.baseCurrency) {
+        await Storage.saveExchangeRates({
+          baseCurrency: firebaseData.exchangeRates.baseCurrency,
+          rates: firebaseData.exchangeRates.rates || {},
+        });
+        console.log('✅ Refreshed exchange rates from Firebase');
+      }
+
       const AsyncStorage = require('@react-native-async-storage/async-storage').default;
       const SecureStore = require('expo-secure-store');
-      const userId = getCurrentUserId();
       
       // OVERWRITE customers
       const customersKey = `${userId}_customers`;
@@ -410,10 +467,11 @@ class FirebaseSyncService {
         return { success: false, error: 'Failed to save transactions locally' };
       }
       
-      return { 
-        success: true, 
+      return {
+        success: true,
         customersCount: firebaseData.customers.length,
-        transactionsCount: firebaseData.transactions.length
+        transactionsCount: firebaseData.transactions.length,
+        walletsCount: (firebaseData.wallets || []).length
       };
     } catch (error) {
       console.error('❌ Force refresh error:', error);

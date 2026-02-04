@@ -1,6 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { CURRENCIES, DEFAULT_CURRENCY } from './Currency';
 
 // Use AsyncStorage for web, SecureStore for native
 const storage = {
@@ -75,13 +76,18 @@ const getUserKey = (key) => {
 const STORAGE_KEYS = {
   PASSCODE: 'app_passcode',
   AUTH_METHOD: 'auth_method',
+  GUEST_MODE: 'app_guest_mode',
   THEME: 'app_theme',
   LANGUAGE: 'app_language',
   CURRENCY: 'app_currency',
+  CURRENCY_WALLETS: 'currency_wallets',
+  EXCHANGE_RATES: 'exchange_rates',
   APP_DATA: 'app_data',
   CUSTOMERS: 'customers',
   TRANSACTIONS: 'transactions',
 };
+
+const MAX_WALLETS = 3;
 
 export const Storage = {
   // Passcode
@@ -110,6 +116,34 @@ export const Storage = {
       return true;
     } catch (error) {
       console.error('Error deleting passcode:', error);
+      return false;
+    }
+  },
+
+  // Guest mode (persist so app reopens as guest)
+  async getGuestMode() {
+    try {
+      const value = await storage.getItemAsync(STORAGE_KEYS.GUEST_MODE);
+      return value === 'true';
+    } catch (error) {
+      return false;
+    }
+  },
+
+  async setGuestMode(enabled) {
+    try {
+      await storage.setItemAsync(STORAGE_KEYS.GUEST_MODE, enabled ? 'true' : 'false');
+      return true;
+    } catch (error) {
+      return false;
+    }
+  },
+
+  async clearGuestMode() {
+    try {
+      await storage.deleteItemAsync(STORAGE_KEYS.GUEST_MODE);
+      return true;
+    } catch (error) {
       return false;
     }
   },
@@ -194,6 +228,193 @@ export const Storage = {
       return true;
     } catch (error) {
       console.error('Error setting currency:', error);
+      return false;
+    }
+  },
+
+  // Wallets (up to 3 currencies with separate balances)
+  async getWallets() {
+    try {
+      const key = getUserKey(STORAGE_KEYS.CURRENCY_WALLETS);
+      const raw = await storage.getItemAsync(key);
+      let wallets = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(wallets)) wallets = [];
+
+      if (wallets.length === 0) {
+        const currency = await this.getCurrency();
+        const stats = await this.getStats();
+        const transactions = await this.getTransactions();
+        const primaryCode = currency || DEFAULT_CURRENCY;
+        const wallet = {
+          id: Date.now().toString(),
+          currencyCode: primaryCode,
+          initialBalance: parseFloat(stats.totalBalance) || 0,
+        };
+        wallets = [wallet];
+        await this.saveWallets(wallets);
+        if (transactions.length > 0) {
+          const updated = transactions.map(t => ({ ...t, currencyCode: t.currencyCode || primaryCode }));
+          await this.saveTransactions(updated);
+        }
+      }
+
+      return wallets;
+    } catch (error) {
+      console.error('Error getting wallets:', error);
+      return [];
+    }
+  },
+
+  async saveWallets(wallets) {
+    try {
+      const key = getUserKey(STORAGE_KEYS.CURRENCY_WALLETS);
+      await storage.setItemAsync(key, JSON.stringify(wallets));
+      triggerSync();
+      return true;
+    } catch (error) {
+      console.error('Error saving wallets:', error);
+      return false;
+    }
+  },
+
+  async addWallet({ currencyCode, initialBalance }) {
+    try {
+      const code = (currencyCode || '').trim().toUpperCase();
+      if (!CURRENCIES.some(c => c.code === code)) {
+        return { success: false, error: 'Invalid currency code.' };
+      }
+      const wallets = await this.getWallets();
+      if (wallets.some(w => w.currencyCode === code)) {
+        return { success: false, error: 'This currency is already added.' };
+      }
+      if (wallets.length >= MAX_WALLETS) {
+        return { success: false, error: 'You can add up to 3 currencies.' };
+      }
+      const num = parseFloat(initialBalance);
+      if (Number.isNaN(num)) {
+        return { success: false, error: 'Enter a valid number.' };
+      }
+      const wallet = {
+        id: Date.now().toString(),
+        currencyCode: code,
+        initialBalance: num,
+      };
+      wallets.push(wallet);
+      await this.saveWallets(wallets);
+      return { success: true, wallet };
+    } catch (error) {
+      console.error('Error adding wallet:', error);
+      return { success: false, error: error.message || 'Could not add currency.' };
+    }
+  },
+
+  async updateWallet(id, { initialBalance }) {
+    try {
+      const wallets = await this.getWallets();
+      const index = wallets.findIndex(w => w.id === id);
+      if (index === -1) return { success: false, error: 'Wallet not found.' };
+      const num = parseFloat(initialBalance);
+      if (Number.isNaN(num)) {
+        return { success: false, error: 'Enter a valid number.' };
+      }
+      wallets[index] = { ...wallets[index], initialBalance: num };
+      await this.saveWallets(wallets);
+      return { success: true };
+    } catch (error) {
+      console.error('Error updating wallet:', error);
+      return { success: false, error: error.message || 'Could not update.' };
+    }
+  },
+
+  async removeWallet(id) {
+    try {
+      const wallets = await this.getWallets();
+      const wallet = wallets.find(w => w.id === id);
+      if (!wallet) return { success: false, error: 'Wallet not found.', transactionCount: 0 };
+      const transactions = await this.getTransactions();
+      const count = transactions.filter(t => (t.currencyCode || '').toUpperCase() === wallet.currencyCode).length;
+      if (count > 0) {
+        return { success: false, error: `Cannot remove: ${count} transaction(s) use this currency.`, transactionCount: count };
+      }
+      const next = wallets.filter(w => w.id !== id);
+      await this.saveWallets(next);
+      return { success: true };
+    } catch (error) {
+      console.error('Error removing wallet:', error);
+      return { success: false, error: error.message || 'Could not remove.', transactionCount: 0 };
+    }
+  },
+
+  async getStatsPerCurrency() {
+    try {
+      const transactions = await this.getTransactions();
+      const byCode = {};
+      transactions.forEach(t => {
+        const code = (t.currencyCode || DEFAULT_CURRENCY).toUpperCase();
+        if (!byCode[code]) byCode[code] = { totalIncome: 0, totalExpenses: 0 };
+        const amount = parseFloat(t.amount) || 0;
+        if (t.type === 'credit' || t.type === 'income') byCode[code].totalIncome += amount;
+        else if (t.type === 'debit' || t.type === 'expense') byCode[code].totalExpenses += amount;
+      });
+      Object.keys(byCode).forEach(code => {
+        byCode[code].totalBalance = byCode[code].totalIncome - byCode[code].totalExpenses;
+      });
+      return byCode;
+    } catch (error) {
+      console.error('Error getting stats per currency:', error);
+      return {};
+    }
+  },
+
+  async getWalletBalances() {
+    try {
+      const [wallets, statsPer] = await Promise.all([this.getWallets(), this.getStatsPerCurrency()]);
+      return wallets.map(w => {
+        const stats = statsPer[w.currencyCode] || { totalIncome: 0, totalExpenses: 0, totalBalance: 0 };
+        const balance = (parseFloat(w.initialBalance) || 0) + stats.totalBalance;
+        return { ...w, balance };
+      });
+    } catch (error) {
+      console.error('Error getting wallet balances:', error);
+      return [];
+    }
+  },
+
+  // Exchange rates: { baseCurrency: 'USD', rates: { AFN: 70, EUR: 0.92 } } = 1 base = X of each
+  async getExchangeRates() {
+    try {
+      const key = getUserKey(STORAGE_KEYS.EXCHANGE_RATES);
+      const raw = await storage.getItemAsync(key);
+      if (!raw) return { baseCurrency: DEFAULT_CURRENCY, rates: {} };
+      const data = JSON.parse(raw);
+      return {
+        baseCurrency: (data.baseCurrency || DEFAULT_CURRENCY).toUpperCase(),
+        rates: typeof data.rates === 'object' && data.rates ? data.rates : {},
+      };
+    } catch (error) {
+      console.error('Error getting exchange rates:', error);
+      return { baseCurrency: DEFAULT_CURRENCY, rates: {} };
+    }
+  },
+
+  async saveExchangeRates({ baseCurrency, rates }) {
+    try {
+      const key = getUserKey(STORAGE_KEYS.EXCHANGE_RATES);
+      const base = (baseCurrency || DEFAULT_CURRENCY).toUpperCase();
+      const normalized = {};
+      if (rates && typeof rates === 'object') {
+        Object.entries(rates).forEach(([code, val]) => {
+          const num = parseFloat(val);
+          if (code && code.toUpperCase() !== base && !Number.isNaN(num) && num > 0) {
+            normalized[code.toUpperCase()] = num;
+          }
+        });
+      }
+      await storage.setItemAsync(key, JSON.stringify({ baseCurrency: base, rates: normalized }));
+      triggerSync();
+      return true;
+    } catch (error) {
+      console.error('Error saving exchange rates:', error);
       return false;
     }
   },
@@ -323,10 +544,13 @@ export const Storage = {
 
   async addTransaction(transaction) {
     try {
-      const transactions = await this.getTransactions();
+      const [transactions, wallets] = await Promise.all([this.getTransactions(), this.getWallets()]);
+      const primaryCode = wallets.length > 0 ? wallets[0].currencyCode : DEFAULT_CURRENCY;
+      const currencyCode = (transaction.currencyCode || primaryCode).toString().toUpperCase();
       const newTransaction = {
         id: Date.now().toString(),
         ...transaction,
+        currencyCode,
         createdAt: new Date().toISOString(),
       };
       transactions.unshift(newTransaction);
@@ -431,6 +655,20 @@ export const Storage = {
     }
   },
 
+  // Clear all transactions (local). Resets customer balances. Caller should sync to cloud after.
+  async clearAllTransactions() {
+    try {
+      const customers = await this.getCustomers();
+      const updated = customers.map(c => ({ ...c, balance: 0, updatedAt: new Date().toISOString() }));
+      await this.saveCustomers(updated);
+      await this.saveTransactions([]);
+      return true;
+    } catch (error) {
+      console.error('Error clearing transactions:', error);
+      return false;
+    }
+  },
+
   async deleteTransaction(transactionId) {
     try {
       const transactions = await this.getTransactions();
@@ -511,22 +749,26 @@ export const Storage = {
   // Backup: export all app data as JSON for .Mbackup file
   async exportBackup() {
     try {
-      const [customers, transactions, theme, currency, language] = await Promise.all([
+      const [customers, transactions, wallets, theme, currency, language, exchangeRates] = await Promise.all([
         this.getCustomers(),
         this.getTransactions(),
+        this.getWallets(),
         this.getTheme(),
         this.getCurrency(),
         this.getLanguage(),
+        this.getExchangeRates(),
       ]);
       const payload = {
-        version: 1,
+        version: 2,
         app: 'HesabayMoney',
         exportedAt: new Date().toISOString(),
         customers: customers || [],
         transactions: transactions || [],
+        wallets: wallets || [],
         theme: theme || 'light',
         currency: currency || 'USD',
         language: language || 'en',
+        exchangeRates: exchangeRates || { baseCurrency: 'USD', rates: {} },
       };
       return JSON.stringify(payload, null, 0);
     } catch (error) {
@@ -542,12 +784,32 @@ export const Storage = {
       if (!data || typeof data.app !== 'string' || !Array.isArray(data.customers) || !Array.isArray(data.transactions)) {
         return { success: false, error: 'Invalid backup file format.' };
       }
+      let transactions = data.transactions || [];
+      let wallets = Array.isArray(data.wallets) ? data.wallets : [];
+      if (wallets.length > MAX_WALLETS) {
+        wallets = wallets.slice(0, MAX_WALLETS);
+      }
+      const validCodes = new Set(CURRENCIES.map(c => c.code));
+      wallets = wallets.filter(w => w && w.currencyCode && validCodes.has(w.currencyCode));
+      if (wallets.length === 0 && (data.currency || data.theme !== undefined)) {
+        const code = data.currency || DEFAULT_CURRENCY;
+        const primaryCode = validCodes.has(code) ? code : DEFAULT_CURRENCY;
+        wallets = [{ id: Date.now().toString(), currencyCode: primaryCode, initialBalance: 0 }];
+        transactions = transactions.map(t => ({ ...t, currencyCode: t.currencyCode || primaryCode }));
+      } else if (wallets.length > 0) {
+        const primaryCode = wallets[0].currencyCode;
+        transactions = transactions.map(t => ({ ...t, currencyCode: t.currencyCode || primaryCode }));
+      }
       await this.saveCustomers(data.customers || []);
-      await this.saveTransactions(data.transactions || []);
+      await this.saveTransactions(transactions);
+      await this.saveWallets(wallets);
       if (data.theme) await this.setTheme(data.theme);
       if (data.currency) await this.setCurrency(data.currency);
       if (data.language) await this.setLanguage(data.language);
-      return { success: true, customers: (data.customers || []).length, transactions: (data.transactions || []).length };
+      if (data.exchangeRates && data.exchangeRates.baseCurrency) {
+        await this.saveExchangeRates({ baseCurrency: data.exchangeRates.baseCurrency, rates: data.exchangeRates.rates || {} });
+      }
+      return { success: true, customers: (data.customers || []).length, transactions: transactions.length };
     } catch (error) {
       console.error('Import backup error:', error);
       return { success: false, error: error.message || 'Invalid or corrupted backup file.' };

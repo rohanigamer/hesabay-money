@@ -15,7 +15,7 @@ import {
   Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { ThemeContext } from '../context/ThemeContext';
 import { useCurrency } from '../context/CurrencyContext';
@@ -27,10 +27,11 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BOTTOM_NAV_HEIGHT } from '../constants/layout';
 import { useFeedback } from '../context/FeedbackContext';
+import i18n from '../utils/i18n';
 
 export default function TransactionScreen({ navigation }) {
   const { colors } = useContext(ThemeContext);
-  const { getSymbol, format } = useCurrency();
+  const { getSymbol, format, walletBalances, refreshBalances, primaryCurrency } = useCurrency();
   const insets = useSafeAreaInsets();
   const { toast } = useFeedback();
   
@@ -43,13 +44,14 @@ export default function TransactionScreen({ navigation }) {
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
   const [selectedType, setSelectedType] = useState('income');
-  const [formData, setFormData] = useState({ amount: '', description: '', customerId: null, customerName: '' });
+  const [formData, setFormData] = useState({ amount: '', description: '', customerId: null, customerName: '', currencyCode: null });
   const [editData, setEditData] = useState(null);
   const [deleteData, setDeleteData] = useState(null);
   const [customerSearch, setCustomerSearch] = useState('');
   const [newCustomerData, setNewCustomerData] = useState({ name: '', number: '' });
   const [searchQuery, setSearchQuery] = useState('');
   const [showExportModal, setShowExportModal] = useState(false);
+  const [customerBtnHighlight, setCustomerBtnHighlight] = useState(false);
 
   const headerAnim = useRef(new Animated.Value(0)).current;
   const cardsAnim = useRef(new Animated.Value(0)).current;
@@ -83,6 +85,7 @@ export default function TransactionScreen({ navigation }) {
     setTransactions(loadedTransactions);
     setCustomers(loadedCustomers);
     setStats(loadedStats);
+    refreshBalances();
   };
 
   const handleAddTransaction = async () => {
@@ -90,17 +93,18 @@ export default function TransactionScreen({ navigation }) {
       toast({ type: 'warning', title: 'Invalid amount', message: 'Please enter a valid amount.' });
       return;
     }
-
+    const currencyCode = formData.currencyCode || primaryCurrency;
     const result = await Storage.addTransaction({
       amount: parseFloat(formData.amount),
       type: selectedType,
       description: formData.description || (selectedType === 'income' ? 'Income' : 'Expense'),
       customerId: formData.customerId,
       customerName: formData.customerName,
+      currencyCode,
     });
 
     if (result) {
-      setFormData({ amount: '', description: '', customerId: null, customerName: '' });
+      setFormData({ amount: '', description: '', customerId: null, customerName: '', currencyCode: null });
       setShowAddModal(false);
       loadData();
     }
@@ -118,6 +122,7 @@ export default function TransactionScreen({ navigation }) {
       description: editData.description,
       customerId: editData.customerId,
       customerName: editData.customerName,
+      currencyCode: editData.currencyCode || primaryCurrency,
     });
 
     if (result) {
@@ -169,6 +174,7 @@ export default function TransactionScreen({ navigation }) {
       type: transaction.type,
       customerId: transaction.customerId,
       customerName: transaction.customerName,
+      currencyCode: transaction.currencyCode || primaryCurrency,
     });
     setShowEditModal(true);
   };
@@ -234,16 +240,17 @@ export default function TransactionScreen({ navigation }) {
   // Export to CSV
   const exportToCSV = async () => {
     try {
-      let csv = 'Date,Time,Type,Amount,Description,Customer\n';
+      let csv = 'Date,Time,Type,Amount,Currency,Description,Customer\n';
       transactions.forEach(t => {
         const date = new Date(t.createdAt);
         const dateStr = date.toLocaleDateString();
         const timeStr = date.toLocaleTimeString();
         const type = (t.type === 'income' || t.type === 'credit') ? 'Income' : 'Expense';
         const amount = t.amount;
+        const currency = t.currencyCode || primaryCurrency;
         const desc = (t.description || '').replace(/,/g, ' ');
         const customer = (t.customerName || '').replace(/,/g, ' ');
-        csv += `${dateStr},${timeStr},${type},${amount},${desc},${customer}\n`;
+        csv += `${dateStr},${timeStr},${type},${amount},${currency},${desc},${customer}\n`;
       });
 
       if (Platform.OS === 'web') {
@@ -281,7 +288,7 @@ export default function TransactionScreen({ navigation }) {
     transactions.forEach((t, i) => {
       const type = (t.type === 'income' || t.type === 'credit') ? 'IN' : 'OUT';
       report += `${i + 1}. ${formatDateTime(t.createdAt)}\n`;
-      report += `   ${type}: ${format(t.amount)}\n`;
+      report += `   ${type}: ${format(t.amount, t.currencyCode)} ${t.currencyCode || ''}\n`;
       report += `   ${t.description || 'No description'}`;
       if (t.customerName) report += ` (${t.customerName})`;
       report += `\n\n`;
@@ -295,7 +302,7 @@ export default function TransactionScreen({ navigation }) {
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: insets.bottom + BOTTOM_NAV_HEIGHT + 24 },
+          { paddingTop: insets.top + 12, paddingBottom: insets.bottom + BOTTOM_NAV_HEIGHT + 24 },
         ]}
         showsVerticalScrollIndicator={false}
         bounces={true}
@@ -338,7 +345,7 @@ export default function TransactionScreen({ navigation }) {
           </View>
         </Animated.View>
 
-        {/* Balance Card */}
+        {/* Wallet Balances */}
         <Animated.View
           style={{
             opacity: cardsAnim,
@@ -346,25 +353,35 @@ export default function TransactionScreen({ navigation }) {
           }}
         >
           <GlassCard style={styles.balanceCard}>
-            <View style={styles.balanceContent}>
-              <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>Net Balance</Text>
-              <Text style={[styles.balanceAmount, { 
-                color: stats.totalBalance < 0 ? colors.error : stats.totalBalance > 0 ? colors.success : colors.text 
-              }]}>{format(stats.totalBalance)}</Text>
-              <View style={styles.balanceRow}>
-                <View style={styles.balanceItem}>
-                  <Ionicons name="arrow-down" size={16} color={colors.success} />
-                  <Text style={[styles.balanceItemLabel, { color: colors.textSecondary }]}>Income</Text>
-                  <Text style={[styles.balanceItemValue, { color: colors.success }]}>{format(stats.totalIncome)}</Text>
-                </View>
-                <View style={[styles.balanceDivider, { backgroundColor: colors.border }]} />
-                <View style={styles.balanceItem}>
-                  <Ionicons name="arrow-up" size={16} color={colors.error} />
-                  <Text style={[styles.balanceItemLabel, { color: colors.textSecondary }]}>Expense</Text>
-                  <Text style={[styles.balanceItemValue, { color: colors.error }]}>{format(stats.totalExpenses)}</Text>
-                </View>
+            {walletBalances.length === 0 ? (
+              <TouchableOpacity
+                onPress={() => navigation.navigate('Settings')}
+                style={[styles.noWalletsRow, { borderColor: colors.border }]}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="wallet-outline" size={24} color={colors.accent} />
+                <Text style={[styles.noWalletsText, { color: colors.textSecondary, flex: 1 }]}>{i18n.t('addCurrencyInSettingsFirst')}</Text>
+                <Ionicons name="chevron-forward" size={18} color={colors.accent} />
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.walletBalancesContent}>
+                {walletBalances.map((w, idx) => (
+                  <View
+                    key={w.id}
+                    style={[
+                      styles.walletBalanceRow,
+                      { borderColor: colors.border },
+                      idx === walletBalances.length - 1 && { borderBottomWidth: 0 },
+                    ]}
+                  >
+                    <Text style={[styles.walletBalanceCode, { color: colors.textSecondary }]}>{w.currencyCode}</Text>
+                    <Text style={[styles.walletBalanceAmount, { color: (w.balance ?? 0) < 0 ? colors.error : (w.balance ?? 0) > 0 ? colors.success : colors.text }]}>
+                      {format(w.balance ?? 0, w.currencyCode)}
+                    </Text>
+                  </View>
+                ))}
               </View>
-            </View>
+            )}
           </GlassCard>
         </Animated.View>
 
@@ -412,9 +429,14 @@ export default function TransactionScreen({ navigation }) {
                               {item.customerName ? `${item.customerName} • ` : ''}{formatDateTime(item.createdAt)}
                             </Text>
                           </View>
-                          <Text style={[styles.transactionAmount, { color: isIncome ? colors.success : colors.error }]}>
-                            {isIncome ? '+' : '-'}{format(item.amount)}
-                          </Text>
+                          <View style={{ alignItems: 'flex-end' }}>
+                            <Text style={[styles.transactionAmount, { color: isIncome ? colors.success : colors.error }]}>
+                              {isIncome ? '+' : '-'}{format(item.amount, item.currencyCode)}
+                            </Text>
+                            {walletBalances.length > 1 && item.currencyCode && (
+                              <Text style={[styles.transactionCurrencyBadge, { color: colors.textTertiary }]}>{item.currencyCode}</Text>
+                            )}
+                          </View>
                         </TouchableOpacity>
                       );
                     })}
@@ -433,14 +455,30 @@ export default function TransactionScreen({ navigation }) {
         <View style={styles.bottomActions}>
           <TouchableOpacity
             style={[styles.cashInBtn, { backgroundColor: colors.success }]}
-            onPress={() => { setSelectedType('income'); setFormData({ amount: '', description: '', customerId: null, customerName: '' }); setShowAddModal(true); }}
+            onPress={() => {
+              if (walletBalances.length === 0) {
+                toast({ type: 'warning', title: 'No currency', message: i18n.t('addCurrencyInSettingsFirst') });
+                return;
+              }
+              setSelectedType('income');
+              setFormData({ amount: '', description: '', customerId: null, customerName: '', currencyCode: primaryCurrency });
+              setShowAddModal(true);
+            }}
           >
             <Ionicons name="add" size={20} color={colors.onSuccess} />
             <Text style={[styles.cashBtnText, { color: colors.onSuccess }]}>CASH IN</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.cashOutBtn, { backgroundColor: colors.error }]}
-            onPress={() => { setSelectedType('expense'); setFormData({ amount: '', description: '', customerId: null, customerName: '' }); setShowAddModal(true); }}
+            onPress={() => {
+              if (walletBalances.length === 0) {
+                toast({ type: 'warning', title: 'No currency', message: i18n.t('addCurrencyInSettingsFirst') });
+                return;
+              }
+              setSelectedType('expense');
+              setFormData({ amount: '', description: '', customerId: null, customerName: '', currencyCode: primaryCurrency });
+              setShowAddModal(true);
+            }}
           >
             <Ionicons name="remove" size={20} color={colors.onError} />
             <Text style={[styles.cashBtnText, { color: colors.onError }]}>CASH OUT</Text>
@@ -456,15 +494,15 @@ export default function TransactionScreen({ navigation }) {
           keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
         >
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowAddModal(false); }} />
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background, paddingTop: Math.max(insets.top, 12) + 8 }]}>
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>
               {selectedType === 'income' ? 'Cash In' : 'Cash Out'}
             </Text>
 
             <ScrollView 
-              style={{ width: '100%', maxHeight: '85%' }}
-              contentContainerStyle={{ paddingBottom: 120 }}
+              style={{ width: '100%', maxHeight: '78%' }}
+              contentContainerStyle={{ paddingTop: 4, paddingBottom: 120 }}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
               keyboardDismissMode="on-drag"
@@ -489,11 +527,32 @@ export default function TransactionScreen({ navigation }) {
                 </TouchableOpacity>
               </View>
 
-              {/* Amount */}
-              <View style={styles.amountRow}>
-                <Text style={[styles.currency, { color: colors.textSecondary }]}>{getSymbol()}</Text>
+              {/* Wallet selector */}
+              {walletBalances.length > 0 && (
+                <View style={[styles.walletSelectorRow, { marginBottom: 12 }]}>
+                  <Text style={[styles.walletSelectorLabel, { color: colors.textSecondary }]}>Currency</Text>
+                  <View style={styles.walletSelectorChips}>
+                    {walletBalances.map((w) => {
+                      const selected = (formData.currencyCode || primaryCurrency) === w.currencyCode;
+                      return (
+                        <TouchableOpacity
+                          key={w.id}
+                          style={[styles.walletChip, { backgroundColor: selected ? colors.accentLight : colors.backgroundSecondary, borderColor: selected ? colors.accent : colors.border }]}
+                          onPress={() => setFormData(f => ({ ...f, currencyCode: w.currencyCode }))}
+                        >
+                          <Text style={[styles.walletChipText, { color: selected ? colors.accent : colors.textSecondary }]}>{w.currencyCode}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+
+              {/* Amount - compact row so dollar + input stay visible */}
+              <View style={[styles.amountRow, { marginBottom: 16 }]}>
+                <Text style={[styles.currency, { color: colors.textSecondary, fontSize: 26 }]}>{getSymbol(formData.currencyCode || primaryCurrency)}</Text>
                 <CalculatorInput
-                  style={[styles.amountInput, { color: colors.text }]}
+                  style={[styles.amountInput, { color: colors.text, fontSize: 40, minWidth: 100 }]}
                   placeholder="0.00"
                   placeholderTextColor={colors.textTertiary}
                   value={formData.amount}
@@ -514,11 +573,12 @@ export default function TransactionScreen({ navigation }) {
 
               {/* Customer */}
               <TouchableOpacity
-                style={[styles.input, styles.customerBtn, { backgroundColor: colors.backgroundSecondary }]}
                 onPress={() => { Keyboard.dismiss(); setShowCustomerPicker(true); }}
+                activeOpacity={0.7}
+                style={[styles.input, styles.customerBtn, { backgroundColor: customerBtnHighlight ? colors.accentLight : colors.backgroundSecondary }]}
               >
                 <Text style={{ color: formData.customerName ? colors.text : colors.textTertiary }}>
-                  {formData.customerName || 'Link to customer (optional)'}
+                  {formData.customerName ? `✓ ${formData.customerName}` : 'Link to customer (optional)'}
                 </Text>
                 <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
               </TouchableOpacity>
@@ -543,7 +603,7 @@ export default function TransactionScreen({ navigation }) {
           keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
         >
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowEditModal(false); }} />
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background, paddingTop: Math.max(insets.top, 12) + 8 }]}>
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Edit Transaction</Text>
@@ -553,8 +613,8 @@ export default function TransactionScreen({ navigation }) {
             </View>
 
             <ScrollView 
-              style={{ width: '100%', maxHeight: '85%' }}
-              contentContainerStyle={{ paddingBottom: 120 }}
+              style={{ width: '100%', maxHeight: '78%' }}
+              contentContainerStyle={{ paddingTop: 4, paddingBottom: 120 }}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
               keyboardDismissMode="on-drag"
@@ -581,11 +641,32 @@ export default function TransactionScreen({ navigation }) {
                     </TouchableOpacity>
                   </View>
 
+                  {/* Wallet selector */}
+                  {walletBalances.length > 0 && (
+                    <View style={[styles.walletSelectorRow, { marginBottom: 12 }]}>
+                      <Text style={[styles.walletSelectorLabel, { color: colors.textSecondary }]}>Currency</Text>
+                      <View style={styles.walletSelectorChips}>
+                        {walletBalances.map((w) => {
+                          const selected = (editData.currencyCode || primaryCurrency) === w.currencyCode;
+                          return (
+                            <TouchableOpacity
+                              key={w.id}
+                              style={[styles.walletChip, { backgroundColor: selected ? colors.accentLight : colors.backgroundSecondary, borderColor: selected ? colors.accent : colors.border }]}
+                              onPress={() => setEditData({ ...editData, currencyCode: w.currencyCode })}
+                            >
+                              <Text style={[styles.walletChipText, { color: selected ? colors.accent : colors.textSecondary }]}>{w.currencyCode}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  )}
+
                   {/* Amount */}
-                  <View style={styles.amountRow}>
-                    <Text style={[styles.currency, { color: colors.textSecondary }]}>{getSymbol()}</Text>
+                  <View style={[styles.amountRow, { marginBottom: 16 }]}>
+                    <Text style={[styles.currency, { color: colors.textSecondary, fontSize: 26 }]}>{getSymbol(editData.currencyCode || primaryCurrency)}</Text>
                     <CalculatorInput
-                      style={[styles.amountInput, { color: colors.text }]}
+                      style={[styles.amountInput, { color: colors.text, fontSize: 40, minWidth: 100 }]}
                       placeholder="0.00"
                       placeholderTextColor={colors.textTertiary}
                       value={editData.amount}
@@ -643,7 +724,7 @@ export default function TransactionScreen({ navigation }) {
             {deleteData && (
               <View style={[styles.deletePreview, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
                 <Text style={[styles.deletePreviewAmount, { color: colors.text }]}>
-                  {format(deleteData.amount)}
+                  {format(deleteData.amount, deleteData.currencyCode)}
                 </Text>
                 <Text style={[styles.deletePreviewDesc, { color: colors.textSecondary }]}>
                   {deleteData.description}
@@ -678,7 +759,7 @@ export default function TransactionScreen({ navigation }) {
         >
           <View style={styles.modalOverlay}>
             <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowCustomerPicker(false); }} />
-            <View style={[styles.pickerContent, { backgroundColor: colors.background }]}>
+            <View style={[styles.pickerContent, { backgroundColor: colors.background, paddingTop: Math.max(insets.top, 8) }]}>
               <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
               <View style={styles.pickerHeader}>
                 <Text style={[styles.modalTitle, { color: colors.text }]}>Select Customer</Text>
@@ -732,16 +813,18 @@ export default function TransactionScreen({ navigation }) {
                   <TouchableOpacity
                     key={c.id}
                     style={[styles.pickerItem, { borderBottomColor: colors.border }]}
-                    onPress={() => {
-                      Keyboard.dismiss();
-                      if (showEditModal) {
-                        setEditData({ ...editData, customerId: c.id, customerName: c.name });
-                      } else {
-                        setFormData({ ...formData, customerId: c.id, customerName: c.name });
-                      }
-                      setShowCustomerPicker(false);
-                      setCustomerSearch('');
-                    }}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  if (showEditModal) {
+                    setEditData({ ...editData, customerId: c.id, customerName: c.name });
+                  } else {
+                    setFormData({ ...formData, customerId: c.id, customerName: c.name });
+                    setCustomerBtnHighlight(true);
+                    setTimeout(() => setCustomerBtnHighlight(false), 1400);
+                  }
+                  setShowCustomerPicker(false);
+                  setCustomerSearch('');
+                }}
                   >
                     <View style={[styles.avatar, { backgroundColor: colors.accent }]}>
                       <Text style={[styles.avatarText, { color: colors.onAccent }]}>{c.name.charAt(0)}</Text>
@@ -771,7 +854,7 @@ export default function TransactionScreen({ navigation }) {
           keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
         >
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowAddCustomerModal(false); }} />
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background, paddingTop: Math.max(insets.top, 12) + 8 }]}>
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>Add Customer</Text>
 
@@ -859,14 +942,16 @@ export default function TransactionScreen({ navigation }) {
         </View>
       </Modal>
 
-      <BottomNavigation navigation={navigation} />
+      {!showAddModal && !showEditModal && !showCustomerPicker && !showAddCustomerModal && (
+        <BottomNavigation navigation={navigation} />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContent: { padding: 16, paddingTop: Platform.OS === 'ios' ? 60 : 50 },
+  scrollContent: { padding: 16 },
   header: { marginBottom: 24, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { fontSize: 32, fontWeight: '800', letterSpacing: -0.5 },
   exportBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
@@ -895,7 +980,19 @@ const styles = StyleSheet.create({
   transactionDesc: { fontSize: 15, fontWeight: '500', marginBottom: 2 },
   transactionMeta: { fontSize: 11 },
   transactionAmount: { fontSize: 15, fontWeight: '600', flexShrink: 0, minWidth: 80, textAlign: 'right' },
-  
+  transactionCurrencyBadge: { fontSize: 10, marginTop: 2 },
+  walletBalancesContent: { gap: 8 },
+  walletBalanceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth },
+  walletBalanceCode: { fontSize: 13, fontWeight: '600' },
+  walletBalanceAmount: { fontSize: 18, fontWeight: '700' },
+  noWalletsRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 16, paddingHorizontal: 14, borderWidth: 1, borderStyle: 'dashed', borderRadius: 12 },
+  noWalletsText: { fontSize: 14, flex: 1 },
+  walletSelectorRow: {},
+  walletSelectorLabel: { fontSize: 12, fontWeight: '500', marginBottom: 6 },
+  walletSelectorChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  walletChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
+  walletChipText: { fontSize: 14, fontWeight: '600' },
+
   bottomActionsWrapper: { 
     position: 'absolute', 
     bottom: Platform.OS === 'ios' ? 88 : 72, 

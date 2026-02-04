@@ -23,7 +23,7 @@ import { useFeedback } from '../context/FeedbackContext';
 
 export default function CustomerDetailScreen({ navigation, route }) {
   const { colors, isDark } = useContext(ThemeContext);
-  const { getSymbol, format, formatWithSign } = useCurrency();
+  const { getSymbol, format, formatWithSign, walletBalances, primaryCurrency } = useCurrency();
   const { toast } = useFeedback();
   const { customerId } = route.params;
   
@@ -45,9 +45,9 @@ export default function CustomerDetailScreen({ navigation, route }) {
   
   // Form states
   const [selectedType, setSelectedType] = useState('credit');
-  const [formData, setFormData] = useState({ amount: '', description: '' });
+  const [formData, setFormData] = useState({ amount: '', description: '', currencyCode: null });
   const [editCustomerData, setEditCustomerData] = useState({ name: '', number: '' });
-  const [editEntryData, setEditEntryData] = useState({ id: '', amount: '', description: '', type: '' });
+  const [editEntryData, setEditEntryData] = useState({ id: '', amount: '', description: '', type: '', currencyCode: null });
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [entryToDelete, setEntryToDelete] = useState(null);
   
@@ -140,8 +140,9 @@ export default function CustomerDetailScreen({ navigation, route }) {
       description: formData.description || (selectedType === 'credit' ? 'Cash In' : 'Cash Out'),
       customerId: customer.id,
       customerName: customer.name,
+      currencyCode: formData.currencyCode || primaryCurrency,
     });
-      setFormData({ amount: '', description: '' });
+      setFormData({ amount: '', description: '', currencyCode: null });
       setShowAddModal(false);
       loadData();
   };
@@ -197,6 +198,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
       amount: item.amount.toString(),
       description: item.description || '',
       type: item.type,
+      currencyCode: item.currencyCode || primaryCurrency,
     });
     setShowEditEntryModal(true);
   };
@@ -215,6 +217,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
       description: editEntryData.description || (editEntryData.type === 'credit' ? 'Cash In' : 'Cash Out'),
       customerId: customer.id,
       customerName: customer.name,
+      currencyCode: editEntryData.currencyCode || primaryCurrency,
     });
     
     setShowEditEntryModal(false);
@@ -250,7 +253,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
     transactions.forEach((t, i) => {
       const type = (t.type === 'credit' || t.type === 'income') ? 'IN' : 'OUT';
       report += `${i + 1}. ${formatDateFull(t.createdAt)}\n`;
-      report += `   ${type}: ${format(t.amount)}\n`;
+      report += `   ${type}: ${format(t.amount, t.currencyCode)}\n`;
       report += `   ${t.description || 'No description'}\n\n`;
     });
     
@@ -456,7 +459,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
                     </View>
                     <View style={styles.transactionRight}>
                       <Text style={[styles.transactionAmount, { color: isCredit ? colors.success : colors.error }]}>
-                        {format(item.amount)}
+                        {format(item.amount, item.currencyCode)}
                       </Text>
                       <Text style={[styles.balanceAfter, { color: colors.textSecondary }]}>
                         Balance: {formatWithSign(runningBal)}
@@ -544,8 +547,28 @@ export default function CustomerDetailScreen({ navigation, route }) {
               </TouchableOpacity>
             </View>
 
+            {walletBalances.length > 0 && (
+              <View style={styles.walletSelectorRow}>
+                <Text style={[styles.walletSelectorLabel, { color: colors.textSecondary }]}>Currency</Text>
+                <View style={styles.walletSelectorChips}>
+                  {walletBalances.map((w) => {
+                    const selected = (formData.currencyCode || primaryCurrency) === w.currencyCode;
+                    return (
+                      <TouchableOpacity
+                        key={w.id}
+                        style={[styles.walletChip, { backgroundColor: selected ? colors.accentLight : colors.backgroundSecondary, borderColor: selected ? colors.accent : colors.border }]}
+                        onPress={() => setFormData(f => ({ ...f, currencyCode: w.currencyCode }))}
+                      >
+                        <Text style={[styles.walletChipText, { color: selected ? colors.accent : colors.textSecondary }]}>{w.currencyCode}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+
             <View style={[styles.amountInputContainer, { borderColor: selectedType === 'credit' ? colors.success : colors.error }]}>
-              <Text style={[styles.currencySymbol, { color: colors.textSecondary }]}>{getSymbol()}</Text>
+              <Text style={[styles.currencySymbol, { color: colors.textSecondary }]}>{getSymbol(formData.currencyCode || primaryCurrency)}</Text>
                 <TextInput
                 style={[styles.amountInputLarge, { color: colors.text }]}
                 placeholder="0"
@@ -614,8 +637,28 @@ export default function CustomerDetailScreen({ navigation, route }) {
               </TouchableOpacity>
             </View>
 
+            {walletBalances.length > 0 && (
+              <View style={styles.walletSelectorRow}>
+                <Text style={[styles.walletSelectorLabel, { color: colors.textSecondary }]}>Currency</Text>
+                <View style={styles.walletSelectorChips}>
+                  {walletBalances.map((w) => {
+                    const selected = (editEntryData.currencyCode || primaryCurrency) === w.currencyCode;
+                    return (
+                      <TouchableOpacity
+                        key={w.id}
+                        style={[styles.walletChip, { backgroundColor: selected ? colors.accentLight : colors.backgroundSecondary, borderColor: selected ? colors.accent : colors.border }]}
+                        onPress={() => setEditEntryData({ ...editEntryData, currencyCode: w.currencyCode })}
+                      >
+                        <Text style={[styles.walletChipText, { color: selected ? colors.accent : colors.textSecondary }]}>{w.currencyCode}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+
             <View style={[styles.amountInputContainer, { borderColor: editEntryData.type === 'credit' ? colors.success : colors.error }]}>
-              <Text style={[styles.currencySymbol, { color: colors.textSecondary }]}>{getSymbol()}</Text>
+              <Text style={[styles.currencySymbol, { color: colors.textSecondary }]}>{getSymbol(editEntryData.currencyCode || primaryCurrency)}</Text>
               <TextInput
                 style={[styles.amountInputLarge, { color: colors.text }]}
                 placeholder="0"
@@ -637,7 +680,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
             <View style={styles.editBtnRow}>
               <TouchableOpacity
                 style={[styles.editDeleteBtn, { backgroundColor: colors.error + '15' }]}
-                onPress={() => handleDeleteEntry({ id: editEntryData.id, description: editEntryData.description, amount: editEntryData.amount, type: editEntryData.type })}
+                onPress={() => handleDeleteEntry({ id: editEntryData.id, description: editEntryData.description, amount: editEntryData.amount, type: editEntryData.type, currencyCode: editEntryData.currencyCode })}
               >
                 <Ionicons name="trash-outline" size={20} color={colors.error} />
               </TouchableOpacity>
@@ -758,7 +801,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
                     <Text style={[styles.entryDeleteValue, { 
                       color: (entryToDelete.type === 'credit' || entryToDelete.type === 'income') ? colors.success : colors.error 
                     }]}>
-                      {format(entryToDelete.amount)}
+                      {format(entryToDelete.amount, entryToDelete.currencyCode)}
                     </Text>
                   </View>
                   {entryToDelete.description && (
@@ -987,6 +1030,12 @@ const styles = StyleSheet.create({
   modalHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
   modalTitle: { fontSize: 20, fontWeight: '600', textAlign: 'center', marginBottom: 20 },
   
+  walletSelectorRow: { marginBottom: 16 },
+  walletSelectorLabel: { fontSize: 12, fontWeight: '500', marginBottom: 6 },
+  walletSelectorChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  walletChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
+  walletChipText: { fontSize: 14, fontWeight: '600' },
+
   typeToggle: { flexDirection: 'row', borderRadius: 8, padding: 4, marginBottom: 24 },
   typeBtn: { flex: 1, paddingVertical: 12, borderRadius: 6, alignItems: 'center' },
   typeBtnActive: {},

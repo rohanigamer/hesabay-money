@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { Platform } from 'react-native';
-import { setCurrentUserId } from '../utils/Storage';
+import { setCurrentUserId, Storage } from '../utils/Storage';
 import { isFirebaseReady, initializeFirebase, isWeb } from '../config/firebase';
 import { firebaseAuthREST } from '../services/FirebaseAuthREST';
 
@@ -47,6 +47,7 @@ export const AuthProvider = ({ children }) => {
           console.log('🔔 Auth state changed:', firebaseUser ? `${firebaseUser.email} (verified: ${firebaseUser.emailVerified})` : 'logged out');
           
           if (firebaseUser) {
+            await Storage.clearGuestMode();
             setUser(firebaseUser);
             setCurrentUserId(firebaseUser.uid);
             
@@ -57,8 +58,15 @@ export const AuthProvider = ({ children }) => {
               }).catch(e => console.log('Import error:', e));
             }, 100);
           } else {
-            setUser(null);
-            setCurrentUserId(null);
+            const wasGuest = await Storage.getGuestMode();
+            if (wasGuest) {
+              const guestUser = { uid: 'guest-user', displayName: 'Guest', email: null, isGuest: true, emailVerified: true };
+              setUser(guestUser);
+              setCurrentUserId('guest-user');
+            } else {
+              setUser(null);
+              setCurrentUserId(null);
+            }
           }
           setLoading(false);
         });
@@ -76,11 +84,19 @@ export const AuthProvider = ({ children }) => {
           console.log('🔔 Auth state changed:', firebaseUser ? `${firebaseUser.email} (verified: ${firebaseUser.emailVerified})` : 'logged out');
           
           if (firebaseUser) {
+            await Storage.clearGuestMode();
             setUser(firebaseUser);
             setCurrentUserId(firebaseUser.uid);
           } else {
-            setUser(null);
-            setCurrentUserId(null);
+            const wasGuest = await Storage.getGuestMode();
+            if (wasGuest) {
+              const guestUser = { uid: 'guest-user', displayName: 'Guest', email: null, isGuest: true, emailVerified: true };
+              setUser(guestUser);
+              setCurrentUserId('guest-user');
+            } else {
+              setUser(null);
+              setCurrentUserId(null);
+            }
           }
           setLoading(false);
         });
@@ -152,6 +168,7 @@ export const AuthProvider = ({ children }) => {
         userCredential = await firebaseAuthREST.signInWithEmailAndPassword(email, password);
       }
       
+      await Storage.clearGuestMode();
       setCurrentUserId(userCredential.user.uid);
       
       // Load and merge Firebase data with local data
@@ -233,6 +250,7 @@ export const AuthProvider = ({ children }) => {
     }
 
     try {
+      await Storage.clearGuestMode();
       if (isWeb) {
         const { auth } = await import('../config/firebase');
         const { signOut } = await import('firebase/auth');
@@ -265,6 +283,7 @@ export const AuthProvider = ({ children }) => {
       const { signInWithPopup } = await import('firebase/auth');
       
       const result = await signInWithPopup(auth, googleProvider);
+      await Storage.clearGuestMode();
       setCurrentUserId(result.user.uid);
       
       const isNewUser = result._tokenResponse?.isNewUser;
@@ -288,7 +307,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Continue as guest
+  // Continue as guest (persisted so app reopens as guest until user signs in from Settings)
   const continueAsGuest = () => {
     const guestUser = {
       uid: 'guest-user',
@@ -297,6 +316,7 @@ export const AuthProvider = ({ children }) => {
       isGuest: true,
       emailVerified: true
     };
+    Storage.setGuestMode(true);
     setUser(guestUser);
     setCurrentUserId('guest-user');
     return { 

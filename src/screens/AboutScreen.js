@@ -4,6 +4,8 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  TouchableOpacity,
+  Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,6 +13,7 @@ import { ThemeContext } from '../context/ThemeContext';
 import BottomNavigation from '../components/BottomNavigation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BOTTOM_NAV_HEIGHT } from '../constants/layout';
+import { getPrivacyPolicyUrl } from '../config/appLinks';
 
 export default function AboutScreen({ navigation }) {
   const { colors } = useContext(ThemeContext);
@@ -71,6 +74,21 @@ export default function AboutScreen({ navigation }) {
                 React Native & Expo
               </Text>
             </View>
+
+            <TouchableOpacity
+              style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => Linking.openURL(getPrivacyPolicyUrl()).catch(() => {})}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="shield-checkmark" size={24} color={colors.accent} />
+              <View style={styles.linkCardRow}>
+                <Text style={[styles.infoTitle, { color: colors.text }]}>Privacy Policy</Text>
+                <Ionicons name="open-outline" size={18} color={colors.textTertiary} />
+              </View>
+              <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+                View how we handle your data
+              </Text>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.footer}>
@@ -147,6 +165,14 @@ const styles = StyleSheet.create({
   infoText: {
     fontSize: 14,
     lineHeight: 22,
+  },
+  linkCardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginTop: 10,
+    marginBottom: 10,
   },
   footer: {
     alignItems: 'center',

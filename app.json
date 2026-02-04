@@ -38,7 +38,10 @@
     "extra": {
       "eas": {
         "projectId": "0bb751c6-0077-48a0-9674-a12f90571008"
-      }
+      },
+      "privacyPolicyUrl": "https://sites.google.com/view/hesabay-money-privacy",
+      "rateAppAndroidUrl": "https://play.google.com/store/apps/details?id=com.hesabay.money",
+      "rateAppIosUrl": "https://apps.apple.com/app/id000000000"
     },
     "plugins": [
       "expo-localization",

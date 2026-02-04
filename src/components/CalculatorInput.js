@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, Platform, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useContext } from 'react';
 import { ThemeContext } from '../context/ThemeContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function CalculatorInput({ value, onChangeText, placeholder, style, ...otherProps }) {
   const { colors } = useContext(ThemeContext);
+  const insets = useSafeAreaInsets();
   const [showCalc, setShowCalc] = useState(false);
   const [calcDisplay, setCalcDisplay] = useState('0');
   const [prevValue, setPrevValue] = useState(null);
@@ -132,7 +136,7 @@ export default function CalculatorInput({ value, onChangeText, placeholder, styl
       <Modal visible={showCalc} animationType="slide" transparent onRequestClose={() => setShowCalc(false)}>
         <View style={styles.calcOverlay}>
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowCalc(false)} />
-          <View style={[styles.calcModal, { backgroundColor: colors.background }]}>
+          <View style={[styles.calcModal, { backgroundColor: colors.background, maxHeight: SCREEN_HEIGHT * 0.82, paddingBottom: Math.max(insets.bottom, 24) + 16 }]}>
             <View style={[styles.calcHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.calcTitle, { color: colors.text }]}>Calculator</Text>
             

@@ -46,21 +46,25 @@ const firebaseConfig = {
 ## Step 5: Set Firestore Security Rules
 
 1. In Firestore Database, go to **"Rules"** tab
-2. Replace the rules with:
+2. Replace the rules with the contents of **`firestore.rules`** in the project root, or paste:
 
 ```javascript
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // User-specific data - only authenticated users can access their own data
-    match /users/{userId}/{document=**} {
+    match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
 ```
 
 3. Click **"Publish"**
+
+To deploy rules from the CLI (optional): `firebase deploy --only firestore` (requires Firebase CLI and `firebase use` your project).
 
 ## Step 6: Test the Setup
 

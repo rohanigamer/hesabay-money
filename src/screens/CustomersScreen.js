@@ -136,7 +136,7 @@ export default function CustomersScreen({ navigation }) {
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: insets.bottom + BOTTOM_NAV_HEIGHT + 24 },
+          { paddingTop: insets.top + 12, paddingBottom: insets.bottom + BOTTOM_NAV_HEIGHT + 24 },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -398,7 +398,7 @@ export default function CustomersScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContent: { padding: 16, paddingTop: Platform.OS === 'ios' ? 60 : 50 },
+  scrollContent: { padding: 16 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   title: { fontSize: 34, fontWeight: '700', letterSpacing: -0.5 },
   addBtn: { width: 32, height: 32, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
