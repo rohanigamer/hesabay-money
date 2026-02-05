@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Pressable,
   Switch,
   Modal,
   Platform,
@@ -796,7 +795,7 @@ export default function SettingsScreen({ navigation }) {
                 style={[styles.walletAddRow, { borderColor: colors.border }]}
                 onPress={() => {
                   setWalletForm({ currencyCode: '', initialBalance: '' });
-                  setTimeout(() => setShowAddWalletModal(true), 0);
+                  setShowAddWalletModal(true);
                 }}
                 activeOpacity={0.8}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
@@ -846,8 +845,8 @@ export default function SettingsScreen({ navigation }) {
                             if (result.success) {
                               toast({ type: 'success', title: 'Removed', message: `${w.currencyCode} removed.` });
                             } else if (result.transactionCount > 0) {
-setWalletToRemove({ ...w, transactionCount: result.transactionCount });
-                            setTimeout(() => setShowRemoveCurrencyOptionsModal(true), 0);
+                              setWalletToRemove({ ...w, transactionCount: result.transactionCount });
+                              setTimeout(() => setShowRemoveCurrencyOptionsModal(true), 0);
                             } else {
                               toast({ type: 'error', title: 'Cannot remove', message: result.error });
                             }
@@ -871,7 +870,7 @@ setWalletToRemove({ ...w, transactionCount: result.transactionCount });
                     style={[styles.walletAddRow, { borderColor: colors.border, marginTop: 8 }]}
                     onPress={() => {
                       setWalletForm({ currencyCode: '', initialBalance: '' });
-                      setTimeout(() => setShowAddWalletModal(true), 0);
+                      setShowAddWalletModal(true);
                     }}
                     activeOpacity={0.8}
                     hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
@@ -980,8 +979,8 @@ setWalletToRemove({ ...w, transactionCount: result.transactionCount });
       {/* Theme Modal */}
       <Modal visible={showThemeModal} animationType="slide" transparent onRequestClose={() => setShowThemeModal(false)}>
         <View style={styles.modalOverlay}>
-          <Pressable style={styles.modalBackdrop} onPress={() => setShowThemeModal(false)} />
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => setShowThemeModal(false)} activeOpacity={1} />
+          <View style={[styles.modalContent, { backgroundColor: colors.background }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>Theme</Text>
             {themeOptions.map((opt) => (
@@ -1010,8 +1009,8 @@ setWalletToRemove({ ...w, transactionCount: result.transactionCount });
           style={styles.modalOverlay}
           keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 0}
         >
-          <Pressable style={styles.modalBackdrop} onPress={() => setShowAddWalletModal(false)} />
-          <View style={[styles.modalContent, styles.modalContentScrollable, { backgroundColor: colors.background }]}>
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => setShowAddWalletModal(false)} activeOpacity={1} />
+          <View style={[styles.modalContent, styles.modalContentScrollable, { backgroundColor: colors.background }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('addCurrency')}</Text>
             <Text style={[styles.walletModalLabel, { color: colors.textSecondary }]}>Currency</Text>
@@ -1020,10 +1019,11 @@ setWalletToRemove({ ...w, transactionCount: result.transactionCount });
                 <Text style={[styles.walletModalHint, { color: colors.textTertiary, marginVertical: 12 }]}>{i18n.t('maxCurrenciesReached')}</Text>
               ) : (
                 CURRENCIES.filter(c => !wallets.some(w => w.currencyCode === c.code)).map((curr) => (
-                  <Pressable
+                  <TouchableOpacity
                     key={curr.code}
                     style={[styles.themeOpt, { backgroundColor: walletForm.currencyCode === curr.code ? colors.accentLight : colors.backgroundSecondary }]}
                     onPress={() => setWalletForm(f => ({ ...f, currencyCode: curr.code }))}
+                    activeOpacity={0.7}
                   >
                     <Text style={[styles.currencySymbol, { color: walletForm.currencyCode === curr.code ? colors.accent : colors.textSecondary }]}>{curr.symbol}</Text>
                     <View style={{ flex: 1 }}>
@@ -1031,33 +1031,39 @@ setWalletToRemove({ ...w, transactionCount: result.transactionCount });
                       <Text style={[styles.currencyCode, { color: colors.textSecondary }]}>{curr.code}</Text>
                     </View>
                     {walletForm.currencyCode === curr.code && <Ionicons name="checkmark" size={20} color={colors.accent} />}
-                  </Pressable>
+                  </TouchableOpacity>
                 ))
               )}
             </ScrollView>
-            <Pressable
+            <TouchableOpacity
               style={[styles.walletSubmitBtn, { backgroundColor: colors.accent, opacity: walletForm.currencyCode ? 1 : 0.5 }]}
               disabled={!walletForm.currencyCode}
+              activeOpacity={0.8}
               onPress={async () => {
                 if (!walletForm.currencyCode) {
                   toast({ type: 'warning', title: 'Select currency', message: i18n.t('selectCurrency') });
                   return;
                 }
-                const result = await addWallet({
-                  currencyCode: walletForm.currencyCode,
-                  initialBalance: 0,
-                });
-                if (result.success) {
-                  setShowAddWalletModal(false);
-                  setWalletForm({ currencyCode: '', initialBalance: '' });
-                  toast({ type: 'success', title: 'Added', message: `${result.wallet.currencyCode} added.` });
-                } else {
-                  toast({ type: 'error', title: 'Error', message: result.error });
+                try {
+                  const result = await addWallet({
+                    currencyCode: walletForm.currencyCode,
+                    initialBalance: 0,
+                  });
+                  if (result && result.success) {
+                    setShowAddWalletModal(false);
+                    setWalletForm({ currencyCode: '', initialBalance: '' });
+                    toast({ type: 'success', title: 'Added', message: `${result.wallet?.currencyCode || walletForm.currencyCode} added.` });
+                  } else {
+                    toast({ type: 'error', title: 'Error', message: (result && result.error) || 'Could not add currency.' });
+                  }
+                } catch (e) {
+                  console.error('addWallet:', e);
+                  toast({ type: 'error', title: 'Error', message: e?.message || 'Could not add currency.' });
                 }
               }}
             >
               <Text style={[styles.walletSubmitText, { color: colors.onAccent }]}>{i18n.t('addCurrency')}</Text>
-            </Pressable>
+            </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -1069,8 +1075,8 @@ setWalletToRemove({ ...w, transactionCount: result.transactionCount });
           style={styles.modalOverlay}
           keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 0}
         >
-          <Pressable style={styles.modalBackdrop} onPress={() => setShowEditWalletModal(false)} />
-          <View style={[styles.modalContent, styles.modalContentScrollable, { backgroundColor: colors.background }]}>
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => setShowEditWalletModal(false)} activeOpacity={1} />
+          <View style={[styles.modalContent, styles.modalContentScrollable, { backgroundColor: colors.background }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('changeCurrency')}</Text>
@@ -1136,8 +1142,8 @@ setWalletToRemove({ ...w, transactionCount: result.transactionCount });
           style={styles.modalOverlay}
           keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 0}
         >
-          <Pressable style={styles.modalBackdrop} onPress={() => { if (!deletingAll) setShowDeleteAllModal(false); }} />
-          <View style={[styles.modalContent, styles.modalContentScrollable, { backgroundColor: colors.background }]}>
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => { if (!deletingAll) setShowDeleteAllModal(false); }} activeOpacity={1} />
+          <View style={[styles.modalContent, styles.modalContentScrollable, { backgroundColor: colors.background }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('deleteAllTransactionsConfirmTitle')}</Text>
@@ -1184,8 +1190,8 @@ setWalletToRemove({ ...w, transactionCount: result.transactionCount });
           style={styles.modalOverlay}
           keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 0}
         >
-          <Pressable style={styles.modalBackdrop} onPress={() => setShowExchangeRatesModal(false)} />
-          <View style={[styles.modalContent, styles.modalContentScrollable, { backgroundColor: colors.background, maxHeight: '90%' }]}>
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => setShowExchangeRatesModal(false)} activeOpacity={1} />
+          <View style={[styles.modalContent, styles.modalContentScrollable, { backgroundColor: colors.background, maxHeight: '90%' }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <ScrollView
               keyboardShouldPersistTaps="handled"
@@ -1263,8 +1269,8 @@ setWalletToRemove({ ...w, transactionCount: result.transactionCount });
       {/* Remove currency: options when currency has transactions */}
       <Modal visible={showRemoveCurrencyOptionsModal} animationType="slide" transparent onRequestClose={() => !convertingOrDeleting && setShowRemoveCurrencyOptionsModal(false)}>
         <View style={styles.modalOverlay}>
-          <Pressable style={styles.modalBackdrop} onPress={() => { if (!convertingOrDeleting) setShowRemoveCurrencyOptionsModal(false); }} />
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => { if (!convertingOrDeleting) setShowRemoveCurrencyOptionsModal(false); }} activeOpacity={1} />
+          <View style={[styles.modalContent, { backgroundColor: colors.background }]} pointerEvents="auto">
           <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
           <Text style={[styles.modalTitle, { color: colors.text }]}>
             {walletToRemove?.currencyCode} has {walletToRemove?.transactionCount ?? 0} transaction(s)
@@ -1310,8 +1316,8 @@ setWalletToRemove({ ...w, transactionCount: result.transactionCount });
           style={styles.modalOverlay}
           keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 0}
         >
-          <Pressable style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); if (!convertingOrDeleting) setShowConvertCurrencyModal(false); }} />
-          <View style={[styles.modalContent, styles.modalContentScrollable, { backgroundColor: colors.background }]}>
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); if (!convertingOrDeleting) setShowConvertCurrencyModal(false); }} activeOpacity={1} />
+          <View style={[styles.modalContent, styles.modalContentScrollable, { backgroundColor: colors.background }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Convert to another currency</Text>
@@ -1374,8 +1380,8 @@ setWalletToRemove({ ...w, transactionCount: result.transactionCount });
       {/* Lock Timeout Modal */}
       <Modal visible={showLockTimeoutModal} animationType="slide" transparent onRequestClose={() => setShowLockTimeoutModal(false)}>
         <View style={styles.modalOverlay}>
-          <Pressable style={styles.modalBackdrop} onPress={() => setShowLockTimeoutModal(false)} />
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => setShowLockTimeoutModal(false)} activeOpacity={1} />
+          <View style={[styles.modalContent, { backgroundColor: colors.background }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>Auto-Lock Timeout</Text>
             <ScrollView style={{ maxHeight: 400 }}>

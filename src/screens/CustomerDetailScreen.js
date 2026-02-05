@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Pressable,
   Modal,
   TextInput,
   Platform,
@@ -628,8 +627,8 @@ export default function CustomerDetailScreen({ navigation, route }) {
           style={styles.modalOverlay}
           keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 0}
         >
-          <Pressable style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowAddModal(false); }} />
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowAddModal(false); }} activeOpacity={1} />
+          <View style={[styles.modalContent, { backgroundColor: colors.background }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>
               {selectedType === 'credit' ? i18n.t('cashIn') : i18n.t('cashOut')}
@@ -702,13 +701,14 @@ export default function CustomerDetailScreen({ navigation, route }) {
               onChangeText={(t) => setFormData({ ...formData, description: t })}
             />
 
-            <Pressable
-              style={({ pressed }) => [styles.submitBtn, { backgroundColor: selectedType === 'credit' ? colors.success : colors.error, opacity: actionLoading ? 0.7 : (pressed ? 0.9 : 1) }]}
+            <TouchableOpacity
+              style={[styles.submitBtn, { backgroundColor: selectedType === 'credit' ? colors.success : colors.error, opacity: actionLoading ? 0.7 : 1 }]}
               onPress={handleAdd}
               disabled={actionLoading}
+              activeOpacity={0.8}
             >
               <Text style={[styles.submitBtnText, { color: selectedType === 'credit' ? colors.onSuccess : colors.onError }]}>{i18n.t('saveEntry')}</Text>
-            </Pressable>
+            </TouchableOpacity>
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
@@ -721,8 +721,8 @@ export default function CustomerDetailScreen({ navigation, route }) {
           style={styles.modalOverlay}
           keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 0}
         >
-          <Pressable style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowEditEntryModal(false); }} />
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowEditEntryModal(false); }} activeOpacity={1} />
+          <View style={[styles.modalContent, { backgroundColor: colors.background }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('updateEntry')}</Text>
 
@@ -793,19 +793,21 @@ export default function CustomerDetailScreen({ navigation, route }) {
             />
 
             <View style={styles.editBtnRow}>
-              <Pressable
-                style={({ pressed }) => [styles.editDeleteBtn, { backgroundColor: colors.error + '15', opacity: pressed ? 0.8 : 1 }]}
+              <TouchableOpacity
+                style={[styles.editDeleteBtn, { backgroundColor: colors.error + '15' }]}
                 onPress={() => handleDeleteEntry({ id: editEntryData.id, description: editEntryData.description, amount: editEntryData.amount, type: editEntryData.type, currencyCode: editEntryData.currencyCode })}
+                activeOpacity={0.8}
               >
                 <Ionicons name="trash-outline" size={20} color={colors.error} />
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [styles.editSaveBtn, { backgroundColor: editEntryData.type === 'credit' ? colors.success : colors.error, opacity: actionLoading ? 0.7 : (pressed ? 0.9 : 1) }]}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.editSaveBtn, { backgroundColor: editEntryData.type === 'credit' ? colors.success : colors.error, opacity: actionLoading ? 0.7 : 1 }]}
                 onPress={handleEditEntry}
                 disabled={actionLoading}
+                activeOpacity={0.8}
               >
                 <Text style={[styles.submitBtnText, { color: editEntryData.type === 'credit' ? colors.onSuccess : colors.onError }]}>{i18n.t('updateEntry')}</Text>
-              </Pressable>
+              </TouchableOpacity>
             </View>
             </ScrollView>
           </View>
@@ -814,19 +816,19 @@ export default function CustomerDetailScreen({ navigation, route }) {
 
       {/* Menu Modal */}
       <Modal visible={showMenuModal} animationType="fade" transparent onRequestClose={() => setShowMenuModal(false)}>
-        <Pressable style={styles.menuOverlay} onPress={() => setShowMenuModal(false)}>
-          <Pressable style={[styles.menuContent, { backgroundColor: colors.background, shadowColor: colors.shadow }]} onPress={() => {}}>
-            <Pressable style={styles.menuItem} onPress={() => { setShowMenuModal(false); setShowEditModal(true); }}>
+        <TouchableOpacity style={styles.menuOverlay} onPress={() => setShowMenuModal(false)} activeOpacity={1}>
+          <View style={[styles.menuContent, { backgroundColor: colors.background, shadowColor: colors.shadow }]}>
+            <TouchableOpacity style={styles.menuItem} onPress={() => { setShowMenuModal(false); setShowEditModal(true); }} activeOpacity={0.7}>
               <Ionicons name="create-outline" size={22} color={colors.text} />
               <Text style={[styles.menuText, { color: colors.text }]}>Edit Customer</Text>
-            </Pressable>
+            </TouchableOpacity>
             <View style={[styles.menuDivider, { backgroundColor: colors.border }]} />
-            <Pressable style={styles.menuItem} onPress={handleDeleteCustomer}>
+            <TouchableOpacity style={styles.menuItem} onPress={handleDeleteCustomer} activeOpacity={0.7}>
               <Ionicons name="trash-outline" size={22} color={colors.error} />
               <Text style={[styles.menuText, { color: colors.error }]}>Delete Customer</Text>
-            </Pressable>
-          </Pressable>
-        </Pressable>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
       </Modal>
 
       {/* Delete Customer Confirmation Modal */}
@@ -836,8 +838,8 @@ export default function CustomerDetailScreen({ navigation, route }) {
           style={styles.modalOverlay}
           keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 0}
         >
-          <Pressable style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowDeleteConfirmModal(false); setDeleteConfirmText(''); }} />
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowDeleteConfirmModal(false); setDeleteConfirmText(''); }} activeOpacity={1} />
+          <View style={[styles.modalContent, { backgroundColor: colors.background }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Ionicons name="warning" size={48} color={colors.error} style={{ alignSelf: 'center', marginBottom: 16 }} />
             <Text style={[styles.modalTitle, { color: colors.error }]}>Delete Customer</Text>
@@ -867,22 +869,24 @@ export default function CustomerDetailScreen({ navigation, route }) {
               autoCorrect={false}
             />
             <View style={styles.deleteButtonRow}>
-              <Pressable
-                style={({ pressed }) => [styles.cancelDeleteBtn, { backgroundColor: colors.backgroundSecondary, opacity: pressed ? 0.8 : 1 }]}
+              <TouchableOpacity
+                style={[styles.cancelDeleteBtn, { backgroundColor: colors.backgroundSecondary }]}
                 onPress={() => { setShowDeleteConfirmModal(false); setDeleteConfirmText(''); }}
+                activeOpacity={0.8}
               >
                 <Text style={[styles.cancelDeleteText, { color: colors.text }]}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [styles.confirmDeleteBtn, { 
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmDeleteBtn, { 
                   backgroundColor: deleteConfirmText.trim().toLowerCase() === customer.name.trim().toLowerCase() ? colors.error : colors.border,
-                  opacity: deleteConfirmText.trim().toLowerCase() === customer.name.trim().toLowerCase() ? (pressed ? 0.9 : 1) : 0.5
+                  opacity: deleteConfirmText.trim().toLowerCase() === customer.name.trim().toLowerCase() ? 1 : 0.5
                 }]}
                 onPress={confirmDeleteCustomer}
                 disabled={deleteConfirmText.trim().toLowerCase() !== customer.name.trim().toLowerCase()}
+                activeOpacity={0.8}
               >
                 <Text style={[styles.submitBtnText, { color: colors.onError }]}>DELETE PERMANENTLY</Text>
-              </Pressable>
+              </TouchableOpacity>
             </View>
             </ScrollView>
           </View>
@@ -892,8 +896,8 @@ export default function CustomerDetailScreen({ navigation, route }) {
       {/* Delete Entry Confirmation Modal */}
       <Modal visible={showDeleteEntryModal} animationType="slide" transparent onRequestClose={() => setShowDeleteEntryModal(false)}>
         <View style={styles.modalOverlay}>
-          <Pressable style={styles.modalBackdrop} onPress={() => { setShowDeleteEntryModal(false); setEntryToDelete(null); }} />
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => { setShowDeleteEntryModal(false); setEntryToDelete(null); }} activeOpacity={1} />
+          <View style={[styles.modalContent, { backgroundColor: colors.background }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Ionicons name="trash" size={48} color={colors.error} style={{ alignSelf: 'center', marginBottom: 16 }} />
             <Text style={[styles.modalTitle, { color: colors.error }]}>Delete Entry</Text>
@@ -933,19 +937,21 @@ export default function CustomerDetailScreen({ navigation, route }) {
                   This will permanently delete this entry and update the customer balance. This action cannot be undone.
                 </Text>
                 <View style={styles.deleteButtonRow}>
-                  <Pressable
-                    style={({ pressed }) => [styles.cancelDeleteBtn, { backgroundColor: colors.backgroundSecondary, opacity: pressed ? 0.8 : 1 }]}
+                  <TouchableOpacity
+                    style={[styles.cancelDeleteBtn, { backgroundColor: colors.backgroundSecondary }]}
                     onPress={() => { setShowDeleteEntryModal(false); setEntryToDelete(null); }}
+                    activeOpacity={0.8}
                   >
                     <Text style={[styles.cancelDeleteText, { color: colors.text }]}>Cancel</Text>
-                  </Pressable>
-                  <Pressable
-                    style={({ pressed }) => [styles.confirmDeleteBtn, { backgroundColor: colors.error, opacity: pressed ? 0.9 : 1 }]}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.confirmDeleteBtn, { backgroundColor: colors.error }]}
                     onPress={confirmDeleteEntry}
+                    activeOpacity={0.8}
                   >
                     <Ionicons name="trash" size={18} color={colors.onError} style={{ marginRight: 6 }} />
                     <Text style={[styles.submitBtnText, { color: colors.onError }]}>DELETE ENTRY</Text>
-                  </Pressable>
+                  </TouchableOpacity>
                 </View>
               </>
             )}
@@ -960,8 +966,8 @@ export default function CustomerDetailScreen({ navigation, route }) {
           style={styles.modalOverlay}
           keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 0}
         >
-          <Pressable style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowEditModal(false); }} />
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowEditModal(false); }} activeOpacity={1} />
+          <View style={[styles.modalContent, { backgroundColor: colors.background }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('editCustomer')}</Text>
 
@@ -991,9 +997,9 @@ export default function CustomerDetailScreen({ navigation, route }) {
               keyboardType="phone-pad"
             />
 
-            <Pressable style={({ pressed }) => [styles.submitBtn, { backgroundColor: colors.accent, opacity: pressed ? 0.9 : 1 }]} onPress={handleEditCustomer}>
+            <TouchableOpacity style={[styles.submitBtn, { backgroundColor: colors.accent }]} onPress={handleEditCustomer} activeOpacity={0.8}>
               <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>{i18n.t('save')}</Text>
-            </Pressable>
+            </TouchableOpacity>
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
@@ -1002,8 +1008,8 @@ export default function CustomerDetailScreen({ navigation, route }) {
       {/* Filter by Type Modal (Options button) */}
       <Modal visible={showFilterModal} animationType="slide" transparent onRequestClose={() => setShowFilterModal(false)}>
         <View style={styles.modalOverlay}>
-          <Pressable style={styles.modalBackdrop} onPress={() => setShowFilterModal(false)} />
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => setShowFilterModal(false)} activeOpacity={1} />
+          <View style={[styles.modalContent, { backgroundColor: colors.background }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('filterByEntryType')}</Text>
             {[
@@ -1029,8 +1035,8 @@ export default function CustomerDetailScreen({ navigation, route }) {
       {/* Date Filter Modal */}
       <Modal visible={showDateModal} animationType="slide" transparent onRequestClose={() => setShowDateModal(false)}>
         <View style={styles.modalOverlay}>
-          <Pressable style={styles.modalBackdrop} onPress={() => setShowDateModal(false)} />
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => setShowDateModal(false)} activeOpacity={1} />
+          <View style={[styles.modalContent, { backgroundColor: colors.background }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('filterByDate')}</Text>
 
@@ -1058,8 +1064,8 @@ export default function CustomerDetailScreen({ navigation, route }) {
       {/* Reports Modal */}
       <Modal visible={showReportsModal} animationType="slide" transparent onRequestClose={() => setShowReportsModal(false)}>
         <View style={styles.modalOverlay}>
-          <Pressable style={styles.modalBackdrop} onPress={() => setShowReportsModal(false)} />
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => setShowReportsModal(false)} activeOpacity={1} />
+          <View style={[styles.modalContent, { backgroundColor: colors.background }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('reports')}</Text>
 
@@ -1099,10 +1105,10 @@ export default function CustomerDetailScreen({ navigation, route }) {
               <Text style={[styles.reportValue, { color: colors.text }]}>{transactions.length}</Text>
             </View>
 
-            <Pressable style={({ pressed }) => [styles.submitBtn, { backgroundColor: colors.accent, opacity: pressed ? 0.9 : 1 }]} onPress={() => { setShowReportsModal(false); handleSharePDF(); }}>
+            <TouchableOpacity style={[styles.submitBtn, { backgroundColor: colors.accent }]} onPress={() => { setShowReportsModal(false); handleSharePDF(); }} activeOpacity={0.8}>
               <Ionicons name="share-outline" size={20} color={colors.onAccent} style={{ marginRight: 8 }} />
               <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>SHARE REPORT</Text>
-            </Pressable>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>

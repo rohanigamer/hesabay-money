@@ -43,30 +43,35 @@ export default function LoginScreen({ navigation }) {
     }
 
     setLoading(true);
-    const result = await signIn(email.trim().toLowerCase(), password);
-    setLoading(false);
-
-    if (result.success) {
-      toast({ type: 'success', title: 'Welcome', message: result.message || 'Login successful.' });
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Transaction' }],
-      });
-    } else if (result.needsVerification) {
-      await alert({ title: 'Email verification required', message: result.error, confirmText: 'OK' });
-    } else {
-      const errorMsg = result.error || 'Login failed. Please try again.';
-      if (errorMsg.includes("don't have an account")) {
-        const goToSignup = await confirm({
-          title: 'Account not found',
-          message: `${errorMsg}\n\nWould you like to create an account?`,
-          confirmText: 'Sign Up',
-          cancelText: 'Try Again',
+    try {
+      const result = await signIn(email.trim().toLowerCase(), password);
+      if (result.success) {
+        toast({ type: 'success', title: 'Welcome', message: result.message || 'Login successful.' });
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Transaction' }],
         });
-        if (goToSignup) navigation.navigate('Signup');
+      } else if (result.needsVerification) {
+        await alert({ title: 'Email verification required', message: result.error, confirmText: 'OK' });
       } else {
-        toast({ type: 'error', title: 'Login failed', message: errorMsg });
+        const errorMsg = result.error || 'Login failed. Please try again.';
+        if (errorMsg.includes("don't have an account")) {
+          const goToSignup = await confirm({
+            title: 'Account not found',
+            message: `${errorMsg}\n\nWould you like to create an account?`,
+            confirmText: 'Sign Up',
+            cancelText: 'Try Again',
+          });
+          if (goToSignup) navigation.navigate('Signup');
+        } else {
+          toast({ type: 'error', title: 'Login failed', message: errorMsg });
+        }
       }
+    } catch (err) {
+      console.error('Login error:', err);
+      toast({ type: 'error', title: 'Login failed', message: err?.message || 'Something went wrong. Try again.' });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -77,39 +82,49 @@ export default function LoginScreen({ navigation }) {
     }
 
     setLoading(true);
-    const result = await forgotPassword(resetEmail.trim().toLowerCase());
-    setLoading(false);
-
-    if (result.success) {
-      toast({ type: 'success', title: 'Email sent', message: result.message });
-      setForgotPasswordModal(false);
-      setResetEmail('');
-    } else {
-      toast({ type: 'error', title: 'Could not send email', message: result.error });
+    try {
+      const result = await forgotPassword(resetEmail.trim().toLowerCase());
+      if (result.success) {
+        toast({ type: 'success', title: 'Email sent', message: result.message });
+        setForgotPasswordModal(false);
+        setResetEmail('');
+      } else {
+        toast({ type: 'error', title: 'Could not send email', message: result.error });
+      }
+    } catch (err) {
+      console.error('Forgot password error:', err);
+      toast({ type: 'error', title: 'Error', message: err?.message || 'Could not send email.' });
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
-    const result = await signInWithGoogle();
-    setLoading(false);
-    
-    if (result.success) {
-      toast({ type: 'success', title: result.isNewUser ? 'Account created' : 'Logged in', message: result.message });
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Transaction' }],
-      });
-    } else if (result.showAlternatives) {
-      const goEmail = await confirm({
-        title: 'Google Sign-In not available',
-        message: `${result.error}\n\nUse email instead?`,
-        confirmText: 'Sign up with Email',
-        cancelText: 'Cancel',
-      });
-      if (goEmail) navigation.navigate('Signup');
-    } else if (result.error) {
-      toast({ type: 'error', title: 'Google Sign-In failed', message: result.error });
+    try {
+      const result = await signInWithGoogle();
+      if (result.success) {
+        toast({ type: 'success', title: result.isNewUser ? 'Account created' : 'Logged in', message: result.message });
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Transaction' }],
+        });
+      } else if (result.showAlternatives) {
+        const goEmail = await confirm({
+          title: 'Google Sign-In not available',
+          message: `${result.error}\n\nUse email instead?`,
+          confirmText: 'Sign up with Email',
+          cancelText: 'Cancel',
+        });
+        if (goEmail) navigation.navigate('Signup');
+      } else if (result.error) {
+        toast({ type: 'error', title: 'Google Sign-In failed', message: result.error });
+      }
+    } catch (err) {
+      console.error('Google sign-in error:', err);
+      toast({ type: 'error', title: 'Error', message: err?.message || 'Google Sign-In failed.' });
+    } finally {
+      setLoading(false);
     }
   };
 

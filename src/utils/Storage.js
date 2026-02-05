@@ -24,7 +24,8 @@ const storage = {
         await SecureStore.setItemAsync(key, value);
       }
     } catch (error) {
-      console.log('Storage set error:', error);
+      console.error('Storage set error:', error);
+      throw error;
     }
   },
   async deleteItemAsync(key) {
@@ -300,7 +301,8 @@ export const Storage = {
         initialBalance: num,
       };
       wallets.push(wallet);
-      await this.saveWallets(wallets);
+      const saved = await this.saveWallets(wallets);
+      if (!saved) return { success: false, error: 'Could not save. Please try again.' };
       return { success: true, wallet };
     } catch (error) {
       console.error('Error adding wallet:', error);
@@ -585,7 +587,8 @@ export const Storage = {
         updatedAt: new Date().toISOString(),
       };
       customers.push(newCustomer);
-      await this.saveCustomers(customers);
+      const saved = await this.saveCustomers(customers);
+      if (!saved) return null;
       return newCustomer;
     } catch (error) {
       console.error('Error adding customer:', error);

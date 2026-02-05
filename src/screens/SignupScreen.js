@@ -64,31 +64,40 @@ export default function SignupScreen({ navigation }) {
     }
 
     setLoading(true);
-    const result = await signUp(email.trim().toLowerCase(), password, name.trim());
-    setLoading(false);
-
-    console.log('Sign up result:', result);
-
-    if (result.success) {
-      setStep(2); // Show verification sent screen
-      toast({ type: 'success', title: 'Check your email', message: result.message || 'Verification link sent.' });
-    } else {
-      console.log('Showing error alert:', result.error);
-      const errorMsg = result.error || 'An error occurred. Please try again.';
-      toast({ type: 'error', title: 'Sign up failed', message: errorMsg });
+    try {
+      const result = await signUp(email.trim().toLowerCase(), password, name.trim());
+      if (result.success) {
+        setStep(2); // Show verification sent screen
+        toast({ type: 'success', title: 'Check your email', message: result.message || 'Verification link sent.' });
+      } else {
+        const errorMsg = result.error || 'An error occurred. Please try again.';
+        toast({ type: 'error', title: 'Sign up failed', message: errorMsg });
+      }
+    } catch (err) {
+      console.error('Sign up error:', err);
+      toast({ type: 'error', title: 'Sign up failed', message: err?.message || 'Something went wrong. Try again.' });
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
-    const result = await signInWithGoogle();
-    setLoading(false);
-    
-    if (result.success) {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Transaction' }],
-      });
+    try {
+      const result = await signInWithGoogle();
+      if (result.success) {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Transaction' }],
+        });
+      } else if (result.error) {
+        toast({ type: 'error', title: 'Google Sign-In failed', message: result.error });
+      }
+    } catch (err) {
+      console.error('Google sign-in error:', err);
+      toast({ type: 'error', title: 'Error', message: err?.message || 'Google Sign-In failed.' });
+    } finally {
+      setLoading(false);
     }
   };
 

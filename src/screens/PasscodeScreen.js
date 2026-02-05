@@ -63,11 +63,26 @@ export default function PasscodeScreen({ navigation, route, onSuccess }) {
           setPasscode('');
         } else {
           if (newCode === confirmPasscode) {
-            await Storage.setPasscode(newCode);
-            await Storage.setAuthMethod('passcode');
-            updateAuthMethod('passcode');
-            if (route?.params?.onPasscodeSet) route.params.onPasscodeSet();
-            navigation.goBack();
+            try {
+              const saved = await Storage.setPasscode(newCode);
+              if (!saved) {
+                setError('Could not save passcode. Try again.');
+                setPasscode('');
+                setConfirmPasscode('');
+                setIsConfirming(false);
+                return;
+              }
+              await Storage.setAuthMethod('passcode');
+              updateAuthMethod('passcode');
+              if (route?.params?.onPasscodeSet) route.params.onPasscodeSet();
+              navigation.goBack();
+            } catch (err) {
+              console.error('Passcode setup error:', err);
+              setError('Could not save. Try again.');
+              setPasscode('');
+              setConfirmPasscode('');
+              setIsConfirming(false);
+            }
           } else {
             shake();
             setError('Passcodes do not match');

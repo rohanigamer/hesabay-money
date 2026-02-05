@@ -48,17 +48,24 @@ export default function CalculationScreen({ navigation }) {
   };
 
   const loadData = async () => {
-    const [loadedStats, loadedCustomers, loadedTransactions, perCurrency] = await Promise.all([
-      Storage.getStats(),
-      Storage.getCustomers(),
-      Storage.getTransactions(),
-      Storage.getStatsPerCurrency(),
-    ]);
-    setStats(loadedStats);
-    setCustomers(loadedCustomers);
-    setTransactions(loadedTransactions);
-    setStatsPerCurrency(perCurrency || {});
-    refreshBalances();
+    try {
+      const [loadedStats, loadedCustomers, loadedTransactions, perCurrency] = await Promise.all([
+        Storage.getStats(),
+        Storage.getCustomers(),
+        Storage.getTransactions(),
+        Storage.getStatsPerCurrency(),
+      ]);
+      setStats(loadedStats && typeof loadedStats === 'object' ? loadedStats : {
+        totalIncome: 0, totalExpenses: 0, totalBalance: 0,
+        totalCustomerBalance: 0, totalCustomers: 0, totalTransactions: 0,
+      });
+      setCustomers(Array.isArray(loadedCustomers) ? loadedCustomers : []);
+      setTransactions(Array.isArray(loadedTransactions) ? loadedTransactions : []);
+      setStatsPerCurrency(perCurrency && typeof perCurrency === 'object' ? perCurrency : {});
+      refreshBalances();
+    } catch (err) {
+      console.error('CalculationScreen loadData:', err);
+    }
   };
 
   // Currencies we can convert to (base + any with a rate)
