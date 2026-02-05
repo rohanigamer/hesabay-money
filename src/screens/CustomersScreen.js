@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Pressable,
   Modal,
   TextInput,
   Platform,
@@ -153,14 +154,13 @@ export default function CustomersScreen({ navigation }) {
           >
             <Text style={[styles.title, { color: colors.text }]}>{i18n.t('customers')}</Text>
           </Animated.View>
-          <TouchableOpacity
-            style={[styles.addBtn, { backgroundColor: colors.accent }]}
-            onPress={() => setTimeout(() => setShowAddModal(true), 0)}
-            activeOpacity={0.8}
+          <Pressable
+            style={({ pressed }) => [styles.addBtn, { backgroundColor: colors.accent, opacity: pressed ? 0.8 : 1 }]}
+            onPress={() => setShowAddModal(true)}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
             <Ionicons name="add" size={20} color={colors.onAccent} />
-          </TouchableOpacity>
+          </Pressable>
         </View>
 
         {/* Search */}
@@ -234,13 +234,13 @@ export default function CustomersScreen({ navigation }) {
           style={styles.modalOverlay}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
         >
-          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowAddModal(false); }} />
+          <Pressable style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowAddModal(false); }} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('newCustomer')}</Text>
-            <ScrollView 
-              style={{ width: '100%', maxHeight: '85%' }}
-              contentContainerStyle={{ paddingBottom: 100 }}
+            <ScrollView
+              style={{ width: '100%', maxHeight: 280 }}
+              contentContainerStyle={{ paddingBottom: 16 }}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
               keyboardDismissMode="on-drag"
@@ -263,29 +263,29 @@ export default function CustomersScreen({ navigation }) {
                 returnKeyType="done"
                 onSubmitEditing={Keyboard.dismiss}
               />
-              <TouchableOpacity style={[styles.submitBtn, { backgroundColor: colors.accent }]} onPress={handleAdd}>
-                <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>{i18n.t('addCustomer')}</Text>
-              </TouchableOpacity>
             </ScrollView>
+            <Pressable style={({ pressed }) => [styles.submitBtn, { backgroundColor: colors.accent, opacity: pressed ? 0.9 : 1 }]} onPress={handleAdd}>
+              <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>{i18n.t('addCustomer')}</Text>
+            </Pressable>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
       {/* Menu Modal */}
       <Modal visible={showMenuModal} animationType="fade" transparent onRequestClose={() => setShowMenuModal(false)}>
-        <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setShowMenuModal(false)}>
-          <View style={[styles.menuContent, { backgroundColor: colors.background, shadowColor: colors.shadow }]}>
-            <TouchableOpacity style={styles.menuItem} onPress={openEdit}>
+        <Pressable style={styles.menuOverlay} onPress={() => setShowMenuModal(false)}>
+          <Pressable style={[styles.menuContent, { backgroundColor: colors.background, shadowColor: colors.shadow }]} onPress={() => {}}>
+            <Pressable style={styles.menuItem} onPress={openEdit}>
               <Ionicons name="create-outline" size={22} color={colors.text} />
               <Text style={[styles.menuText, { color: colors.text }]}>Edit Customer</Text>
-            </TouchableOpacity>
+            </Pressable>
             <View style={[styles.menuDivider, { backgroundColor: colors.border }]} />
-            <TouchableOpacity style={styles.menuItem} onPress={openDeleteConfirm}>
+            <Pressable style={styles.menuItem} onPress={openDeleteConfirm}>
               <Ionicons name="trash-outline" size={22} color={colors.error} />
               <Text style={[styles.menuText, { color: colors.error }]}>Delete Customer</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
+            </Pressable>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       {/* Edit Modal */}
@@ -295,7 +295,7 @@ export default function CustomersScreen({ navigation }) {
           style={styles.modalOverlay}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
         >
-          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowEditModal(false); }} />
+          <Pressable style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowEditModal(false); }} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('editCustomer')}</Text>
@@ -324,9 +324,9 @@ export default function CustomersScreen({ navigation }) {
                 returnKeyType="done"
                 onSubmitEditing={Keyboard.dismiss}
               />
-              <TouchableOpacity style={[styles.submitBtn, { backgroundColor: colors.accent }]} onPress={handleEdit}>
+              <Pressable style={({ pressed }) => [styles.submitBtn, { backgroundColor: colors.accent, opacity: pressed ? 0.9 : 1 }]} onPress={handleEdit}>
                 <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>{i18n.t('save')}</Text>
-              </TouchableOpacity>
+              </Pressable>
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
@@ -339,7 +339,7 @@ export default function CustomersScreen({ navigation }) {
           style={styles.modalOverlay}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
         >
-          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowDeleteConfirmModal(false); setDeleteConfirmText(''); }} />
+          <Pressable style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowDeleteConfirmModal(false); setDeleteConfirmText(''); }} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Ionicons name="warning" size={48} color={colors.error} style={{ alignSelf: 'center', marginBottom: 16 }} />
@@ -374,22 +374,22 @@ export default function CustomersScreen({ navigation }) {
                     onSubmitEditing={Keyboard.dismiss}
                   />
                   <View style={styles.deleteButtonRow}>
-                    <TouchableOpacity
-                      style={[styles.cancelDeleteBtn, { backgroundColor: colors.backgroundSecondary }]}
+                    <Pressable
+                      style={({ pressed }) => [styles.cancelDeleteBtn, { backgroundColor: colors.backgroundSecondary, opacity: pressed ? 0.8 : 1 }]}
                       onPress={() => { setShowDeleteConfirmModal(false); setDeleteConfirmText(''); }}
                     >
                       <Text style={[styles.cancelDeleteText, { color: colors.text }]}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.confirmDeleteBtn, { 
+                    </Pressable>
+                    <Pressable
+                      style={({ pressed }) => [styles.confirmDeleteBtn, { 
                         backgroundColor: deleteConfirmText.trim().toLowerCase() === selectedCustomer.name.trim().toLowerCase() ? colors.error : colors.border,
-                        opacity: deleteConfirmText.trim().toLowerCase() === selectedCustomer.name.trim().toLowerCase() ? 1 : 0.5
+                        opacity: deleteConfirmText.trim().toLowerCase() === selectedCustomer.name.trim().toLowerCase() ? (pressed ? 0.9 : 1) : 0.5
                       }]}
                       onPress={confirmDelete}
                       disabled={deleteConfirmText.trim().toLowerCase() !== selectedCustomer.name.trim().toLowerCase()}
                     >
                       <Text style={[styles.submitBtnText, { color: colors.onError }]}>DELETE PERMANENTLY</Text>
-                    </TouchableOpacity>
+                    </Pressable>
                   </View>
                 </>
               )}
@@ -424,6 +424,7 @@ const styles = StyleSheet.create({
   customerBalance: { fontSize: 15, fontWeight: '600', flexShrink: 0, minWidth: 80, textAlign: 'right' },
   
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'flex-end' },
+  modalBackdrop: { flex: 1, minHeight: 0 },
   modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: Platform.OS === 'ios' ? 40 : 20 },
   modalHandle: { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
   modalTitle: { fontSize: 20, fontWeight: '600', marginBottom: 20, textAlign: 'center' },
