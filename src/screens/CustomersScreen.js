@@ -29,7 +29,7 @@ import i18n from '../utils/i18n';
 
 export default function CustomersScreen({ navigation }) {
   const { colors } = useContext(ThemeContext);
-  const { formatWithSign, primaryCurrency } = useCurrency();
+  const { formatWithSign, primaryCurrency, walletBalances } = useCurrency();
   const { toast } = useFeedback();
   const insets = useSafeAreaInsets();
   const [customers, setCustomers] = useState([]);
@@ -263,9 +263,25 @@ export default function CustomersScreen({ navigation }) {
                     <Text style={[styles.customerNumber, { color: colors.textTertiary }]}>{customer.number || '—'}</Text>
                   </View>
                   <View style={styles.customerRight}>
-                    <Text style={[styles.customerBalance, { color: (parseFloat(customer.balance) || 0) < 0 ? colors.error : colors.success }]}>
-                      {formatWithSign(parseFloat(customer.balance) || 0, primaryCurrency)}
-                    </Text>
+                    <View style={styles.customerBalances}>
+                      {(walletBalances && walletBalances.length > 0)
+                        ? (walletBalances || []).map((w) => {
+                            const code = (w.currencyCode || '').toUpperCase();
+                            const amount = parseFloat((customer.balanceByCurrency && customer.balanceByCurrency[code]) ?? 0);
+                            const isPrimary = code === (primaryCurrency || '').toUpperCase();
+                            if (!isPrimary && amount === 0) return null;
+                            return (
+                              <Text key={code} style={[styles.customerBalanceLine, { color: amount < 0 ? colors.error : colors.success }]}>
+                                {formatWithSign(amount, code)}
+                              </Text>
+                            );
+                          })
+                        : (
+                          <Text style={[styles.customerBalanceLine, { color: (parseFloat(customer.balance) || 0) < 0 ? colors.error : colors.success }]}>
+                            {formatWithSign(parseFloat(customer.balance) || 0, primaryCurrency)}
+                          </Text>
+                        )}
+                    </View>
                     <TouchableOpacity onPress={(e) => openMenu(customer, e)}>
                       <Ionicons name="ellipsis-horizontal" size={18} color={colors.textTertiary} />
                     </TouchableOpacity>
@@ -478,6 +494,8 @@ const styles = StyleSheet.create({
   customerName: { fontSize: 16, fontWeight: '500', marginBottom: 2 },
   customerNumber: { fontSize: 13 },
   customerRight: { alignItems: 'flex-end', gap: 4 },
+  customerBalances: { alignItems: 'flex-end', gap: 2 },
+  customerBalanceLine: { fontSize: 14, fontWeight: '600', flexShrink: 0, textAlign: 'right' },
   customerBalance: { fontSize: 15, fontWeight: '600', flexShrink: 0, minWidth: 80, textAlign: 'right' },
   
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'flex-end' },
