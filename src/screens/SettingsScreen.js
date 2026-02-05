@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Pressable,
   Switch,
   Modal,
   Platform,
@@ -65,6 +66,7 @@ export default function SettingsScreen({ navigation }) {
   const [convertTargetCurrency, setConvertTargetCurrency] = useState('');
   const [convertRate, setConvertRate] = useState('');
   const [convertingOrDeleting, setConvertingOrDeleting] = useState(false);
+  const [addWalletSubmitting, setAddWalletSubmitting] = useState(false);
 
   const headerAnim = useRef(new Animated.Value(0)).current;
   const sectionsAnim = useRef(new Animated.Value(0)).current;
@@ -1009,8 +1011,8 @@ export default function SettingsScreen({ navigation }) {
           style={styles.modalOverlay}
           keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 0}
         >
-          <TouchableOpacity style={styles.modalBackdrop} onPress={() => setShowAddWalletModal(false)} activeOpacity={1} />
-          <View style={[styles.modalContent, styles.modalContentScrollable, { backgroundColor: colors.background }]} pointerEvents="auto">
+          <TouchableOpacity style={[styles.modalBackdrop, { zIndex: 0 }]} onPress={() => setShowAddWalletModal(false)} activeOpacity={1} />
+          <View style={[styles.modalContent, styles.modalContentScrollable, { backgroundColor: colors.background, zIndex: 1 }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('addCurrency')}</Text>
             <Text style={[styles.walletModalLabel, { color: colors.textSecondary }]}>Currency</Text>
@@ -1035,15 +1037,15 @@ export default function SettingsScreen({ navigation }) {
                 ))
               )}
             </ScrollView>
-            <TouchableOpacity
-              style={[styles.walletSubmitBtn, { backgroundColor: colors.accent, opacity: walletForm.currencyCode ? 1 : 0.5 }]}
-              disabled={!walletForm.currencyCode}
-              activeOpacity={0.8}
+            <Pressable
+              style={[styles.walletSubmitBtn, { backgroundColor: colors.accent, opacity: (walletForm.currencyCode && !addWalletSubmitting) ? 1 : 0.5 }]}
+              disabled={!walletForm.currencyCode || addWalletSubmitting}
               onPress={async () => {
                 if (!walletForm.currencyCode) {
                   toast({ type: 'warning', title: 'Select currency', message: i18n.t('selectCurrency') });
                   return;
                 }
+                setAddWalletSubmitting(true);
                 try {
                   const result = await addWallet({
                     currencyCode: walletForm.currencyCode,
@@ -1059,11 +1061,13 @@ export default function SettingsScreen({ navigation }) {
                 } catch (e) {
                   console.error('addWallet:', e);
                   toast({ type: 'error', title: 'Error', message: e?.message || 'Could not add currency.' });
+                } finally {
+                  setAddWalletSubmitting(false);
                 }
               }}
             >
-              <Text style={[styles.walletSubmitText, { color: colors.onAccent }]}>{i18n.t('addCurrency')}</Text>
-            </TouchableOpacity>
+              <Text style={[styles.walletSubmitText, { color: colors.onAccent }]}>{addWalletSubmitting ? '...' : i18n.t('addCurrency')}</Text>
+            </Pressable>
           </View>
         </KeyboardAvoidingView>
       </Modal>

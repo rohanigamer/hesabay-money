@@ -76,6 +76,21 @@ export default function CustomerDetailScreen({ navigation, route }) {
     applyFilters();
   }, [transactions, searchQuery, filterType, dateFilter]);
 
+  // When a currency is removed in Settings, reset form/edit entry currency to a valid one
+  useEffect(() => {
+    if (walletBalances.length === 0) return;
+    const codes = walletBalances.map(w => (w.currencyCode || '').toUpperCase());
+    const primary = (primaryCurrency || '').toUpperCase();
+    const formCode = (formData.currencyCode || primaryCurrency || '').toUpperCase();
+    const editCode = (editEntryData.currencyCode || '').toUpperCase();
+    if (formCode && !codes.includes(formCode)) {
+      setFormData(prev => ({ ...prev, currencyCode: primary || codes[0] || null }));
+    }
+    if (editCode && !codes.includes(editCode)) {
+      setEditEntryData(prev => ({ ...prev, currencyCode: primary || codes[0] }));
+    }
+  }, [walletBalances, primaryCurrency]);
+
   const startAnimations = () => {
     headerAnim.setValue(0);
     contentAnim.setValue(0);
@@ -429,7 +444,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       {/* Header */}
-      <Animated.View style={[styles.header, { backgroundColor: colors.background, opacity: headerAnim }]}>
+      <Animated.View style={[styles.header, { backgroundColor: colors.background, opacity: headerAnim, paddingTop: Math.max(insets.top, 12) + 12 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} activeOpacity={0.7}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
@@ -816,7 +831,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
 
       {/* Menu Modal */}
       <Modal visible={showMenuModal} animationType="fade" transparent onRequestClose={() => setShowMenuModal(false)}>
-        <TouchableOpacity style={styles.menuOverlay} onPress={() => setShowMenuModal(false)} activeOpacity={1}>
+        <TouchableOpacity style={[styles.menuOverlay, { paddingTop: Math.max(insets.top, 12) + 60 }]} onPress={() => setShowMenuModal(false)} activeOpacity={1}>
           <View style={[styles.menuContent, { backgroundColor: colors.background, shadowColor: colors.shadow }]}>
             <TouchableOpacity style={styles.menuItem} onPress={() => { setShowMenuModal(false); setShowEditModal(true); }} activeOpacity={0.7}>
               <Ionicons name="create-outline" size={22} color={colors.text} />
@@ -1121,7 +1136,7 @@ const styles = StyleSheet.create({
   loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   scrollContent: { paddingBottom: 180 },
   
-  header: { flexDirection: 'row', alignItems: 'center', paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingHorizontal: 12, paddingBottom: 12 },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 12 },
   backBtn: { padding: 8, marginRight: 4 },
   headerCenter: { flex: 1, marginHorizontal: 8, minWidth: 0, maxWidth: '60%' },
   headerTitle: { fontSize: 17, fontWeight: '600' },
@@ -1213,7 +1228,7 @@ const styles = StyleSheet.create({
   editDeleteBtn: { width: 56, height: 56, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   editSaveBtn: { flex: 1, paddingVertical: 16, borderRadius: 8, alignItems: 'center' },
 
-  menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'flex-start', alignItems: 'flex-end', paddingTop: Platform.OS === 'ios' ? 100 : 60, paddingRight: 16 },
+  menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'flex-start', alignItems: 'flex-end', paddingRight: 16 },
   menuContent: { borderRadius: 12, padding: 8, minWidth: 180, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 5 },
   menuItem: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12 },
   menuText: { fontSize: 15, fontWeight: '500' },

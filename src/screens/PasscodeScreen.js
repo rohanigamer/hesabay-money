@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Vibration, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Storage } from '../utils/Storage';
 import { ThemeContext } from '../context/ThemeContext';
@@ -8,6 +9,7 @@ import AnimatedBackground from '../components/AnimatedBackground';
 
 export default function PasscodeScreen({ navigation, route, onSuccess }) {
   const { colors } = useContext(ThemeContext);
+  const insets = useSafeAreaInsets();
   const { updateAuthMethod } = useAppLock();
   const isSettingUp = route?.params?.isSettingUp;
   const [passcode, setPasscode] = useState('');
@@ -159,7 +161,7 @@ export default function PasscodeScreen({ navigation, route, onSuccess }) {
 
   return (
     <AnimatedBackground>
-      <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
+      <Animated.View style={[styles.container, { opacity: fadeAnim, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <Animated.View style={[styles.content, { transform: [{ scale: scaleAnim }] }]}>
           {/* Logo */}
           <View style={[styles.logo, { backgroundColor: colors.accent, borderRadius: radius }]}>

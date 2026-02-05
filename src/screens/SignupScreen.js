@@ -10,6 +10,7 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemeContext } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
@@ -20,6 +21,7 @@ import i18n from '../utils/i18n';
 
 export default function SignupScreen({ navigation }) {
   const { colors } = useContext(ThemeContext);
+  const insets = useSafeAreaInsets();
   const { signUp, signInWithGoogle } = useAuth();
   const { toast } = useFeedback();
   
@@ -161,7 +163,7 @@ export default function SignupScreen({ navigation }) {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
     >
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: Math.max(insets.top, 12) + 24, paddingBottom: Math.max(insets.bottom, 24) + 80 }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
@@ -313,7 +315,7 @@ export default function SignupScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContent: { flexGrow: 1, padding: 24, paddingBottom: 80, justifyContent: 'center', minHeight: '100%' },
+  scrollContent: { flexGrow: 1, paddingHorizontal: 24, justifyContent: 'center', minHeight: '100%' },
   
   header: { alignItems: 'center', marginBottom: 30 },
   iconCircle: { width: 88, height: 88, borderRadius: 44, justifyContent: 'center', alignItems: 'center', marginBottom: 24 },

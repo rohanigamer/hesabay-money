@@ -1,5 +1,6 @@
 import React, { useEffect, useContext, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, Animated, Easing } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { ThemeContext } from '../context/ThemeContext';
@@ -8,6 +9,7 @@ import AnimatedBackground from '../components/AnimatedBackground';
 
 export default function BiometricScreen({ navigation, onSuccess }) {
   const { colors } = useContext(ThemeContext);
+  const insets = useSafeAreaInsets();
   const { toast } = useFeedback();
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
@@ -78,7 +80,7 @@ export default function BiometricScreen({ navigation, onSuccess }) {
 
   return (
     <AnimatedBackground>
-      <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
+      <Animated.View style={[styles.container, { opacity: fadeAnim, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <View style={styles.content}>
           {/* Logo */}
           <Animated.View

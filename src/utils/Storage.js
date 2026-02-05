@@ -291,10 +291,7 @@ export const Storage = {
       if (wallets.length >= MAX_WALLETS) {
         return { success: false, error: 'You can add up to 3 currencies.' };
       }
-      const num = parseFloat(initialBalance);
-      if (Number.isNaN(num)) {
-        return { success: false, error: 'Enter a valid number.' };
-      }
+      const num = Number.isNaN(parseFloat(initialBalance)) ? 0 : parseFloat(initialBalance);
       const wallet = {
         id: Date.now().toString(),
         currencyCode: code,
@@ -519,6 +516,7 @@ export const Storage = {
   },
 
   // Customers (user-specific). Migrates legacy customers to balanceByCurrency from transactions.
+  // Uses getCurrency() for primary code to avoid circular dependency with getWallets().
   async getCustomers() {
     try {
       const key = getUserKey(STORAGE_KEYS.CUSTOMERS);
@@ -527,8 +525,7 @@ export const Storage = {
       if (!Array.isArray(customers)) customers = [];
 
       const transactions = await this.getTransactions();
-      const wallets = await this.getWallets();
-      const primaryCode = wallets.length > 0 ? wallets[0].currencyCode : DEFAULT_CURRENCY;
+      const primaryCode = (await this.getCurrency()) || DEFAULT_CURRENCY;
       let needsSave = false;
 
       customers = customers.map(c => {

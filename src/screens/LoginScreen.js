@@ -12,6 +12,7 @@ import {
   Modal,
   Keyboard,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemeContext } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
@@ -22,6 +23,7 @@ import i18n from '../utils/i18n';
 
 export default function LoginScreen({ navigation }) {
   const { colors } = useContext(ThemeContext);
+  const insets = useSafeAreaInsets();
   const { signIn, signInWithGoogle, continueAsGuest, forgotPassword, firebaseInitialized } = useAuth();
   const { toast, confirm, alert } = useFeedback();
   
@@ -345,7 +347,7 @@ export default function LoginScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContent: { flexGrow: 1, padding: 24, paddingBottom: 80, justifyContent: 'center', minHeight: '100%' },
+  scrollContent: { flexGrow: 1, paddingHorizontal: 24, justifyContent: 'center', minHeight: '100%' },
   
   header: { alignItems: 'center', marginBottom: 40 },
   iconCircle: { width: 88, height: 88, borderRadius: 44, justifyContent: 'center', alignItems: 'center', marginBottom: 24 },

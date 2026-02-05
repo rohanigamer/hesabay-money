@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useRef } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet, Easing } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavigationContainer, CommonActions } from '@react-navigation/native';
 import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
@@ -52,6 +52,7 @@ function AppNavigator() {
   const { colors, isDark } = useContext(ThemeContext);
   const { loading, user } = useAuth();
   const { isLocked, authMethod, unlock } = useAppLock();
+  const insets = useSafeAreaInsets();
   const navigationRef = useRef(null);
   const isFirstRender = useRef(true);
 
@@ -90,7 +91,7 @@ function AppNavigator() {
   // Show loading screen while checking auth state
   if (loading) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <View style={[styles.logoBox, { backgroundColor: colors.accent }]}>
           <Text style={[styles.logoText, { color: colors.onAccent }]}>H</Text>
         </View>

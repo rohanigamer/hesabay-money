@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Pressable,
   Modal,
   TextInput,
   Platform,
@@ -39,6 +40,7 @@ export default function CustomersScreen({ navigation }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [formData, setFormData] = useState({ name: '', number: '' });
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [addSubmitting, setAddSubmitting] = useState(false);
 
   const headerAnim = useRef(new Animated.Value(0)).current;
   const listAnim = useRef(new Animated.Value(0)).current;
@@ -83,6 +85,8 @@ export default function CustomersScreen({ navigation }) {
       toast({ type: 'warning', title: 'Missing name', message: 'Please enter a customer name.' });
       return;
     }
+    if (addSubmitting) return;
+    setAddSubmitting(true);
     try {
       const result = await Storage.addCustomer({ name: formData.name.trim(), number: formData.number.trim() });
       if (result) {
@@ -96,6 +100,8 @@ export default function CustomersScreen({ navigation }) {
     } catch (e) {
       console.error('handleAdd:', e);
       toast({ type: 'error', title: 'Error', message: e?.message || 'Could not add customer.' });
+    } finally {
+      setAddSubmitting(false);
     }
   };
 
@@ -262,8 +268,8 @@ export default function CustomersScreen({ navigation }) {
           style={styles.modalOverlay}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
         >
-          <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowAddModal(false); }} activeOpacity={1} />
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]} pointerEvents="auto">
+          <TouchableOpacity style={[styles.modalBackdrop, { zIndex: 0 }]} onPress={() => { Keyboard.dismiss(); setShowAddModal(false); }} activeOpacity={1} />
+          <View style={[styles.modalContent, { backgroundColor: colors.background, zIndex: 1 }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('newCustomer')}</Text>
             <ScrollView
@@ -278,7 +284,7 @@ export default function CustomersScreen({ navigation }) {
                 placeholder={i18n.t('name')}
                 placeholderTextColor={colors.textTertiary}
                 value={formData.name}
-                onChangeText={(t) => setFormData({ ...formData, name: t })}
+                onChangeText={(t) => setFormData(prev => ({ ...prev, name: t }))}
                 returnKeyType="next"
               />
               <TextInput
@@ -286,15 +292,19 @@ export default function CustomersScreen({ navigation }) {
                 placeholder={i18n.t('phoneOptional')}
                 placeholderTextColor={colors.textTertiary}
                 value={formData.number}
-                onChangeText={(t) => setFormData({ ...formData, number: t })}
+                onChangeText={(t) => setFormData(prev => ({ ...prev, number: t }))}
                 keyboardType="phone-pad"
                 returnKeyType="done"
                 onSubmitEditing={Keyboard.dismiss}
               />
             </ScrollView>
-            <TouchableOpacity style={[styles.submitBtn, { backgroundColor: colors.accent }]} onPress={handleAdd} activeOpacity={0.8}>
-              <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>{i18n.t('addCustomer')}</Text>
-            </TouchableOpacity>
+            <Pressable
+              style={[styles.submitBtn, { backgroundColor: colors.accent }, addSubmitting && { opacity: 0.7 }]}
+              onPress={handleAdd}
+              disabled={addSubmitting}
+            >
+              <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>{addSubmitting ? '...' : i18n.t('addCustomer')}</Text>
+            </Pressable>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -323,8 +333,8 @@ export default function CustomersScreen({ navigation }) {
           style={styles.modalOverlay}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
         >
-          <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowEditModal(false); }} activeOpacity={1} />
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]} pointerEvents="auto">
+          <TouchableOpacity style={[styles.modalBackdrop, { zIndex: 0 }]} onPress={() => { Keyboard.dismiss(); setShowEditModal(false); }} activeOpacity={1} />
+          <View style={[styles.modalContent, { backgroundColor: colors.background, zIndex: 1 }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('editCustomer')}</Text>
             <ScrollView 
@@ -339,7 +349,7 @@ export default function CustomersScreen({ navigation }) {
                 placeholder={i18n.t('name')}
                 placeholderTextColor={colors.textTertiary}
                 value={formData.name}
-                onChangeText={(t) => setFormData({ ...formData, name: t })}
+                onChangeText={(t) => setFormData(prev => ({ ...prev, name: t }))}
                 returnKeyType="next"
               />
               <TextInput
@@ -347,14 +357,14 @@ export default function CustomersScreen({ navigation }) {
                 placeholder={i18n.t('phone')}
                 placeholderTextColor={colors.textTertiary}
                 value={formData.number}
-                onChangeText={(t) => setFormData({ ...formData, number: t })}
+                onChangeText={(t) => setFormData(prev => ({ ...prev, number: t }))}
                 keyboardType="phone-pad"
                 returnKeyType="done"
                 onSubmitEditing={Keyboard.dismiss}
               />
-              <TouchableOpacity style={[styles.submitBtn, { backgroundColor: colors.accent }]} onPress={handleEdit} activeOpacity={0.8}>
+              <Pressable style={[styles.submitBtn, { backgroundColor: colors.accent }]} onPress={handleEdit}>
                 <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>{i18n.t('save')}</Text>
-              </TouchableOpacity>
+              </Pressable>
             </ScrollView>
           </View>
         </KeyboardAvoidingView>

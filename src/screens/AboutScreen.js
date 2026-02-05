@@ -29,7 +29,7 @@ export default function AboutScreen({ navigation }) {
         <ScrollView
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingBottom: insets.bottom + BOTTOM_NAV_HEIGHT + 24 },
+            { paddingTop: Math.max(insets.top, 12) + 20, paddingBottom: insets.bottom + BOTTOM_NAV_HEIGHT + 24 },
           ]}
           showsVerticalScrollIndicator={false}
         >

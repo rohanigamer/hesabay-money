@@ -45,9 +45,14 @@ export const CurrencyProvider = ({ children }) => {
   }, [loadWallets]);
 
   const addWallet = useCallback(async ({ currencyCode, initialBalance }) => {
-    const result = await Storage.addWallet({ currencyCode, initialBalance });
-    if (result.success) await loadWallets();
-    return result;
+    try {
+      const result = await Storage.addWallet({ currencyCode, initialBalance });
+      if (result && result.success) await loadWallets();
+      return result != null ? result : { success: false, error: 'Could not add currency.' };
+    } catch (e) {
+      console.error('addWallet error:', e);
+      return { success: false, error: e?.message || 'Could not add currency.' };
+    }
   }, [loadWallets]);
 
   const updateWallet = useCallback(async (id, updates) => {

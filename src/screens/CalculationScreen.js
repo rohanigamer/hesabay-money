@@ -8,12 +8,13 @@ import BottomNavigation from '../components/BottomNavigation';
 import GlassCard from '../components/GlassCard';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BOTTOM_NAV_HEIGHT } from '../constants/layout';
 import i18n from '../utils/i18n';
 
 export default function CalculationScreen({ navigation }) {
   const { colors } = useContext(ThemeContext);
   const insets = useSafeAreaInsets();
-  const { format, formatWithSign, walletBalances, refreshBalances, convert, canConvertTo, canConvertFrom, exchangeRates, primaryCurrency } = useCurrency();
+  const { format, formatWithSign, walletBalances, refreshBalances, loadWallets, convert, canConvertTo, canConvertFrom, exchangeRates, primaryCurrency } = useCurrency();
   const [displayAsCurrency, setDisplayAsCurrency] = useState(null); // null = no conversion card
 
   const [stats, setStats] = useState({
@@ -33,10 +34,19 @@ export default function CalculationScreen({ navigation }) {
 
   useFocusEffect(
     useCallback(() => {
+      loadWallets();
       loadData();
       startAnimations();
-    }, [])
+    }, [loadWallets])
   );
+
+  // Reset "display total in" selection when selected currency is no longer in wallets (e.g. removed in Settings)
+  useEffect(() => {
+    if (displayAsCurrency && walletBalances.length > 0) {
+      const stillExists = walletBalances.some(w => (w.currencyCode || '').toUpperCase() === (displayAsCurrency || '').toUpperCase());
+      if (!stillExists) setDisplayAsCurrency(null);
+    }
+  }, [walletBalances, displayAsCurrency]);
 
   const startAnimations = () => {
     headerAnim.setValue(0);
@@ -68,11 +78,13 @@ export default function CalculationScreen({ navigation }) {
     }
   };
 
-  // Currencies we can convert to (base + any with a rate)
-  const convertibleCurrencies = [
+  // Currencies we can convert to: only those that exist in current wallets (so removed currencies don't show)
+  const allConvertibleCodes = [
     exchangeRates.baseCurrency,
     ...Object.keys(exchangeRates.rates || {}).filter(c => exchangeRates.rates[c] > 0),
   ].filter((c, i, a) => a.indexOf(c) === i);
+  const walletCodes = (walletBalances || []).map(w => (w.currencyCode || '').toUpperCase());
+  const convertibleCurrencies = allConvertibleCodes.filter(code => walletCodes.includes((code || '').toUpperCase()));
 
   const totalConverted = displayAsCurrency && walletBalances.length > 0
     ? walletBalances.reduce((sum, w) => {
@@ -113,7 +125,7 @@ export default function CalculationScreen({ navigation }) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
-      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 12, paddingBottom: 120 }]} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingTop: Math.max(insets.top, 12) + 12, paddingBottom: insets.bottom + BOTTOM_NAV_HEIGHT + 24 }]} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <Animated.View
           style={[

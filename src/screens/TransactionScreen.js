@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Pressable,
   Modal,
   TextInput,
   Platform,
@@ -48,6 +49,7 @@ export default function TransactionScreen({ navigation }) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
+  const [addCustomerSubmitting, setAddCustomerSubmitting] = useState(false);
   const [selectedType, setSelectedType] = useState('income');
   const [formData, setFormData] = useState({ amount: '', description: '', customerId: null, customerName: '', currencyCode: null });
   const [editData, setEditData] = useState(null);
@@ -68,6 +70,21 @@ export default function TransactionScreen({ navigation }) {
       startAnimations();
     }, [])
   );
+
+  // When a currency is removed in Settings, reset form/edit currency to a valid one
+  useEffect(() => {
+    if (walletBalances.length === 0) return;
+    const codes = walletBalances.map(w => (w.currencyCode || '').toUpperCase());
+    const primary = (primaryCurrency || '').toUpperCase();
+    const formCode = (formData.currencyCode || primaryCurrency || '').toUpperCase();
+    const editCode = editData ? (editData.currencyCode || '').toUpperCase() : '';
+    if (formCode && !codes.includes(formCode)) {
+      setFormData(prev => ({ ...prev, currencyCode: primary || codes[0] || null }));
+    }
+    if (editCode && !codes.includes(editCode)) {
+      setEditData(prev => prev ? { ...prev, currencyCode: primary || codes[0] } : null);
+    }
+  }, [walletBalances, primaryCurrency]);
 
   const startAnimations = () => {
     headerAnim.setValue(0);
@@ -171,6 +188,8 @@ export default function TransactionScreen({ navigation }) {
       toast({ type: 'warning', title: 'Missing name', message: 'Please enter customer name.' });
       return;
     }
+    if (addCustomerSubmitting) return;
+    setAddCustomerSubmitting(true);
     const addedName = newCustomerData.name.trim();
     const addedNumber = newCustomerData.number.trim();
     try {
@@ -188,12 +207,15 @@ export default function TransactionScreen({ navigation }) {
         if (newCustomer) {
           setFormData(prev => ({ ...prev, customerId: newCustomer.id, customerName: newCustomer.name }));
         }
+        toast({ type: 'success', title: 'Added', message: 'Customer added.' });
       } else {
         toast({ type: 'error', title: 'Error', message: 'Could not add customer.' });
       }
     } catch (err) {
       console.error('handleAddCustomer:', err);
       toast({ type: 'error', title: 'Error', message: err?.message || 'Could not add customer.' });
+    } finally {
+      setAddCustomerSubmitting(false);
     }
   };
 
@@ -893,8 +915,8 @@ export default function TransactionScreen({ navigation }) {
           style={styles.modalOverlay}
           keyboardVerticalOffset={Platform.OS === 'ios' ? (insets?.top ?? 0) + 20 : 0}
         >
-          <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowAddCustomerModal(false); }} activeOpacity={1} />
-          <View style={[styles.modalContent, { backgroundColor: colors.background, paddingTop: Math.max(insets.top, 12) + 8 }]}>
+          <TouchableOpacity style={[styles.modalBackdrop, { zIndex: 0 }]} onPress={() => { Keyboard.dismiss(); setShowAddCustomerModal(false); }} activeOpacity={1} />
+          <View style={[styles.modalContent, { backgroundColor: colors.background, paddingTop: Math.max(insets.top, 12) + 8, zIndex: 1 }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('addCustomer')}</Text>
 
@@ -910,7 +932,7 @@ export default function TransactionScreen({ navigation }) {
                 placeholder={i18n.t('customerNameRequired')}
                 placeholderTextColor={colors.textTertiary}
                 value={newCustomerData.name}
-                onChangeText={(t) => setNewCustomerData({ ...newCustomerData, name: t })}
+                onChangeText={(t) => setNewCustomerData(prev => ({ ...prev, name: t }))}
                 returnKeyType="next"
               />
 
@@ -919,19 +941,19 @@ export default function TransactionScreen({ navigation }) {
                 placeholder={i18n.t('phoneOptional')}
                 placeholderTextColor={colors.textTertiary}
                 value={newCustomerData.number}
-                onChangeText={(t) => setNewCustomerData({ ...newCustomerData, number: t })}
+                onChangeText={(t) => setNewCustomerData(prev => ({ ...prev, number: t }))}
                 keyboardType="phone-pad"
                 returnKeyType="done"
                 onSubmitEditing={Keyboard.dismiss}
               />
 
-              <TouchableOpacity
-                style={[styles.submitBtn, { backgroundColor: colors.accent }]}
+              <Pressable
+                style={[styles.submitBtn, { backgroundColor: colors.accent }, addCustomerSubmitting && { opacity: 0.7 }]}
                 onPress={handleAddCustomer}
-                activeOpacity={0.8}
+                disabled={addCustomerSubmitting}
               >
-                <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>{i18n.t('addCustomer')}</Text>
-              </TouchableOpacity>
+                <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>{addCustomerSubmitting ? '...' : i18n.t('addCustomer')}</Text>
+              </Pressable>
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
