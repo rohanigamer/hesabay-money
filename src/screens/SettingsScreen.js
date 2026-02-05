@@ -288,7 +288,7 @@ export default function SettingsScreen({ navigation }) {
       rateStrings[code] = ratesObj[code] != null ? String(ratesObj[code]) : '';
     });
     setExchangeRateForm({ baseCurrency: base, rates: rateStrings });
-    setShowExchangeRatesModal(true);
+    setTimeout(() => setShowExchangeRatesModal(true), 0);
   };
 
   const handleSaveExchangeRates = async () => {
@@ -315,7 +315,7 @@ export default function SettingsScreen({ navigation }) {
     setShowRemoveCurrencyOptionsModal(false);
     setConvertTargetCurrency(walletToRemove ? (walletBalances.find(ow => ow.id !== walletToRemove.id)?.currencyCode || '') : '');
     setConvertRate('');
-    setShowConvertCurrencyModal(true);
+    setTimeout(() => setShowConvertCurrencyModal(true), 0);
   };
 
   const handleChooseDeleteTransactions = async () => {
@@ -388,7 +388,7 @@ export default function SettingsScreen({ navigation }) {
     });
     if (!ok) return;
     setDeleteAllVerification('');
-    setShowDeleteAllModal(true);
+    setTimeout(() => setShowDeleteAllModal(true), 0);
   };
 
   const handleConfirmDeleteAllTransactions = async () => {
@@ -545,6 +545,7 @@ export default function SettingsScreen({ navigation }) {
           { paddingTop: insets.top + 12, paddingBottom: insets.bottom + BOTTOM_NAV_HEIGHT + 24 },
         ]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <Animated.View style={[styles.header, { opacity: headerAnim }]}>
           <Text style={[styles.title, { color: colors.text }]}>Settings</Text>
@@ -764,7 +765,7 @@ export default function SettingsScreen({ navigation }) {
                 icon="time-outline"
                 title="Auto-Lock"
                 subtitle={lockTimeoutOptions.find(opt => opt.value === lockTimeout)?.label || 'Immediately'}
-                onPress={() => setShowLockTimeoutModal(true)}
+                onPress={() => setTimeout(() => setShowLockTimeoutModal(true), 0)}
                 last
                 right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
               />
@@ -781,7 +782,7 @@ export default function SettingsScreen({ navigation }) {
               icon="contrast"
               title="Theme"
               subtitle={themeOptions.find(t => t.code === theme)?.name}
-              onPress={() => setShowThemeModal(true)}
+              onPress={() => setTimeout(() => setShowThemeModal(true), 0)}
               right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
             />
           </GlassCard>
@@ -794,8 +795,10 @@ export default function SettingsScreen({ navigation }) {
                 style={[styles.walletAddRow, { borderColor: colors.border }]}
                 onPress={() => {
                   setWalletForm({ currencyCode: '', initialBalance: '' });
-                  setShowAddWalletModal(true);
+                  setTimeout(() => setShowAddWalletModal(true), 0);
                 }}
+                activeOpacity={0.8}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               >
                 <Ionicons name="add-circle-outline" size={24} color={colors.accent} />
                 <Text style={[styles.walletAddText, { color: colors.accent }]}>{i18n.t('addFirstCurrency')}</Text>
@@ -819,7 +822,7 @@ export default function SettingsScreen({ navigation }) {
                           onPress={() => {
                             setEditingWallet(w);
                             setWalletForm({ currencyCode: '', initialBalance: '' });
-                            setShowEditWalletModal(true);
+                            setTimeout(() => setShowEditWalletModal(true), 0);
                           }}
                           style={[styles.walletActionBtn, { backgroundColor: colors.backgroundSecondary }]}
                           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
@@ -842,8 +845,8 @@ export default function SettingsScreen({ navigation }) {
                             if (result.success) {
                               toast({ type: 'success', title: 'Removed', message: `${w.currencyCode} removed.` });
                             } else if (result.transactionCount > 0) {
-                              setWalletToRemove({ ...w, transactionCount: result.transactionCount });
-                              setShowRemoveCurrencyOptionsModal(true);
+setWalletToRemove({ ...w, transactionCount: result.transactionCount });
+                            setTimeout(() => setShowRemoveCurrencyOptionsModal(true), 0);
                             } else {
                               toast({ type: 'error', title: 'Cannot remove', message: result.error });
                             }
@@ -867,8 +870,10 @@ export default function SettingsScreen({ navigation }) {
                     style={[styles.walletAddRow, { borderColor: colors.border, marginTop: 8 }]}
                     onPress={() => {
                       setWalletForm({ currencyCode: '', initialBalance: '' });
-                      setShowAddWalletModal(true);
+                      setTimeout(() => setShowAddWalletModal(true), 0);
                     }}
+                    activeOpacity={0.8}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   >
                     <Ionicons name="add" size={22} color={colors.accent} />
                     <Text style={[styles.walletAddText, { color: colors.accent }]}>{i18n.t('addCurrency')}</Text>

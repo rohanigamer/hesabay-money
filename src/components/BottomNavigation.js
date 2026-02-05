@@ -65,8 +65,9 @@ export default function BottomNavigation({ navigation }) {
           <TouchableOpacity
             key={item.id}
             style={styles.navItem}
-            onPress={() => handleNavigation(item.id)}
+            onPress={() => setTimeout(() => handleNavigation(item.id), 0)}
             activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Animated.View 
               style={[

@@ -337,25 +337,22 @@ export default function TransactionScreen({ navigation }) {
         ]}
         showsVerticalScrollIndicator={false}
         bounces={true}
+        keyboardShouldPersistTaps="handled"
       >
-        {/* Header */}
-        <Animated.View
-          style={[
-            styles.header,
-            {
-              opacity: headerAnim,
-              transform: [{ translateY: headerAnim.interpolate({ inputRange: [0, 1], outputRange: [-10, 0] }) }],
-            },
-          ]}
-        >
+        {/* Header - button outside Animated.View so modal open works on Android */}
+        <View style={styles.header}>
+          <Animated.View style={{ opacity: headerAnim, transform: [{ translateY: headerAnim.interpolate({ inputRange: [0, 1], outputRange: [-10, 0] }) }], flex: 1 }}>
             <Text style={[styles.title, { color: colors.text }]}>{i18n.t('transaction')}</Text>
-          <TouchableOpacity 
-            style={[styles.exportBtn, { backgroundColor: colors.accent }]} 
-            onPress={() => setShowExportModal(true)}
+          </Animated.View>
+          <TouchableOpacity
+            style={[styles.exportBtn, { backgroundColor: colors.accent }]}
+            onPress={() => setTimeout(() => setShowExportModal(true), 0)}
+            activeOpacity={0.8}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
             <Ionicons name="download-outline" size={18} color={colors.onAccent} />
           </TouchableOpacity>
-        </Animated.View>
+        </View>
 
         {/* Search Bar */}
         <Animated.View style={{ opacity: headerAnim }}>
@@ -493,7 +490,7 @@ export default function TransactionScreen({ navigation }) {
               }
               setSelectedType('income');
               setFormData({ amount: '', description: '', customerId: null, customerName: '', currencyCode: primaryCurrency });
-              setShowAddModal(true);
+              setTimeout(() => setShowAddModal(true), 0);
             }}
           >
             <Ionicons name="add" size={isNarrow ? 18 : 20} color={colors.onSuccess} />
@@ -508,7 +505,7 @@ export default function TransactionScreen({ navigation }) {
               }
               setSelectedType('expense');
               setFormData({ amount: '', description: '', customerId: null, customerName: '', currencyCode: primaryCurrency });
-              setShowAddModal(true);
+              setTimeout(() => setShowAddModal(true), 0);
             }}
           >
             <Ionicons name="remove" size={isNarrow ? 18 : 20} color={colors.onError} />
@@ -802,7 +799,7 @@ export default function TransactionScreen({ navigation }) {
               <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
               <View style={styles.pickerHeader}>
                 <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('selectCustomer')}</Text>
-                <TouchableOpacity onPress={() => { setShowCustomerPicker(false); setShowAddCustomerModal(true); }} style={styles.addCustomerBtn}>
+                <TouchableOpacity onPress={() => { setShowCustomerPicker(false); setTimeout(() => setShowAddCustomerModal(true), 0); }} style={styles.addCustomerBtn}>
                   <Ionicons name="add-circle" size={24} color={colors.accent} />
                 </TouchableOpacity>
               </View>

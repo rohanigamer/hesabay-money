@@ -151,6 +151,10 @@ const translations = {
     calculator: 'Calculator',
     done: 'Done',
     recent: 'Recent',
+    noMatchingEntries: 'No matching entries',
+    tryAdjustingFilters: 'Try adjusting your filters',
+    addFirstEntryBelow: 'Add your first entry below',
+    noEntriesYet: 'No entries yet',
   },
   pr: {
     welcome: 'خوش آمدید',
@@ -299,6 +303,10 @@ const translations = {
     calculator: 'ماشین حساب',
     done: 'انجام شد',
     recent: 'اخیر',
+    noMatchingEntries: 'هیچ ورودی مطابق نیست',
+    tryAdjustingFilters: 'فیلترها را تنظیم کنید',
+    addFirstEntryBelow: 'اولین ورودی را در زیر اضافه کنید',
+    noEntriesYet: 'هنوز ورودی ثبت نشده',
   },
   ps: {
     welcome: 'ښه راغلاست',
@@ -447,6 +455,10 @@ const translations = {
     calculator: 'کیلکولیټر',
     done: 'ترسره شو',
     recent: 'وروستی',
+    noMatchingEntries: 'برابرې ننوتلې نشته',
+    tryAdjustingFilters: 'فیلټرونه سم کړئ',
+    addFirstEntryBelow: 'خپل لومړی ننوتل لاندې زیات کړئ',
+    noEntriesYet: 'تر اوسه ننوتلې نشته',
   },
 };
 

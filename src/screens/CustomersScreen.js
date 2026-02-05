@@ -140,22 +140,28 @@ export default function CustomersScreen({ navigation }) {
           { paddingTop: insets.top + 12, paddingBottom: insets.bottom + BOTTOM_NAV_HEIGHT + 24 },
         ]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
-        {/* Header */}
-        <Animated.View
-          style={[
-            styles.header,
-            {
+        {/* Header - button outside Animated.View so modal open works on Android */}
+        <View style={styles.header}>
+          <Animated.View
+            style={{
               opacity: headerAnim,
               transform: [{ translateY: headerAnim.interpolate({ inputRange: [0, 1], outputRange: [-10, 0] }) }],
-            },
-          ]}
-        >
+              flex: 1,
+            }}
+          >
             <Text style={[styles.title, { color: colors.text }]}>{i18n.t('customers')}</Text>
-          <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.accent }]} onPress={() => setShowAddModal(true)}>
+          </Animated.View>
+          <TouchableOpacity
+            style={[styles.addBtn, { backgroundColor: colors.accent }]}
+            onPress={() => setTimeout(() => setShowAddModal(true), 0)}
+            activeOpacity={0.8}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
             <Ionicons name="add" size={20} color={colors.onAccent} />
           </TouchableOpacity>
-        </Animated.View>
+        </View>
 
         {/* Search */}
         <Animated.View style={{ opacity: headerAnim }}>

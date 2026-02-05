@@ -745,7 +745,7 @@ export const Storage = {
         const customers = await this.getCustomers();
         const customerIndex = customers.findIndex(c => c.id === effCustomerId);
         if (customerIndex !== -1) {
-          const amount = parseFloat(newTransaction.amount) ?? parseFloat(oldTransaction.amount) || 0;
+          const amount = (parseFloat(newTransaction.amount) ?? parseFloat(oldTransaction.amount)) || 0;
           const type = newTransaction.type ?? oldTransaction.type;
           const currencyCode = (newTransaction.currencyCode || oldTransaction.currencyCode || primaryCode).toUpperCase();
           const cust = customers[customerIndex];

@@ -430,7 +430,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       {/* Header */}
       <Animated.View style={[styles.header, { backgroundColor: colors.background, opacity: headerAnim }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} activeOpacity={0.7}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
@@ -440,10 +440,10 @@ export default function CustomerDetailScreen({ navigation, route }) {
           </Text>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerBtn} onPress={handleSharePDF}>
+          <TouchableOpacity style={styles.headerBtn} onPress={handleSharePDF} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} activeOpacity={0.7}>
             <Ionicons name="document-text-outline" size={22} color={colors.text} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.headerBtn} onPress={() => setShowMenuModal(true)}>
+          <TouchableOpacity style={styles.headerBtn} onPress={() => setTimeout(() => setShowMenuModal(true), 0)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
             <Ionicons name="ellipsis-vertical" size={22} color={colors.text} />
           </TouchableOpacity>
         </View>
@@ -470,13 +470,13 @@ export default function CustomerDetailScreen({ navigation, route }) {
       <View style={styles.filtersRow}>
         <TouchableOpacity 
           style={[styles.filterBtn, { borderColor: colors.border }]}
-          onPress={() => setShowFilterModal(true)}
+          onPress={() => setTimeout(() => setShowFilterModal(true), 0)}
         >
           <Ionicons name="options-outline" size={18} color={colors.textSecondary} />
         </TouchableOpacity>
         <TouchableOpacity 
           style={[styles.filterBtn, { borderColor: colors.border, backgroundColor: dateFilter !== 'all' ? colors.accentLight : 'transparent' }]}
-          onPress={() => setShowDateModal(true)}
+          onPress={() => setTimeout(() => setShowDateModal(true), 0)}
         >
           <Ionicons name="calendar-outline" size={16} color={dateFilter !== 'all' ? colors.info : colors.textSecondary} />
           <Text style={[styles.filterText, { color: dateFilter !== 'all' ? colors.info : colors.text }]}>{getDateFilterLabel()}</Text>
@@ -494,7 +494,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
                 </View>
 
       <Animated.View style={{ flex: 1, opacity: contentAnim }}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           {/* Summary Card — per currency */}
           <View style={[styles.summaryCard, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
             {currencyCodes.map((code) => {
@@ -522,7 +522,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
                 </View>
               );
             })}
-            <TouchableOpacity style={styles.viewReportsBtn} onPress={() => setShowReportsModal(true)}>
+            <TouchableOpacity style={styles.viewReportsBtn} onPress={() => setTimeout(() => setShowReportsModal(true), 0)} activeOpacity={0.8}>
               <Text style={[styles.viewReportsText, { color: colors.info }]}>{i18n.t('viewReports')}</Text>
               <Ionicons name="chevron-forward" size={18} color={colors.info} />
             </TouchableOpacity>
@@ -588,10 +588,10 @@ export default function CustomerDetailScreen({ navigation, route }) {
             <View style={styles.empty}>
               <Ionicons name="document-text-outline" size={48} color={colors.textTertiary} />
               <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                {searchQuery || filterType !== 'all' || dateFilter !== 'all' ? 'No matching entries' : 'No entries yet'}
+                {searchQuery || filterType !== 'all' || dateFilter !== 'all' ? i18n.t('noMatchingEntries') : i18n.t('noEntriesYet')}
               </Text>
               <Text style={[styles.emptySubtext, { color: colors.textTertiary }]}>
-                {searchQuery || filterType !== 'all' || dateFilter !== 'all' ? 'Try adjusting your filters' : 'Add your first entry below'}
+                {searchQuery || filterType !== 'all' || dateFilter !== 'all' ? i18n.t('tryAdjustingFilters') : i18n.t('addFirstEntryBelow')}
               </Text>
             </View>
           )}
@@ -605,14 +605,14 @@ export default function CustomerDetailScreen({ navigation, route }) {
         <View style={styles.bottomActions}>
           <TouchableOpacity
             style={[styles.cashInBtn, { backgroundColor: colors.success }]}
-            onPress={() => { setSelectedType('credit'); setFormData({ amount: '', description: '' }); setShowAddModal(true); }}
+            onPress={() => { setSelectedType('credit'); setFormData({ amount: '', description: '' }); setTimeout(() => setShowAddModal(true), 0); }}
           >
             <Ionicons name="add" size={20} color={colors.onSuccess} />
             <Text style={[styles.cashBtnText, { color: colors.onSuccess }]}>CASH IN</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.cashOutBtn, { backgroundColor: colors.error }]}
-            onPress={() => { setSelectedType('debit'); setFormData({ amount: '', description: '' }); setShowAddModal(true); }}
+            onPress={() => { setSelectedType('debit'); setFormData({ amount: '', description: '' }); setTimeout(() => setShowAddModal(true), 0); }}
           >
             <Ionicons name="remove" size={20} color={colors.onError} />
             <Text style={[styles.cashBtnText, { color: colors.onError }]}>CASH OUT</Text>
@@ -815,7 +815,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
       <Modal visible={showMenuModal} animationType="fade" transparent onRequestClose={() => setShowMenuModal(false)}>
         <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setShowMenuModal(false)}>
           <View style={[styles.menuContent, { backgroundColor: colors.background, shadowColor: colors.shadow }]}>
-            <TouchableOpacity style={styles.menuItem} onPress={() => { setShowMenuModal(false); setShowEditModal(true); }}>
+            <TouchableOpacity style={styles.menuItem} onPress={() => { setShowMenuModal(false); setTimeout(() => setShowEditModal(true), 0); }}>
               <Ionicons name="create-outline" size={22} color={colors.text} />
               <Text style={[styles.menuText, { color: colors.text }]}>Edit Customer</Text>
             </TouchableOpacity>
