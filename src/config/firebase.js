@@ -78,6 +78,11 @@ const getFirebaseRestUrl = (endpoint) => {
   return `https://identitytoolkit.googleapis.com/v1/${endpoint}?key=${firebaseConfig.apiKey}`;
 };
 
+// Secure Token API (for refreshing ID token)
+const getSecureTokenUrl = () => {
+  return `https://securetoken.googleapis.com/v1/token?key=${firebaseConfig.apiKey}`;
+};
+
 // Get Firestore REST URL
 const getFirestoreRestUrl = (path) => {
   return `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/${path}`;
@@ -93,6 +98,7 @@ export {
   initializeFirebase,
   firebaseConfig,
   getFirebaseRestUrl,
+  getSecureTokenUrl,
   getFirestoreRestUrl,
   isWeb
 };

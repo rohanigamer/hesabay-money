@@ -67,22 +67,12 @@ class FirebaseSyncService {
       return null; // Guest users don't sync to Firebase
     }
     
-    // Get user token (needed for REST API on mobile)
+    // Mobile: use REST auth and get a valid token (refreshes if expired)
     if (!isWeb) {
-      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
       try {
-        // Try to get token from firebaseIdToken (saved by REST API)
-        const token = await AsyncStorage.getItem('firebaseIdToken');
-        if (token) {
-          return { userId, token };
-        }
-        
-        // Fallback: try old format
-        const savedUser = await AsyncStorage.getItem('@firebase_auth_user');
-        if (savedUser) {
-          const user = JSON.parse(savedUser);
-          return { userId, token: user.idToken };
-        }
+        const { firebaseAuthREST } = await import('./FirebaseAuthREST');
+        const token = await firebaseAuthREST.getIdToken(true);
+        if (token) return { userId, token };
       } catch (error) {
         console.error('Error getting user token:', error);
       }

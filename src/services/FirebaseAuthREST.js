@@ -2,9 +2,10 @@
 // This bypasses the Firebase SDK issues on React Native
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { firebaseConfig, getFirebaseRestUrl } from '../config/firebase';
+import { firebaseConfig, getFirebaseRestUrl, getSecureTokenUrl } from '../config/firebase';
 
 const AUTH_STORAGE_KEY = '@firebase_auth_user';
+const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000; // Refresh 5 min before expiry
 
 class FirebaseAuthREST {
   constructor() {
@@ -52,6 +53,7 @@ class FirebaseAuthREST {
         throw new Error(data.error?.message || 'Sign in failed');
       }
 
+      const expiresIn = data.expiresIn || 3600;
       const user = {
         uid: data.localId,
         email: data.email,
@@ -59,7 +61,8 @@ class FirebaseAuthREST {
         displayName: data.displayName || null,
         idToken: data.idToken,
         refreshToken: data.refreshToken,
-        expiresIn: data.expiresIn,
+        expiresIn,
+        tokenExpiry: Date.now() + expiresIn * 1000,
       };
 
       this.currentUser = user;
@@ -93,6 +96,7 @@ class FirebaseAuthREST {
         throw new Error(data.error?.message || 'Sign up failed');
       }
 
+      const expiresIn = data.expiresIn || 3600;
       const user = {
         uid: data.localId,
         email: data.email,
@@ -100,7 +104,8 @@ class FirebaseAuthREST {
         displayName: null,
         idToken: data.idToken,
         refreshToken: data.refreshToken,
-        expiresIn: data.expiresIn,
+        expiresIn,
+        tokenExpiry: Date.now() + expiresIn * 1000,
       };
 
       return { user };
@@ -194,6 +199,65 @@ class FirebaseAuthREST {
     } catch (error) {
       throw this.formatError(error);
     }
+  }
+
+  /**
+   * Refresh ID token using refresh token. Call when token is expired or invalid.
+   */
+  async refreshIdToken() {
+    let user = this.currentUser;
+    if (!user) {
+      try {
+        const saved = await AsyncStorage.getItem(AUTH_STORAGE_KEY);
+        if (saved) user = JSON.parse(saved);
+      } catch (e) {}
+    }
+    if (!user || !user.refreshToken) return null;
+    try {
+      const url = getSecureTokenUrl();
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(user.refreshToken)}`,
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error?.message || 'Token refresh failed');
+      const expiresIn = data.expires_in || 3600;
+      const updated = {
+        ...user,
+        idToken: data.id_token,
+        refreshToken: data.refresh_token || user.refreshToken,
+        expiresIn,
+        tokenExpiry: Date.now() + expiresIn * 1000,
+      };
+      this.currentUser = updated;
+      await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updated));
+      // Do not notify listeners - same user, only token refreshed; avoids resetting app navigation
+      return updated.idToken;
+    } catch (error) {
+      console.error('Token refresh error:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get a valid ID token for API calls. Refreshes if expired or forceRefresh.
+   */
+  async getIdToken(forceRefresh = false) {
+    let user = this.currentUser;
+    if (!user) {
+      try {
+        const saved = await AsyncStorage.getItem(AUTH_STORAGE_KEY);
+        if (saved) user = JSON.parse(saved);
+      } catch (e) {}
+    }
+    if (!user || !user.idToken) return null;
+    const now = Date.now();
+    const expiry = user.tokenExpiry || 0;
+    const isExpired = expiry - TOKEN_EXPIRY_BUFFER_MS <= now;
+    if (!forceRefresh && !isExpired) return user.idToken;
+    const fresh = await this.refreshIdToken();
+    return fresh || user.idToken;
   }
 
   async signOut() {
