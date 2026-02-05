@@ -13,6 +13,26 @@ class FirebaseSyncService {
     this.syncInProgress = false;
     this.initialized = false;
     this.currentUserToken = null;
+    this._statusListener = null;
+  }
+
+  _notifyStatus() {
+    if (this._statusListener) {
+      try {
+        this._statusListener({ isOnline: this.isOnline, syncInProgress: this.syncInProgress });
+      } catch (e) {
+        console.warn('Sync status listener error:', e);
+      }
+    }
+  }
+
+  setStatusListener(callback) {
+    this._statusListener = callback;
+    this._notifyStatus();
+  }
+
+  clearStatusListener() {
+    this._statusListener = null;
   }
 
   initialize() {
@@ -23,6 +43,7 @@ class FirebaseSyncService {
     NetInfo.addEventListener(state => {
       const wasOffline = !this.isOnline;
       this.isOnline = state.isConnected && state.isInternetReachable;
+      this._notifyStatus();
       
       // If we just came online and have pending sync, do it
       if (wasOffline && this.isOnline && this.syncPending) {
@@ -80,6 +101,7 @@ class FirebaseSyncService {
     if (!this.isOnline) {
       console.log('📴 Offline - sync pending');
       this.syncPending = true;
+      this._notifyStatus();
       return { success: false, error: 'Offline', pending: true };
     }
     
@@ -96,6 +118,7 @@ class FirebaseSyncService {
 
     this.syncInProgress = true;
     this.syncPending = false;
+    this._notifyStatus();
 
     try {
       // Get local data
@@ -128,6 +151,7 @@ class FirebaseSyncService {
       
       console.log('✅ Data synced to Firebase');
       this.syncInProgress = false;
+      this._notifyStatus();
       
       // If another sync was requested during this one, do it
       if (this.syncPending) {
@@ -139,6 +163,7 @@ class FirebaseSyncService {
       console.error('❌ Sync error:', error);
       this.syncInProgress = false;
       this.syncPending = true; // Retry later
+      this._notifyStatus();
       return { success: false, error: error.message };
     }
   }
@@ -484,6 +509,7 @@ class FirebaseSyncService {
   async checkConnection() {
     const state = await NetInfo.fetch();
     this.isOnline = state.isConnected && state.isInternetReachable;
+    this._notifyStatus();
     return this.isOnline;
   }
 }

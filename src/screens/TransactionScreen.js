@@ -4,6 +4,8 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  SectionList,
+  RefreshControl,
   TouchableOpacity,
   Pressable,
   Modal,
@@ -24,6 +26,8 @@ import { useCurrency } from '../context/CurrencyContext';
 import { Storage } from '../utils/Storage';
 import BottomNavigation from '../components/BottomNavigation';
 import GlassCard from '../components/GlassCard';
+import OfflineBanner from '../components/OfflineBanner';
+import { SkeletonTransaction } from '../components/Skeleton';
 import CalculatorInput from '../components/CalculatorInput';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -59,6 +63,9 @@ export default function TransactionScreen({ navigation }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showExportModal, setShowExportModal] = useState(false);
   const [customerBtnHighlight, setCustomerBtnHighlight] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const hasLoadedOnce = useRef(false);
 
   const headerAnim = useRef(new Animated.Value(0)).current;
   const cardsAnim = useRef(new Animated.Value(0)).current;
@@ -99,6 +106,7 @@ export default function TransactionScreen({ navigation }) {
   };
 
   const loadData = useCallback(async () => {
+    setLoading(true);
     try {
       const [loadedTransactions, loadedCustomers, loadedStats] = await Promise.all([
         Storage.getTransactions(),
@@ -109,9 +117,12 @@ export default function TransactionScreen({ navigation }) {
       setCustomers(Array.isArray(loadedCustomers) ? loadedCustomers : []);
       setStats(loadedStats && typeof loadedStats === 'object' ? loadedStats : { totalIncome: 0, totalExpenses: 0, totalBalance: 0 });
       refreshBalances();
+      hasLoadedOnce.current = true;
     } catch (err) {
       console.error('Transaction loadData:', err);
       toast({ type: 'error', title: 'Error', message: 'Could not load data. Pull to refresh or try again.' });
+    } finally {
+      setLoading(false);
     }
   }, [refreshBalances, toast]);
 
@@ -133,6 +144,7 @@ export default function TransactionScreen({ navigation }) {
       if (result) {
         setFormData({ amount: '', description: '', customerId: null, customerName: '', currencyCode: null });
         setShowAddModal(false);
+        toast({ type: 'success', title: 'Added', message: 'Transaction added.' });
         await loadData();
       } else {
         toast({ type: 'error', title: 'Error', message: 'Could not add transaction. Try again.' });
@@ -160,6 +172,7 @@ export default function TransactionScreen({ navigation }) {
       if (result) {
         setShowEditModal(false);
         setEditData(null);
+        toast({ type: 'success', title: 'Updated', message: 'Transaction updated.' });
         await loadData();
       } else {
         toast({ type: 'error', title: 'Error', message: 'Could not update transaction.' });
@@ -176,6 +189,7 @@ export default function TransactionScreen({ navigation }) {
       await Storage.deleteTransaction(deleteData.id);
       setShowDeleteModal(false);
       setDeleteData(null);
+      toast({ type: 'success', title: 'Deleted', message: 'Transaction removed.' });
       await loadData();
     } catch (err) {
       console.error('handleDeleteTransaction:', err);
@@ -263,8 +277,8 @@ export default function TransactionScreen({ navigation }) {
     );
   });
 
-  // Group transactions by date
-  const groupedTransactions = () => {
+  // Group transactions by date for SectionList
+  const transactionSections = React.useMemo(() => {
     const groups = {};
     filteredTransactions.forEach(t => {
       const dateKey = new Date(t.createdAt).toDateString();
@@ -273,8 +287,18 @@ export default function TransactionScreen({ navigation }) {
       }
       groups[dateKey].items.push(t);
     });
-    return Object.values(groups);
-  };
+    return Object.values(groups).map(g => ({
+      title: formatDateHeader(g.date),
+      date: g.date,
+      data: g.items,
+    }));
+  }, [filteredTransactions]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  }, [loadData]);
 
   // Export to PDF (text format)
   const exportToPDF = async () => {
@@ -350,17 +374,8 @@ export default function TransactionScreen({ navigation }) {
     return report;
   };
 
-  return (
-    <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
-      <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingTop: insets.top + 12, paddingBottom: insets.bottom + BOTTOM_NAV_HEIGHT + 24 },
-        ]}
-        showsVerticalScrollIndicator={false}
-        bounces={true}
-        keyboardShouldPersistTaps="handled"
-      >
+  const listHeader = (
+      <>
         {/* Header - button outside Animated.View so modal open works on Android */}
         <View style={styles.header}>
           <Animated.View style={{ opacity: headerAnim, transform: [{ translateY: headerAnim.interpolate({ inputRange: [0, 1], outputRange: [-10, 0] }) }], flex: 1 }}>
@@ -435,70 +450,95 @@ export default function TransactionScreen({ navigation }) {
           </GlassCard>
         </Animated.View>
 
-        {/* Transactions List */}
-        <Animated.View
-          style={{
-            opacity: listAnim,
-            transform: [{ translateY: listAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
-          }}
-        >
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>{i18n.t('recent')}</Text>
-            <Text style={[styles.entriesCount, { color: colors.textSecondary }]}>{transactions.length} entries</Text>
-          </View>
+        {/* Section title */}
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{i18n.t('recent')}</Text>
+          <Text style={[styles.entriesCount, { color: colors.textSecondary }]}>{transactions.length} entries</Text>
+        </View>
+      </>
+    );
 
-          {transactions.length === 0 ? (
+    const renderTransactionItem = ({ item, index, section }) => {
+      const isIncome = item.type === 'income' || item.type === 'credit';
+      const isFirst = index === 0;
+      const isLast = index === section.data.length - 1;
+      return (
+        <View
+          style={[
+            { backgroundColor: colors.surface, overflow: 'hidden' },
+            isFirst && { borderTopLeftRadius: 12, borderTopRightRadius: 12 },
+            isLast && { borderBottomLeftRadius: 12, borderBottomRightRadius: 12, marginBottom: 8 },
+          ]}
+        >
+          <TouchableOpacity
+            style={[styles.transactionItem, !isLast && { borderBottomWidth: 0.5, borderBottomColor: colors.border }]}
+            onPress={() => openEditModal(item)}
+            activeOpacity={0.6}
+          >
+            <View style={[styles.transactionIcon, { backgroundColor: isIncome ? colors.success + '15' : colors.error + '15' }]}>
+              <Ionicons name={isIncome ? 'arrow-down' : 'arrow-up'} size={18} color={isIncome ? colors.success : colors.error} />
+            </View>
+            <View style={styles.transactionInfo}>
+              <Text style={[styles.transactionDesc, { color: colors.text }]} numberOfLines={1}>{item.description}</Text>
+              <Text style={[styles.transactionMeta, { color: colors.textTertiary }]}>
+                {item.customerName ? `${item.customerName} • ` : ''}{formatDateTime(item.createdAt)}
+              </Text>
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={[styles.transactionAmount, { color: isIncome ? colors.success : colors.error }]}>
+                {isIncome ? '+' : '-'}{format(item.amount, item.currencyCode)}
+              </Text>
+              {walletBalances.length > 1 && item.currencyCode && (
+                <Text style={[styles.transactionCurrencyBadge, { color: colors.textTertiary }]}>{item.currencyCode}</Text>
+              )}
+            </View>
+          </TouchableOpacity>
+        </View>
+      );
+    };
+
+    return (
+    <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
+      <OfflineBanner />
+      {loading && !hasLoadedOnce.current ? (
+        <View style={{ flex: 1 }}>
+          <SkeletonTransaction />
+        </View>
+      ) : (
+      <SectionList
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: insets.top + 12, paddingBottom: insets.bottom + BOTTOM_NAV_HEIGHT + 24 },
+        ]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        ListHeaderComponent={listHeader}
+        sections={transactionSections}
+        keyExtractor={(item) => item.id}
+        renderSectionHeader={({ section }) => (
+          <Text style={[styles.dateHeader, { color: colors.textSecondary }]}>{section.title}</Text>
+        )}
+        renderItem={renderTransactionItem}
+        stickySectionHeadersEnabled={false}
+        ListEmptyComponent={
+          <Animated.View style={{ opacity: listAnim }}>
             <View style={styles.empty}>
               <Ionicons name="receipt-outline" size={48} color={colors.textTertiary} />
               <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{i18n.t('noTransactionsYet')}</Text>
               <Text style={[styles.emptySubtext, { color: colors.textTertiary }]}>{i18n.t('addFirstTransaction')}</Text>
             </View>
-          ) : (
-            <>
-              {groupedTransactions().map((group, groupIndex) => (
-                <View key={groupIndex}>
-                  <Text style={[styles.dateHeader, { color: colors.textSecondary }]}>
-                    {formatDateHeader(group.date)}
-                  </Text>
-                  <GlassCard style={styles.listCard}>
-                    {group.items.map((item, index) => {
-                      const isIncome = item.type === 'income' || item.type === 'credit';
-                      return (
-                        <TouchableOpacity
-                          key={item.id}
-                          style={[styles.transactionItem, index < group.items.length - 1 && { borderBottomWidth: 0.5, borderBottomColor: colors.border }]}
-                          onPress={() => openEditModal(item)}
-                          activeOpacity={0.6}
-                        >
-                          <View style={[styles.transactionIcon, { backgroundColor: isIncome ? colors.success + '15' : colors.error + '15' }]}>
-                            <Ionicons name={isIncome ? 'arrow-down' : 'arrow-up'} size={18} color={isIncome ? colors.success : colors.error} />
-                          </View>
-                          <View style={styles.transactionInfo}>
-                            <Text style={[styles.transactionDesc, { color: colors.text }]} numberOfLines={1}>{item.description}</Text>
-                            <Text style={[styles.transactionMeta, { color: colors.textTertiary }]}>
-                              {item.customerName ? `${item.customerName} • ` : ''}{formatDateTime(item.createdAt)}
-                            </Text>
-                          </View>
-                          <View style={{ alignItems: 'flex-end' }}>
-                            <Text style={[styles.transactionAmount, { color: isIncome ? colors.success : colors.error }]}>
-                              {isIncome ? '+' : '-'}{format(item.amount, item.currencyCode)}
-                            </Text>
-                            {walletBalances.length > 1 && item.currencyCode && (
-                              <Text style={[styles.transactionCurrencyBadge, { color: colors.textTertiary }]}>{item.currencyCode}</Text>
-                            )}
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </GlassCard>
-                </View>
-              ))}
-            </>
-          )}
-
-          <View style={{ height: 180 }} />
-        </Animated.View>
-      </ScrollView>
+          </Animated.View>
+        }
+        ListFooterComponent={<View style={{ height: 180 }} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.accent}
+          />
+        }
+      />
+      )}
 
       {/* Bottom Action Buttons - responsive for small screens */}
       <View style={[styles.bottomActionsWrapper, { backgroundColor: colors.background, borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, 8) + 8 }]}>

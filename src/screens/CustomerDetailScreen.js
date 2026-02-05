@@ -185,6 +185,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
       if (result) {
         setFormData({ amount: '', description: '', currencyCode: null });
         setShowAddModal(false);
+        toast({ type: 'success', title: 'Added', message: 'Entry added.' });
         await loadData();
       } else {
         toast({ type: 'error', title: 'Error', message: 'Could not add entry. Try again.' });
@@ -211,6 +212,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
       });
       if (updated) {
         setShowEditModal(false);
+        toast({ type: 'success', title: 'Updated', message: 'Customer updated.' });
         await loadData();
       } else {
         toast({ type: 'error', title: 'Error', message: 'Could not update customer.' });
@@ -241,6 +243,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
       if (ok) {
         setShowDeleteConfirmModal(false);
         setDeleteConfirmText('');
+        toast({ type: 'success', title: 'Deleted', message: 'Customer removed.' });
         navigation.goBack();
       } else {
         toast({ type: 'error', title: 'Error', message: 'Could not delete customer.' });
@@ -267,6 +270,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
       await Storage.deleteTransaction(entryToDelete.id);
       setShowDeleteEntryModal(false);
       setEntryToDelete(null);
+      toast({ type: 'success', title: 'Deleted', message: 'Entry removed.' });
       await loadData();
     } catch (err) {
       console.error('confirmDeleteEntry:', err);
@@ -307,6 +311,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
       });
       if (result) {
         setShowEditEntryModal(false);
+        toast({ type: 'success', title: 'Updated', message: 'Entry updated.' });
         await loadData();
       } else {
         toast({ type: 'error', title: 'Error', message: 'Entry was removed but could not save changes. Try adding again.' });

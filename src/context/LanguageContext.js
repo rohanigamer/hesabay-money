@@ -26,8 +26,12 @@ export const LanguageProvider = ({ children }) => {
   };
 
   const changeLanguage = async (lang) => {
-    await setI18nLanguage(lang);
-    setLanguage(lang);
+    try {
+      await setI18nLanguage(lang);
+      setLanguage(lang);
+    } catch (e) {
+      console.error('changeLanguage:', e);
+    }
   };
 
   return (

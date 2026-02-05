@@ -42,7 +42,7 @@ export default function AboutScreen({ navigation }) {
               <Text style={[styles.logoText, { color: colors.background }]}>H</Text>
             </View>
             <Text style={[styles.appName, { color: colors.text }]}>Hesabay Money</Text>
-            <Text style={[styles.version, { color: colors.textSecondary }]}>Version 2.0.0</Text>
+            <Text style={[styles.version, { color: colors.textSecondary }]}>Version 3.0.0</Text>
           </View>
 
           <View style={styles.infoContainer}>

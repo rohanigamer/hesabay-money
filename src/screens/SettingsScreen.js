@@ -27,6 +27,7 @@ import { useAppLock } from '../context/AppLockContext';
 import { CURRENCIES, DEFAULT_CURRENCY } from '../utils/Currency';
 import BottomNavigation from '../components/BottomNavigation';
 import GlassCard from '../components/GlassCard';
+import OfflineBanner from '../components/OfflineBanner';
 import { firebaseSync } from '../services/FirebaseSync';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BOTTOM_NAV_HEIGHT } from '../constants/layout';
@@ -541,6 +542,7 @@ export default function SettingsScreen({ navigation }) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
+      <OfflineBanner />
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
@@ -782,10 +784,11 @@ export default function SettingsScreen({ navigation }) {
           <GlassCard style={styles.section}>
             <Item
               icon="contrast"
-              title="Theme"
+              title={i18n.t('theme')}
               subtitle={themeOptions.find(t => t.code === theme)?.name}
               onPress={() => setTimeout(() => setShowThemeModal(true), 0)}
               right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
+              last
             />
           </GlassCard>
 
@@ -956,13 +959,16 @@ export default function SettingsScreen({ navigation }) {
           </GlassCard>
 
           {/* About */}
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>About</Text>
-          <GlassCard style={styles.aboutCard}>
-            <View style={[styles.logo, { backgroundColor: colors.accent }]}>
-              <Text style={[styles.logoText, { color: colors.onAccent }]}>H</Text>
-            </View>
-            <Text style={[styles.appName, { color: colors.text }]}>Hesabay Money</Text>
-            <Text style={[styles.version, { color: colors.textSecondary }]}>Version 2.0.0</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{i18n.t('about')}</Text>
+          <GlassCard style={styles.section}>
+            <Item
+              icon="information-circle"
+              title={i18n.t('about')}
+              subtitle="App info & version"
+              onPress={() => navigation.navigate('About')}
+              last
+              right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
+            />
           </GlassCard>
 
           {/* Footer */}
@@ -984,7 +990,7 @@ export default function SettingsScreen({ navigation }) {
           <TouchableOpacity style={styles.modalBackdrop} onPress={() => setShowThemeModal(false)} activeOpacity={1} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Theme</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('selectTheme')}</Text>
             {themeOptions.map((opt) => (
               <TouchableOpacity
                 key={opt.code}
@@ -992,7 +998,7 @@ export default function SettingsScreen({ navigation }) {
                 onPress={() => { 
                   changeTheme(opt.code); 
                   setShowThemeModal(false); 
-                  toast({ type: 'success', title: 'Theme updated', message: `Theme set to ${opt.name}.` });
+                  toast({ type: 'success', title: i18n.t('success'), message: `${i18n.t('theme')}: ${opt.name}` });
                 }}
               >
                 <Ionicons name={opt.icon} size={20} color={theme === opt.code ? colors.accent : colors.textSecondary} />

@@ -19,6 +19,8 @@ import { useCurrency } from '../context/CurrencyContext';
 import { Storage } from '../utils/Storage';
 import BottomNavigation from '../components/BottomNavigation';
 import GlassCard from '../components/GlassCard';
+import OfflineBanner from '../components/OfflineBanner';
+import { SkeletonCustomers } from '../components/Skeleton';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BOTTOM_NAV_HEIGHT } from '../constants/layout';
@@ -41,6 +43,8 @@ export default function CustomersScreen({ navigation }) {
   const [formData, setFormData] = useState({ name: '', number: '' });
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [addSubmitting, setAddSubmitting] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const hasLoadedOnce = useRef(false);
 
   const headerAnim = useRef(new Animated.Value(0)).current;
   const listAnim = useRef(new Animated.Value(0)).current;
@@ -62,9 +66,15 @@ export default function CustomersScreen({ navigation }) {
   };
 
   const loadCustomers = async () => {
-    const data = await Storage.getCustomers();
-    setCustomers(data);
-    applyFilter(data, searchQuery);
+    setLoading(true);
+    try {
+      const data = await Storage.getCustomers();
+      setCustomers(data || []);
+      applyFilter(data || [], searchQuery);
+      hasLoadedOnce.current = true;
+    } finally {
+      setLoading(false);
+    }
   };
 
   const applyFilter = (data, query) => {
@@ -168,6 +178,12 @@ export default function CustomersScreen({ navigation }) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
+      <OfflineBanner />
+      {loading && !hasLoadedOnce.current ? (
+        <View style={{ flex: 1, paddingTop: insets.top + 12 }}>
+          <SkeletonCustomers />
+        </View>
+      ) : (
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
@@ -260,6 +276,7 @@ export default function CustomersScreen({ navigation }) {
           )}
         </Animated.View>
       </ScrollView>
+      )}
 
       {/* Add Modal */}
       <Modal visible={showAddModal} animationType="slide" transparent onRequestClose={() => setShowAddModal(false)}>

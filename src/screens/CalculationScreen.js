@@ -6,6 +6,8 @@ import { useCurrency } from '../context/CurrencyContext';
 import { Storage } from '../utils/Storage';
 import BottomNavigation from '../components/BottomNavigation';
 import GlassCard from '../components/GlassCard';
+import OfflineBanner from '../components/OfflineBanner';
+import { SkeletonCalculation } from '../components/Skeleton';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BOTTOM_NAV_HEIGHT } from '../constants/layout';
@@ -28,6 +30,8 @@ export default function CalculationScreen({ navigation }) {
   const [statsPerCurrency, setStatsPerCurrency] = useState({});
   const [customers, setCustomers] = useState([]);
   const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const hasLoadedOnce = useRef(false);
 
   const headerAnim = useRef(new Animated.Value(0)).current;
   const cardsAnim = useRef(new Animated.Value(0)).current;
@@ -58,6 +62,7 @@ export default function CalculationScreen({ navigation }) {
   };
 
   const loadData = async () => {
+    setLoading(true);
     try {
       const [loadedStats, loadedCustomers, loadedTransactions, perCurrency] = await Promise.all([
         Storage.getStats(),
@@ -73,8 +78,11 @@ export default function CalculationScreen({ navigation }) {
       setTransactions(Array.isArray(loadedTransactions) ? loadedTransactions : []);
       setStatsPerCurrency(perCurrency && typeof perCurrency === 'object' ? perCurrency : {});
       refreshBalances();
+      hasLoadedOnce.current = true;
     } catch (err) {
       console.error('CalculationScreen loadData:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -125,6 +133,12 @@ export default function CalculationScreen({ navigation }) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
+      <OfflineBanner />
+      {loading && !hasLoadedOnce.current ? (
+        <View style={{ flex: 1, paddingTop: Math.max(insets.top, 12) + 12 }}>
+          <SkeletonCalculation />
+        </View>
+      ) : (
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingTop: Math.max(insets.top, 12) + 12, paddingBottom: insets.bottom + BOTTOM_NAV_HEIGHT + 24 }]} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <Animated.View
@@ -388,6 +402,7 @@ export default function CalculationScreen({ navigation }) {
         )}
 
       </ScrollView>
+      )}
 
       <BottomNavigation navigation={navigation} />
     </View>

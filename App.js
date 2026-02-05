@@ -10,6 +10,7 @@ import { CurrencyProvider } from './src/context/CurrencyContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { AppLockProvider, useAppLock } from './src/context/AppLockContext';
 import { FeedbackOverlay, FeedbackProvider } from './src/context/FeedbackContext';
+import { SyncStatusProvider } from './src/context/SyncStatusContext';
 import ErrorBoundary from './src/components/ErrorBoundary';
 
 // Screens
@@ -20,6 +21,7 @@ import CustomersScreen from './src/screens/CustomersScreen';
 import CustomerDetailScreen from './src/screens/CustomerDetailScreen';
 import CalculationScreen from './src/screens/CalculationScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import AboutScreen from './src/screens/AboutScreen';
 import PasscodeScreen from './src/screens/PasscodeScreen';
 import BiometricScreen from './src/screens/BiometricScreen';
 
@@ -151,6 +153,7 @@ function AppNavigator() {
         />
         <Stack.Screen name="Calculation" component={CalculationScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
+        <Stack.Screen name="About" component={AboutScreen} />
         <Stack.Screen
           name="PasscodeSetup"
           component={PasscodeScreen}
@@ -170,8 +173,10 @@ function AppContent() {
     <AppLockProvider>
       <AuthProvider>
         <FeedbackProvider>
-          <AppNavigator />
-          <FeedbackOverlay />
+          <SyncStatusProvider>
+            <AppNavigator />
+            <FeedbackOverlay />
+          </SyncStatusProvider>
         </FeedbackProvider>
       </AuthProvider>
     </AppLockProvider>
