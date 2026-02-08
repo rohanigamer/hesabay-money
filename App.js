@@ -1,5 +1,5 @@
-import React, { useContext, useEffect, useRef } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet, Easing } from 'react-native';
+import React, { useContext, useEffect, useRef, useState } from 'react';
+import { View, Text, ActivityIndicator, StyleSheet, Easing, Modal, Animated } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavigationContainer, CommonActions } from '@react-navigation/native';
 import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
@@ -12,6 +12,7 @@ import { AppLockProvider, useAppLock } from './src/context/AppLockContext';
 import { FeedbackOverlay, FeedbackProvider } from './src/context/FeedbackContext';
 import { SyncStatusProvider } from './src/context/SyncStatusContext';
 import ErrorBoundary from './src/components/ErrorBoundary';
+import i18n from './src/utils/i18n';
 
 // Screens
 import LoginScreen from './src/screens/LoginScreen';
@@ -24,10 +25,11 @@ import SettingsScreen from './src/screens/SettingsScreen';
 import AboutScreen from './src/screens/AboutScreen';
 import PasscodeScreen from './src/screens/PasscodeScreen';
 import BiometricScreen from './src/screens/BiometricScreen';
+import OnboardingScreen, { isOnboardingComplete } from './src/screens/OnboardingScreen';
 
 const Stack = createStackNavigator();
 
-// Smooth cross-fade when switching between main tabs (no blink)
+// Smooth cross-fade when switching between main tabs
 const easeOutCubic = Easing.bezier(0.33, 1, 0.68, 1);
 const smoothFadeInterpolator = ({ current }) => ({
   cardStyle: {
@@ -50,28 +52,79 @@ const smoothFadeTransition = {
   },
 };
 
+/**
+ * Lock screen overlay — renders as a Modal so it sits ABOVE all other Modals
+ * (exchange rates, add wallet, etc.). This is the key fix: regular Views cannot
+ * cover React Native Modals, only another Modal can.
+ */
+function LockScreenModal() {
+  const { isLocked, authMethod, unlock } = useAppLock();
+  const { user } = useAuth();
+  const { colors } = useContext(ThemeContext);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  const shouldShow = isLocked && !!user && authMethod !== 'none';
+
+  useEffect(() => {
+    if (shouldShow) {
+      fadeAnim.setValue(0);
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [shouldShow]);
+
+  if (!shouldShow) return null;
+
+  return (
+    <Modal
+      visible={true}
+      animationType="none"
+      transparent={false}
+      statusBarTranslucent
+      onRequestClose={() => {}}
+    >
+      <Animated.View style={[{ flex: 1, backgroundColor: colors.background }, { opacity: fadeAnim }]}>
+        {authMethod === 'biometric' ? (
+          <BiometricScreen onSuccess={unlock} />
+        ) : authMethod === 'passcode' ? (
+          <PasscodeScreen onSuccess={unlock} />
+        ) : null}
+      </Animated.View>
+    </Modal>
+  );
+}
+
 function AppNavigator() {
   const { colors, isDark } = useContext(ThemeContext);
   const { loading, user } = useAuth();
-  const { isLocked, authMethod, unlock } = useAppLock();
   const insets = useSafeAreaInsets();
   const navigationRef = useRef(null);
-  const isFirstRender = useRef(true);
+  const prevUserUid = useRef(undefined);
 
-  // Navigate when user state changes (after initial load)
+  // Navigate ONLY when user actually changes (login → logout or vice versa)
   useEffect(() => {
-    if (loading) return; // Don't navigate while loading
-    
-    // Skip first render - let initialRouteName handle it
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
+    if (loading) return;
+
+    const currentUid = user?.uid || null;
+    const previousUid = prevUserUid.current;
+
+    // First time: just record the uid, let initialRouteName handle it
+    if (previousUid === undefined) {
+      prevUserUid.current = currentUid;
       return;
     }
 
-    // Navigate based on user state
+    // Same user — don't reset navigation
+    if (currentUid === previousUid) return;
+
+    // Actual user change — update ref and reset navigation
+    prevUserUid.current = currentUid;
+
     if (navigationRef.current) {
       if (user) {
-        console.log('User logged in, navigating to Transaction');
         navigationRef.current.dispatch(
           CommonActions.reset({
             index: 0,
@@ -79,7 +132,6 @@ function AppNavigator() {
           })
         );
       } else {
-        console.log('User logged out, navigating to Login');
         navigationRef.current.dispatch(
           CommonActions.reset({
             index: 0,
@@ -97,20 +149,11 @@ function AppNavigator() {
         <View style={[styles.logoBox, { backgroundColor: colors.accent }]}>
           <Text style={[styles.logoText, { color: colors.onAccent }]}>H</Text>
         </View>
-        <Text style={[styles.appTitle, { color: colors.text }]}>Hesabay Money</Text>
+        <Text style={[styles.appTitle, { color: colors.text }]}>{i18n.t('appName')}</Text>
         <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 24 }} />
-        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading...</Text>
+        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>{i18n.t('loading')}</Text>
       </View>
     );
-  }
-
-  // Show authentication screen if app is locked
-  if (isLocked && user) {
-    if (authMethod === 'biometric') {
-      return <BiometricScreen onSuccess={unlock} />;
-    } else if (authMethod === 'passcode') {
-      return <PasscodeScreen onSuccess={unlock} />;
-    }
   }
 
   return (
@@ -130,7 +173,7 @@ function AppNavigator() {
     >
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <Stack.Navigator
-        initialRouteName={user ? "Transaction" : "Login"}
+        initialRouteName={user ? 'Transaction' : 'Login'}
         screenOptions={{
           headerShown: false,
           cardStyleInterpolator: smoothFadeInterpolator,
@@ -169,6 +212,27 @@ function AppNavigator() {
 }
 
 function AppContent() {
+  const [showOnboarding, setShowOnboarding] = useState(null);
+
+  useEffect(() => {
+    checkOnboarding();
+  }, []);
+
+  const checkOnboarding = async () => {
+    const done = await isOnboardingComplete();
+    setShowOnboarding(!done);
+  };
+
+  if (showOnboarding === null) {
+    return null;
+  }
+
+  if (showOnboarding) {
+    return (
+      <OnboardingScreen onComplete={() => setShowOnboarding(false)} />
+    );
+  }
+
   return (
     <AppLockProvider>
       <AuthProvider>
@@ -176,6 +240,13 @@ function AppContent() {
           <SyncStatusProvider>
             <AppNavigator />
             <FeedbackOverlay />
+            {/* 
+              LockScreenModal renders LAST and uses <Modal> component.
+              This ensures it appears ABOVE all other modals (exchange rates,
+              add wallet, export, etc.) because React Native stacks Modals
+              in render order — last Modal wins.
+            */}
+            <LockScreenModal />
           </SyncStatusProvider>
         </FeedbackProvider>
       </AuthProvider>

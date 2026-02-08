@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  RefreshControl,
   TouchableOpacity,
   Pressable,
   Modal,
@@ -44,6 +45,7 @@ export default function CustomersScreen({ navigation }) {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [addSubmitting, setAddSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const hasLoadedOnce = useRef(false);
 
   const headerAnim = useRef(new Animated.Value(0)).current;
@@ -89,6 +91,12 @@ export default function CustomersScreen({ navigation }) {
   useEffect(() => {
     applyFilter(customers, searchQuery);
   }, [searchQuery]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadCustomers();
+    setRefreshing(false);
+  }, []);
 
   const handleAdd = async () => {
     if (!formData.name.trim()) {
@@ -191,6 +199,7 @@ export default function CustomersScreen({ navigation }) {
         ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} colors={[colors.accent]} />}
       >
         {/* Header - button outside Animated.View so modal open works on Android */}
         <View style={styles.header}>

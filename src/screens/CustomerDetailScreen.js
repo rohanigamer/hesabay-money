@@ -294,31 +294,32 @@ export default function CustomerDetailScreen({ navigation, route }) {
 
   const handleEditEntry = async () => {
     if (!customer?.id) return;
-    if (!editEntryData.amount || parseFloat(editEntryData.amount) <= 0) {
-      toast({ type: 'warning', title: 'Invalid amount', message: 'Enter a valid amount.' });
+    const parsedAmount = parseFloat(editEntryData.amount);
+    if (!editEntryData.amount || isNaN(parsedAmount) || parsedAmount <= 0) {
+      toast({ type: 'warning', title: i18n.t('enterAmount'), message: i18n.t('enterAmountMsg') });
       return;
     }
     setActionLoading(true);
     try {
-      await Storage.deleteTransaction(editEntryData.id);
-      const result = await Storage.addTransaction({
-        amount: parseFloat(editEntryData.amount),
+      // Use updateTransaction instead of delete+add to prevent data loss
+      const success = await Storage.updateTransaction(editEntryData.id, {
+        amount: parsedAmount,
         type: editEntryData.type,
-        description: editEntryData.description || (editEntryData.type === 'credit' ? 'Cash In' : 'Cash Out'),
+        description: editEntryData.description || (editEntryData.type === 'credit' ? i18n.t('cashIn') : i18n.t('cashOut')),
         customerId: customer.id,
         customerName: customer.name,
         currencyCode: editEntryData.currencyCode || primaryCurrency,
       });
-      if (result) {
+      if (success) {
         setShowEditEntryModal(false);
-        toast({ type: 'success', title: 'Updated', message: 'Entry updated.' });
+        toast({ type: 'success', title: i18n.t('success'), message: i18n.t('transactionUpdated') });
         await loadData();
       } else {
-        toast({ type: 'error', title: 'Error', message: 'Entry was removed but could not save changes. Try adding again.' });
+        toast({ type: 'error', title: i18n.t('error'), message: i18n.t('somethingWentWrong') });
       }
     } catch (err) {
       console.error('handleEditEntry:', err);
-      toast({ type: 'error', title: 'Error', message: err?.message || 'Could not update entry.' });
+      toast({ type: 'error', title: i18n.t('error'), message: err?.message || i18n.t('somethingWentWrong') });
     } finally {
       setActionLoading(false);
     }

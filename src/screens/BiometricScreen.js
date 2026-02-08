@@ -6,6 +6,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import { ThemeContext } from '../context/ThemeContext';
 import { useFeedback } from '../context/FeedbackContext';
 import AnimatedBackground from '../components/AnimatedBackground';
+import i18n from '../utils/i18n';
 
 export default function BiometricScreen({ navigation, onSuccess }) {
   const { colors } = useContext(ThemeContext);
@@ -20,21 +21,7 @@ export default function BiometricScreen({ navigation, onSuccess }) {
   const successScale = useRef(new Animated.Value(0)).current;
   const successOpacity = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
-      Animated.spring(scaleAnim, { toValue: 1, tension: 55, friction: 9, useNativeDriver: true }),
-    ]).start();
-
-    const pulseLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.08, duration: 1500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 1500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ])
-    );
-    pulseLoop.start();
-    return () => pulseLoop.stop();
-  }, []);
+  const authenticateRef = useRef(null);
 
   const runSuccessAnimation = (callback) => {
     Animated.parallel([
@@ -60,8 +47,8 @@ export default function BiometricScreen({ navigation, onSuccess }) {
 
     try {
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Unlock Hesabay Money',
-        cancelLabel: 'Cancel',
+        promptMessage: i18n.t('appName'),
+        cancelLabel: i18n.t('cancel'),
         disableDeviceFallback: false,
       });
 
@@ -75,6 +62,35 @@ export default function BiometricScreen({ navigation, onSuccess }) {
       setIsAuthenticating(false);
     }
   };
+
+  // Store authenticate in ref so the useEffect can call it safely
+  authenticateRef.current = authenticate;
+
+  // Entry animation + auto-prompt
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.spring(scaleAnim, { toValue: 1, tension: 55, friction: 9, useNativeDriver: true }),
+    ]).start();
+
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.08, duration: 1500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 1500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    );
+    pulseLoop.start();
+
+    // Auto-prompt biometric after a brief delay for the UI to settle
+    const autoPromptTimer = setTimeout(() => {
+      authenticateRef.current?.();
+    }, 600);
+
+    return () => {
+      pulseLoop.stop();
+      clearTimeout(autoPromptTimer);
+    };
+  }, []);
 
   const radius = colors.radius?.xl ?? 24;
 
@@ -96,9 +112,9 @@ export default function BiometricScreen({ navigation, onSuccess }) {
             </View>
           </Animated.View>
 
-          <Text style={[styles.title, { color: colors.text }]}>Hesabay Money</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{i18n.t('appName')}</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            Use your fingerprint or face to unlock
+            {i18n.t('biometricTitle')}
           </Text>
 
           {/* Biometric button with ring */}
@@ -146,10 +162,10 @@ export default function BiometricScreen({ navigation, onSuccess }) {
             </Animated.View>
           </Animated.View>
 
-          <Text style={[styles.hint, { color: colors.textTertiary }]}>Tap to authenticate</Text>
+          <Text style={[styles.hint, { color: colors.textTertiary }]}>{i18n.t('tapToAuthenticate')}</Text>
           <View style={[styles.badge, { backgroundColor: colors.accentLight }]}>
             <Ionicons name="shield-checkmark" size={16} color={colors.accent} />
-            <Text style={[styles.badgeText, { color: colors.accent }]}>Secure & private</Text>
+            <Text style={[styles.badgeText, { color: colors.accent }]}>{i18n.t('secureAndPrivate')}</Text>
           </View>
         </View>
       </Animated.View>

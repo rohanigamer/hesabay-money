@@ -7,11 +7,11 @@ import { ThemeContext } from '../context/ThemeContext';
 import i18n from '../utils/i18n';
 import { BOTTOM_NAV_HEIGHT } from '../constants/layout';
 
-const navigationItems = [
-  { id: 'Transaction', label: i18n.t('transaction'), icon: 'repeat', iconOutline: 'repeat-outline' },
-  { id: 'Customers', label: i18n.t('customers'), icon: 'people', iconOutline: 'people-outline' },
-  { id: 'Calculation', label: i18n.t('calculation'), icon: 'apps', iconOutline: 'apps-outline' },
-  { id: 'Settings', label: i18n.t('settings'), icon: 'cog', iconOutline: 'cog-outline' },
+const navigationItemDefs = [
+  { id: 'Transaction', labelKey: 'transaction', icon: 'repeat', iconOutline: 'repeat-outline' },
+  { id: 'Customers', labelKey: 'customers', icon: 'people', iconOutline: 'people-outline' },
+  { id: 'Calculation', labelKey: 'calculation', icon: 'apps', iconOutline: 'apps-outline' },
+  { id: 'Settings', labelKey: 'settings', icon: 'cog', iconOutline: 'cog-outline' },
 ];
 
 export default function BottomNavigation({ navigation }) {
@@ -20,16 +20,21 @@ export default function BottomNavigation({ navigation }) {
   const route = useRoute();
   const currentRoute = route.name;
 
+  // Compute labels at render time so they update when language changes
+  const navigationItems = navigationItemDefs.map(item => ({
+    ...item,
+    label: i18n.t(item.labelKey),
+  }));
+
   const scaleAnims = useRef(
-    navigationItems.reduce((acc, item) => {
+    navigationItemDefs.reduce((acc, item) => {
       acc[item.id] = new Animated.Value(1);
       return acc;
     }, {})
   ).current;
 
   useEffect(() => {
-    navigationItems.forEach((item) => {
-      const isActive = currentRoute === item.id;
+    navigationItemDefs.forEach((item) => {
       Animated.timing(scaleAnims[item.id], {
         toValue: 1,
         duration: 200,
@@ -40,7 +45,6 @@ export default function BottomNavigation({ navigation }) {
 
   const handleNavigation = (routeName) => {
     if (currentRoute !== routeName) {
-      // Simple press animation
       Animated.sequence([
         Animated.timing(scaleAnims[routeName], {
           toValue: 0.85,
@@ -68,6 +72,9 @@ export default function BottomNavigation({ navigation }) {
             onPress={() => setTimeout(() => handleNavigation(item.id), 0)}
             activeOpacity={0.7}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: isActive }}
+            accessibilityLabel={item.label}
           >
             <Animated.View 
               style={[

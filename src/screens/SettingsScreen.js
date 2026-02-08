@@ -35,7 +35,8 @@ import { useFeedback } from '../context/FeedbackContext';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
-import i18n from '../utils/i18n';
+import i18n, { LANGUAGES } from '../utils/i18n';
+import { useLanguage } from '../context/LanguageContext';
 import { getPrivacyPolicyUrl, getRateAppUrl } from '../config/appLinks';
 
 export default function SettingsScreen({ navigation }) {
@@ -44,9 +45,11 @@ export default function SettingsScreen({ navigation }) {
   const { wallets, walletBalances, addWallet, updateWallet, removeWallet, loadWallets, format, refreshBalances, exchangeRates, loadExchangeRates } = useCurrency();
   const { user, logOut } = useAuth();
   const { lockTimeout, updateLockTimeout, updateAuthMethod } = useAppLock();
+  const { language, changeLanguage } = useLanguage();
   const { toast, confirm, alert, showError } = useFeedback();
   const [authMethod, setAuthMethod] = useState('none');
   const [showThemeModal, setShowThemeModal] = useState(false);
+  const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [showAddWalletModal, setShowAddWalletModal] = useState(false);
   const [showEditWalletModal, setShowEditWalletModal] = useState(false);
   const [editingWallet, setEditingWallet] = useState(null);
@@ -552,12 +555,12 @@ export default function SettingsScreen({ navigation }) {
         keyboardShouldPersistTaps="handled"
       >
         <Animated.View style={[styles.header, { opacity: headerAnim }]}>
-          <Text style={[styles.title, { color: colors.text }]}>Settings</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{i18n.t('settings')}</Text>
         </Animated.View>
 
         <Animated.View style={{ opacity: sectionsAnim, transform: [{ translateY: sectionsAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }] }}>
           {/* Account */}
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Account</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{i18n.t('account')}</Text>
           <GlassCard style={styles.section}>
             {user && !isGuest ? (
               <>
@@ -738,7 +741,7 @@ export default function SettingsScreen({ navigation }) {
           )}
 
           {/* Security */}
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Security</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{i18n.t('security')}</Text>
           <GlassCard style={styles.section}>
             <Item
               icon="lock-closed"
@@ -780,13 +783,20 @@ export default function SettingsScreen({ navigation }) {
           </GlassCard>
 
           {/* Appearance */}
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Appearance</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{i18n.t('appearance')}</Text>
           <GlassCard style={styles.section}>
             <Item
               icon="contrast"
               title={i18n.t('theme')}
               subtitle={themeOptions.find(t => t.code === theme)?.name}
               onPress={() => setTimeout(() => setShowThemeModal(true), 0)}
+              right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
+            />
+            <Item
+              icon="language"
+              title={i18n.t('language')}
+              subtitle={LANGUAGES.find(l => l.code === language)?.name || 'English'}
+              onPress={() => setTimeout(() => setShowLanguageModal(true), 0)}
               right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
               last
             />
@@ -978,7 +988,7 @@ export default function SettingsScreen({ navigation }) {
               <Text style={[styles.footerBrand, { color: colors.accent }]}>Rohani Digital</Text>
             </Text>
             <Text style={[styles.footerCopyright, { color: colors.textTertiary }]}>
-              © 2025 All rights reserved
+              © {new Date().getFullYear()} {i18n.t('allRightsReserved')}
             </Text>
           </View>
         </Animated.View>
@@ -1004,6 +1014,34 @@ export default function SettingsScreen({ navigation }) {
                 <Ionicons name={opt.icon} size={20} color={theme === opt.code ? colors.accent : colors.textSecondary} />
                 <Text style={[styles.themeOptText, { color: colors.text }]}>{opt.name}</Text>
                 {theme === opt.code && <Ionicons name="checkmark" size={20} color={colors.accent} />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Language Modal */}
+      <Modal visible={showLanguageModal} animationType="slide" transparent onRequestClose={() => setShowLanguageModal(false)}>
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => setShowLanguageModal(false)} activeOpacity={1} />
+          <View style={[styles.modalContent, { backgroundColor: colors.background }]} pointerEvents="auto">
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
+            <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('selectLanguage')}</Text>
+            {LANGUAGES.map((lang) => (
+              <TouchableOpacity
+                key={lang.code}
+                style={[styles.themeOpt, { backgroundColor: language === lang.code ? colors.accentLight : colors.backgroundSecondary }]}
+                onPress={async () => {
+                  await changeLanguage(lang.code);
+                  setShowLanguageModal(false);
+                  toast({ type: 'success', title: i18n.t('success'), message: `${i18n.t('language')}: ${lang.name}` });
+                }}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: language === lang.code }}
+              >
+                <Ionicons name="language" size={20} color={language === lang.code ? colors.accent : colors.textSecondary} />
+                <Text style={[styles.themeOptText, { color: colors.text }]}>{lang.name}</Text>
+                {language === lang.code && <Ionicons name="checkmark" size={20} color={colors.accent} />}
               </TouchableOpacity>
             ))}
           </View>

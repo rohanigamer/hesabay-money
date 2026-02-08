@@ -315,6 +315,15 @@ export default function TransactionScreen({ navigation }) {
   };
 
   // Export to CSV
+  // Properly escape CSV fields (handles commas, quotes, newlines)
+  const escapeCSV = (field) => {
+    const str = String(field || '');
+    if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
   const exportToCSV = async () => {
     try {
       let csv = 'Date,Time,Type,Amount,Currency,Description,Customer\n';
@@ -325,9 +334,9 @@ export default function TransactionScreen({ navigation }) {
         const type = (t.type === 'income' || t.type === 'credit') ? 'Income' : 'Expense';
         const amount = t.amount;
         const currency = t.currencyCode || primaryCurrency;
-        const desc = (t.description || '').replace(/,/g, ' ');
-        const customer = (t.customerName || '').replace(/,/g, ' ');
-        csv += `${dateStr},${timeStr},${type},${amount},${currency},${desc},${customer}\n`;
+        const desc = escapeCSV(t.description);
+        const customer = escapeCSV(t.customerName);
+        csv += `${escapeCSV(dateStr)},${escapeCSV(timeStr)},${type},${amount},${currency},${desc},${customer}\n`;
       });
 
       if (Platform.OS === 'web') {
@@ -584,7 +593,7 @@ export default function TransactionScreen({ navigation }) {
           keyboardVerticalOffset={Platform.OS === 'ios' ? (insets?.top ?? 0) + 20 : 0}
         >
           <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowAddModal(false); }} activeOpacity={1} />
-          <View style={[styles.modalContent, { backgroundColor: colors.background, paddingTop: Math.max(insets.top, 12) + 8 }]} pointerEvents="auto">
+          <View style={[styles.modalContent, { backgroundColor: colors.background, paddingTop: Math.max(insets.top, 12) + 8, paddingBottom: Math.max(insets.bottom, 20) + 24 }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>
               {selectedType === 'income' ? i18n.t('cashIn') : i18n.t('cashOut')}
@@ -649,7 +658,13 @@ export default function TransactionScreen({ navigation }) {
                     placeholder="0.00"
                     placeholderTextColor={colors.textTertiary}
                     value={formData.amount}
-                    onChangeText={(t) => setFormData({ ...formData, amount: t.replace(/[^0-9.]/g, '') })}
+                    onChangeText={(t) => {
+                      let cleaned = t.replace(/[^0-9.]/g, '');
+                      // Allow only one decimal point
+                      const parts = cleaned.split('.');
+                      if (parts.length > 2) cleaned = parts[0] + '.' + parts.slice(1).join('');
+                      setFormData({ ...formData, amount: cleaned });
+                    }}
                   />
                 </View>
               </View>
@@ -698,7 +713,7 @@ export default function TransactionScreen({ navigation }) {
           keyboardVerticalOffset={Platform.OS === 'ios' ? (insets?.top ?? 0) + 20 : 0}
         >
           <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowEditModal(false); }} activeOpacity={1} />
-          <View style={[styles.modalContent, { backgroundColor: colors.background, paddingTop: Math.max(insets.top, 12) + 8 }]} pointerEvents="auto">
+          <View style={[styles.modalContent, { backgroundColor: colors.background, paddingTop: Math.max(insets.top, 12) + 8, paddingBottom: Math.max(insets.bottom, 20) + 24 }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('editTransaction')}</Text>
@@ -768,7 +783,12 @@ export default function TransactionScreen({ navigation }) {
                         placeholder="0.00"
                         placeholderTextColor={colors.textTertiary}
                         value={editData.amount}
-                        onChangeText={(t) => setEditData({ ...editData, amount: t.replace(/[^0-9.]/g, '') })}
+                        onChangeText={(t) => {
+                          let cleaned = t.replace(/[^0-9.]/g, '');
+                          const parts = cleaned.split('.');
+                          if (parts.length > 2) cleaned = parts[0] + '.' + parts.slice(1).join('');
+                          setEditData({ ...editData, amount: cleaned });
+                        }}
                       />
                     </View>
                   </View>
@@ -861,7 +881,7 @@ export default function TransactionScreen({ navigation }) {
         >
           <View style={styles.modalOverlay}>
             <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowCustomerPicker(false); }} activeOpacity={1} />
-            <View style={[styles.pickerContent, { backgroundColor: colors.background, paddingTop: Math.max(insets.top, 8) }]} pointerEvents="auto">
+            <View style={[styles.pickerContent, { backgroundColor: colors.background, paddingTop: Math.max(insets.top, 8), paddingBottom: Math.max(insets.bottom, 20) + 24 }]} pointerEvents="auto">
               <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
               <View style={styles.pickerHeader}>
                 <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('selectCustomer')}</Text>
@@ -956,7 +976,7 @@ export default function TransactionScreen({ navigation }) {
           keyboardVerticalOffset={Platform.OS === 'ios' ? (insets?.top ?? 0) + 20 : 0}
         >
           <TouchableOpacity style={[styles.modalBackdrop, { zIndex: 0 }]} onPress={() => { Keyboard.dismiss(); setShowAddCustomerModal(false); }} activeOpacity={1} />
-          <View style={[styles.modalContent, { backgroundColor: colors.background, paddingTop: Math.max(insets.top, 12) + 8, zIndex: 1 }]} pointerEvents="auto">
+          <View style={[styles.modalContent, { backgroundColor: colors.background, paddingTop: Math.max(insets.top, 12) + 8, paddingBottom: Math.max(insets.bottom, 20) + 24, zIndex: 1 }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('addCustomer')}</Text>
 

@@ -6,6 +6,7 @@ import { Storage } from '../utils/Storage';
 import { ThemeContext } from '../context/ThemeContext';
 import { useAppLock } from '../context/AppLockContext';
 import AnimatedBackground from '../components/AnimatedBackground';
+import i18n from '../utils/i18n';
 
 export default function PasscodeScreen({ navigation, route, onSuccess }) {
   const { colors } = useContext(ThemeContext);
@@ -153,11 +154,11 @@ export default function PasscodeScreen({ navigation, route, onSuccess }) {
   );
 
   const title = isSettingUp
-    ? (isConfirming ? 'Confirm your passcode' : 'Create a passcode')
-    : 'Enter your passcode';
+    ? (isConfirming ? i18n.t('confirmYourPasscode') : i18n.t('createPasscodeTitle'))
+    : i18n.t('enterYourPasscode');
   const subtitle = isSettingUp
-    ? (isConfirming ? 'Enter the same 4 digits again' : 'Choose 4 digits to secure the app')
-    : 'Unlock Hesabay Money';
+    ? (isConfirming ? i18n.t('confirmPasscode') : i18n.t('passcode'))
+    : i18n.t('appName');
 
   return (
     <AnimatedBackground>

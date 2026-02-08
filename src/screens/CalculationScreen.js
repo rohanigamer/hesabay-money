@@ -1,5 +1,5 @@
 import React, { useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Animated, Platform, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, Animated, Platform, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemeContext } from '../context/ThemeContext';
 import { useCurrency } from '../context/CurrencyContext';
@@ -31,6 +31,7 @@ export default function CalculationScreen({ navigation }) {
   const [customers, setCustomers] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const hasLoadedOnce = useRef(false);
 
   const headerAnim = useRef(new Animated.Value(0)).current;
@@ -86,6 +87,12 @@ export default function CalculationScreen({ navigation }) {
     }
   };
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  }, []);
+
   // Currencies we can convert to: only those that exist in current wallets (so removed currencies don't show)
   const allConvertibleCodes = [
     exchangeRates.baseCurrency,
@@ -139,7 +146,11 @@ export default function CalculationScreen({ navigation }) {
           <SkeletonCalculation />
         </View>
       ) : (
-      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingTop: Math.max(insets.top, 12) + 12, paddingBottom: insets.bottom + BOTTOM_NAV_HEIGHT + 24 }]} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.scrollContent, { paddingTop: Math.max(insets.top, 12) + 12, paddingBottom: insets.bottom + BOTTOM_NAV_HEIGHT + 24 }]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} colors={[colors.accent]} />}
+      >
         {/* Header */}
         <Animated.View
           style={[
@@ -150,7 +161,7 @@ export default function CalculationScreen({ navigation }) {
             },
           ]}
         >
-          <Text style={[styles.title, { color: colors.text }]}>Summary</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{i18n.t('summary')}</Text>
         </Animated.View>
 
         {/* Per-wallet balance cards */}

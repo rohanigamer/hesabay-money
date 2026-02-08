@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useRef } from 'react';
 import {
   View,
   Text,
@@ -24,6 +24,9 @@ export default function SignupScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { signUp, signInWithGoogle } = useAuth();
   const { toast } = useFeedback();
+  const emailRef = useRef(null);
+  const passwordInputRef = useRef(null);
+  const confirmPasswordRef = useRef(null);
   
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -113,11 +116,11 @@ export default function SignupScreen({ navigation }) {
           </View>
           
           <Text style={[styles.verificationTitle, { color: colors.text }]}>
-            Verify Your Email
+            {i18n.t('verifyYourEmail')}
           </Text>
           
           <Text style={[styles.verificationText, { color: colors.textSecondary }]}>
-            We've sent a verification link to:
+            {i18n.t('verificationSentTo')}
           </Text>
           
           <Text style={[styles.verificationEmail, { color: colors.accent }]}>
@@ -125,29 +128,31 @@ export default function SignupScreen({ navigation }) {
           </Text>
           
           <Text style={[styles.verificationText, { color: colors.textSecondary, marginTop: 20 }]}>
-            Please check your inbox and click the verification link to complete your registration.
+            {i18n.t('verificationInstructions')}
           </Text>
 
           <View style={styles.verificationNote}>
             <Ionicons name="information-circle" size={20} color={colors.textTertiary} />
             <Text style={[styles.noteText, { color: colors.textTertiary }]}>
-              Don't see the email? Check your spam folder.
+              {i18n.t('checkSpamFolder')}
             </Text>
           </View>
           
           <TouchableOpacity
             style={[styles.loginBtn, { backgroundColor: colors.accent, marginTop: 30 }]}
             onPress={() => navigation.navigate('Login')}
+            accessibilityRole="button"
           >
-            <Text style={[styles.loginBtnText, { color: colors.onAccent }]}>Go to Login</Text>
+            <Text style={[styles.loginBtnText, { color: colors.onAccent }]}>{i18n.t('goToLogin')}</Text>
           </TouchableOpacity>
           
           <TouchableOpacity
             style={styles.resendBtn}
             onPress={() => setStep(1)}
+            accessibilityRole="button"
           >
             <Text style={[styles.resendBtnText, { color: colors.textSecondary }]}>
-              Use a different email
+              {i18n.t('useDifferentEmail')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -173,9 +178,9 @@ export default function SignupScreen({ navigation }) {
           <View style={[styles.iconCircle, { backgroundColor: colors.accentLight }]}>
             <Ionicons name="person-add" size={44} color={colors.accent} />
           </View>
-          <Text style={[styles.title, { color: colors.text }]}>Create Account</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{i18n.t('createAccount')}</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            Sign up to start managing your finances
+            {i18n.t('signUpSubtitle')}
           </Text>
         </View>
 
@@ -183,7 +188,7 @@ export default function SignupScreen({ navigation }) {
         <View style={styles.form}>
           {/* Full Name */}
           <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>Full Name</Text>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>{i18n.t('fullName')}</Text>
             <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <Ionicons name="person-outline" size={20} color={colors.textTertiary} />
               <TextInput
@@ -193,16 +198,20 @@ export default function SignupScreen({ navigation }) {
                 value={name}
                 onChangeText={setName}
                 autoCapitalize="words"
+                returnKeyType="next"
+                onSubmitEditing={() => emailRef.current?.focus()}
+                accessibilityLabel={i18n.t('fullName')}
               />
             </View>
           </View>
 
           {/* Email */}
           <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>Email</Text>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>{i18n.t('email')}</Text>
             <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <Ionicons name="mail-outline" size={20} color={colors.textTertiary} />
               <TextInput
+                ref={emailRef}
                 style={[styles.input, { color: colors.text }]}
                 placeholder={i18n.t('emailPlaceholder')}
                 placeholderTextColor={colors.textTertiary}
@@ -211,16 +220,20 @@ export default function SignupScreen({ navigation }) {
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
+                returnKeyType="next"
+                onSubmitEditing={() => passwordInputRef.current?.focus()}
+                accessibilityLabel={i18n.t('email')}
               />
             </View>
           </View>
 
           {/* Password */}
           <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>Password</Text>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>{i18n.t('password')}</Text>
             <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <Ionicons name="lock-closed-outline" size={20} color={colors.textTertiary} />
               <TextInput
+                ref={passwordInputRef}
                 style={[styles.input, { color: colors.text }]}
                 placeholder={i18n.t('passwordMinPlaceholder')}
                 placeholderTextColor={colors.textTertiary}
@@ -228,8 +241,15 @@ export default function SignupScreen({ navigation }) {
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
+                returnKeyType="next"
+                onSubmitEditing={() => confirmPasswordRef.current?.focus()}
+                accessibilityLabel={i18n.t('password')}
               />
-              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                accessibilityRole="button"
+              >
                 <Ionicons 
                   name={showPassword ? 'eye-off-outline' : 'eye-outline'} 
                   size={20} 
@@ -242,10 +262,11 @@ export default function SignupScreen({ navigation }) {
 
           {/* Confirm Password */}
           <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>Confirm Password</Text>
-            <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>{i18n.t('confirmPassword')}</Text>
+            <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border, borderColor: confirmPassword && password !== confirmPassword ? colors.error : colors.border }]}>
               <Ionicons name="lock-closed-outline" size={20} color={colors.textTertiary} />
               <TextInput
+                ref={confirmPasswordRef}
                 style={[styles.input, { color: colors.text }]}
                 placeholder={i18n.t('confirmPasswordPlaceholder')}
                 placeholderTextColor={colors.textTertiary}
@@ -253,35 +274,43 @@ export default function SignupScreen({ navigation }) {
                 onChangeText={setConfirmPassword}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
+                returnKeyType="done"
+                onSubmitEditing={handleSignup}
+                accessibilityLabel={i18n.t('confirmPassword')}
               />
               {confirmPassword && password === confirmPassword && (
                 <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+              )}
+              {confirmPassword && password !== confirmPassword && (
+                <Ionicons name="close-circle" size={20} color={colors.error} />
               )}
             </View>
           </View>
 
           {/* Sign Up Button */}
           <TouchableOpacity
-            style={[styles.signupBtn, { backgroundColor: colors.accent }]}
+            style={[styles.signupBtn, { backgroundColor: colors.accent, opacity: loading ? 0.7 : 1 }]}
             onPress={handleSignup}
             disabled={loading}
+            accessibilityRole="button"
+            accessibilityLabel={i18n.t('createAccount')}
           >
             {loading ? (
               <ActivityIndicator color={colors.onAccent} />
             ) : (
-              <Text style={[styles.signupBtnText, { color: colors.onAccent }]}>Create Account</Text>
+              <Text style={[styles.signupBtnText, { color: colors.onAccent }]}>{i18n.t('createAccount')}</Text>
             )}
           </TouchableOpacity>
 
           {/* Terms */}
           <Text style={[styles.termsText, { color: colors.textTertiary }]}>
-            By signing up, you agree to our Terms of Service and Privacy Policy
+            {i18n.t('termsAgree')}
           </Text>
 
           {/* Divider */}
           <View style={styles.divider}>
             <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-            <Text style={[styles.dividerText, { color: colors.textSecondary }]}>OR</Text>
+            <Text style={[styles.dividerText, { color: colors.textSecondary }]}>{i18n.t('or')}</Text>
             <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
           </View>
 
@@ -291,19 +320,21 @@ export default function SignupScreen({ navigation }) {
               style={[styles.socialBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
               onPress={handleGoogleSignIn}
               disabled={loading}
+              accessibilityRole="button"
+              accessibilityLabel={i18n.t('signUpWithGoogle')}
             >
               <Ionicons name="logo-google" size={20} color="#EA4335" />
-              <Text style={[styles.socialBtnText, { color: colors.text }]}>Sign up with Google</Text>
+              <Text style={[styles.socialBtnText, { color: colors.text }]}>{i18n.t('signUpWithGoogle')}</Text>
             </TouchableOpacity>
           )}
 
           {/* Login Link */}
           <View style={styles.loginRow}>
             <Text style={[styles.loginText, { color: colors.textSecondary }]}>
-              Already have an account?{' '}
+              {i18n.t('alreadyHaveAccount')}{' '}
             </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-              <Text style={[styles.loginLink, { color: colors.accent }]}>Sign In</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Login')} accessibilityRole="link">
+              <Text style={[styles.loginLink, { color: colors.accent }]}>{i18n.t('signIn')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -315,7 +346,7 @@ export default function SignupScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContent: { flexGrow: 1, paddingHorizontal: 24, justifyContent: 'center', minHeight: '100%' },
+  scrollContent: { flexGrow: 1, paddingHorizontal: 24, justifyContent: 'center' },
   
   header: { alignItems: 'center', marginBottom: 30 },
   iconCircle: { width: 88, height: 88, borderRadius: 44, justifyContent: 'center', alignItems: 'center', marginBottom: 24 },

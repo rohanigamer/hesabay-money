@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useRef } from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemeContext } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
-import PasswordStrength from '../components/PasswordStrength';
 import AnimatedBackground from '../components/AnimatedBackground';
 import { useFeedback } from '../context/FeedbackContext';
 import i18n from '../utils/i18n';
@@ -24,8 +23,9 @@ import i18n from '../utils/i18n';
 export default function LoginScreen({ navigation }) {
   const { colors } = useContext(ThemeContext);
   const insets = useSafeAreaInsets();
-  const { signIn, signInWithGoogle, continueAsGuest, forgotPassword, firebaseInitialized } = useAuth();
+  const { signIn, signInWithGoogle, continueAsGuest, forgotPassword } = useAuth();
   const { toast, confirm, alert } = useFeedback();
+  const passwordRef = useRef(null);
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -159,9 +159,9 @@ export default function LoginScreen({ navigation }) {
           <View style={[styles.iconCircle, { backgroundColor: colors.accentLight }]}>
             <Ionicons name="wallet" size={44} color={colors.accent} />
           </View>
-          <Text style={[styles.title, { color: colors.text }]}>Hesabay Money</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{i18n.t('appName')}</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            Sign in to manage your finances
+            {i18n.t('signInSubtitle')}
           </Text>
         </View>
 
@@ -169,7 +169,7 @@ export default function LoginScreen({ navigation }) {
         <View style={styles.form}>
           {/* Email */}
           <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>Email</Text>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>{i18n.t('email')}</Text>
             <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <Ionicons name="mail-outline" size={20} color={colors.textTertiary} />
               <TextInput
@@ -181,16 +181,20 @@ export default function LoginScreen({ navigation }) {
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
+                returnKeyType="next"
+                onSubmitEditing={() => passwordRef.current?.focus()}
+                accessibilityLabel={i18n.t('email')}
               />
             </View>
           </View>
 
           {/* Password */}
           <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>Password</Text>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>{i18n.t('password')}</Text>
             <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <Ionicons name="lock-closed-outline" size={20} color={colors.textTertiary} />
               <TextInput
+                ref={passwordRef}
                 style={[styles.input, { color: colors.text }]}
                 placeholder={i18n.t('passwordPlaceholder')}
                 placeholderTextColor={colors.textTertiary}
@@ -198,8 +202,15 @@ export default function LoginScreen({ navigation }) {
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
+                returnKeyType="done"
+                onSubmitEditing={handleLogin}
+                accessibilityLabel={i18n.t('password')}
               />
-              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                accessibilityRole="button"
+              >
                 <Ionicons 
                   name={showPassword ? 'eye-off-outline' : 'eye-outline'} 
                   size={20} 
@@ -216,29 +227,32 @@ export default function LoginScreen({ navigation }) {
               setResetEmail(email);
               setForgotPasswordModal(true);
             }}
+            accessibilityRole="button"
           >
             <Text style={[styles.forgotPasswordText, { color: colors.accent }]}>
-              Forgot Password?
+              {i18n.t('forgotPassword')}
             </Text>
           </TouchableOpacity>
 
           {/* Login Button */}
           <TouchableOpacity
-            style={[styles.loginBtn, { backgroundColor: colors.accent }]}
+            style={[styles.loginBtn, { backgroundColor: colors.accent, opacity: loading ? 0.7 : 1 }]}
             onPress={handleLogin}
             disabled={loading}
+            accessibilityRole="button"
+            accessibilityLabel={i18n.t('signIn')}
           >
             {loading ? (
               <ActivityIndicator color={colors.onAccent} />
             ) : (
-              <Text style={[styles.loginBtnText, { color: colors.onAccent }]}>Sign In</Text>
+              <Text style={[styles.loginBtnText, { color: colors.onAccent }]}>{i18n.t('signIn')}</Text>
             )}
           </TouchableOpacity>
 
           {/* Divider */}
           <View style={styles.divider}>
             <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-            <Text style={[styles.dividerText, { color: colors.textSecondary }]}>OR</Text>
+            <Text style={[styles.dividerText, { color: colors.textSecondary }]}>{i18n.t('or')}</Text>
             <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
           </View>
 
@@ -248,9 +262,11 @@ export default function LoginScreen({ navigation }) {
               style={[styles.socialBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
               onPress={handleGoogleSignIn}
               disabled={loading}
+              accessibilityRole="button"
+              accessibilityLabel={i18n.t('continueWithGoogle')}
             >
               <Ionicons name="logo-google" size={20} color="#EA4335" />
-              <Text style={[styles.socialBtnText, { color: colors.text }]}>Continue with Google</Text>
+              <Text style={[styles.socialBtnText, { color: colors.text }]}>{i18n.t('continueWithGoogle')}</Text>
             </TouchableOpacity>
           )}
 
@@ -258,23 +274,25 @@ export default function LoginScreen({ navigation }) {
           <TouchableOpacity
             style={[styles.guestBtn, { borderColor: colors.border }]}
             onPress={handleGuestLogin}
+            accessibilityRole="button"
+            accessibilityLabel={i18n.t('continueAsGuest')}
           >
             <Ionicons name="person-outline" size={20} color={colors.textSecondary} />
-            <Text style={[styles.guestBtnText, { color: colors.textSecondary }]}>Continue as Guest</Text>
+            <Text style={[styles.guestBtnText, { color: colors.textSecondary }]}>{i18n.t('continueAsGuest')}</Text>
           </TouchableOpacity>
 
           {/* Guest Note */}
           <Text style={[styles.guestNote, { color: colors.textTertiary }]}>
-            Guest data is stored locally only and won't sync across devices
+            {i18n.t('guestNote')}
           </Text>
 
           {/* Sign Up Link */}
           <View style={styles.signupRow}>
             <Text style={[styles.signupText, { color: colors.textSecondary }]}>
-              Don't have an account?{' '}
+              {i18n.t('dontHaveAccount')}{' '}
             </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
-              <Text style={[styles.signupLink, { color: colors.accent }]}>Sign Up</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Signup')} accessibilityRole="link">
+              <Text style={[styles.signupLink, { color: colors.accent }]}>{i18n.t('signUp') || i18n.t('createAccount')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -299,9 +317,9 @@ export default function LoginScreen({ navigation }) {
             showsVerticalScrollIndicator={false}
           >
             <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>🔑 Reset Password</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>🔑 {i18n.t('resetPassword')}</Text>
               <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
-                Enter your email address and we'll send you a link to reset your password.
+                {i18n.t('resetPasswordSubtitle')}
               </Text>
               
               <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border, marginTop: 20 }]}>
@@ -322,7 +340,7 @@ export default function LoginScreen({ navigation }) {
                   style={[styles.modalBtn, { backgroundColor: colors.border }]}
                   onPress={() => setForgotPasswordModal(false)}
                 >
-                  <Text style={[styles.modalBtnText, { color: colors.text }]}>Cancel</Text>
+                  <Text style={[styles.modalBtnText, { color: colors.text }]}>{i18n.t('cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.modalBtn, { backgroundColor: colors.accent }]}
@@ -332,7 +350,7 @@ export default function LoginScreen({ navigation }) {
                   {loading ? (
                     <ActivityIndicator color={colors.onAccent} size="small" />
                   ) : (
-                    <Text style={[styles.modalBtnText, { color: colors.onAccent }]}>Send Link</Text>
+                    <Text style={[styles.modalBtnText, { color: colors.onAccent }]}>{i18n.t('sendLink')}</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -347,7 +365,7 @@ export default function LoginScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContent: { flexGrow: 1, paddingHorizontal: 24, justifyContent: 'center', minHeight: '100%' },
+  scrollContent: { flexGrow: 1, paddingHorizontal: 24, justifyContent: 'center' },
   
   header: { alignItems: 'center', marginBottom: 40 },
   iconCircle: { width: 88, height: 88, borderRadius: 44, justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
