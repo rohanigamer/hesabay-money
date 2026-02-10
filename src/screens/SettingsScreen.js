@@ -25,6 +25,7 @@ import { useCurrency } from '../context/CurrencyContext';
 import { useAuth } from '../context/AuthContext';
 import { useAppLock } from '../context/AppLockContext';
 import { CURRENCIES, DEFAULT_CURRENCY } from '../utils/Currency';
+import KeyboardSpacer from '../components/KeyboardSpacer';
 import BottomNavigation from '../components/BottomNavigation';
 import GlassCard from '../components/GlassCard';
 import OfflineBanner from '../components/OfflineBanner';
@@ -76,12 +77,12 @@ export default function SettingsScreen({ navigation }) {
   const sectionsAnim = useRef(new Animated.Value(0)).current;
 
   const lockTimeoutOptions = [
-    { label: 'Immediately', value: 0 },
-    { label: 'After 1 minute', value: 60 },
-    { label: 'After 5 minutes', value: 300 },
-    { label: 'After 15 minutes', value: 900 },
-    { label: 'After 30 minutes', value: 1800 },
-    { label: 'After 1 hour', value: 3600 },
+    { label: i18n.t('immediately'), value: 0 },
+    { label: `1 ${i18n.t('minute')}`, value: 60 },
+    { label: `5 ${i18n.t('minutes')}`, value: 300 },
+    { label: `15 ${i18n.t('minutes')}`, value: 900 },
+    { label: `30 ${i18n.t('minutes')}`, value: 1800 },
+    { label: `1 ${i18n.t('hour')}`, value: 3600 },
   ];
 
   useFocusEffect(
@@ -108,7 +109,7 @@ export default function SettingsScreen({ navigation }) {
     try {
       const jsonString = await Storage.exportBackup();
       if (!jsonString) {
-        toast({ type: 'error', title: 'Backup failed', message: 'Could not export data.' });
+        toast({ type: 'error', title: i18n.t('backupFailed'), message: i18n.t('couldNotExportData') });
         return;
       }
       const filename = 'Mbackup.Mbackup';
@@ -120,21 +121,21 @@ export default function SettingsScreen({ navigation }) {
         a.download = filename;
         a.click();
         URL.revokeObjectURL(url);
-        toast({ type: 'success', title: 'Backup saved', message: 'File saved as ' + filename });
+        toast({ type: 'success', title: i18n.t('backupSaved'), message: i18n.t('fileSavedTo') + filename });
       } else {
         const path = FileSystem.cacheDirectory + filename;
         await FileSystem.writeAsStringAsync(path, jsonString);
         const canShare = await Sharing.isAvailableAsync();
         if (canShare) {
-          await Sharing.shareAsync(path, { mimeType: 'application/octet-stream', dialogTitle: 'Save backup' });
-          toast({ type: 'success', title: 'Backup ready', message: 'Share or save the file Mbackup.Mbackup' });
+          await Sharing.shareAsync(path, { mimeType: 'application/octet-stream', dialogTitle: i18n.t('backupSaved') });
+          toast({ type: 'success', title: i18n.t('backupReady'), message: i18n.t('saveBackupFile') });
         } else {
-          toast({ type: 'success', title: 'Backup saved', message: 'Saved to ' + path });
+          toast({ type: 'success', title: i18n.t('backupSaved'), message: i18n.t('savedTo') + path });
         }
       }
     } catch (e) {
       console.error('Backup error:', e);
-      toast({ type: 'error', title: 'Backup failed', message: e.message || 'Could not create backup.' });
+      toast({ type: 'error', title: i18n.t('backupFailed'), message: e.message || i18n.t('couldNotExportData') });
     } finally {
       setBackupRestoreBusy(false);
     }
@@ -183,16 +184,16 @@ export default function SettingsScreen({ navigation }) {
       if (importResult.success) {
         toast({
           type: 'success',
-          title: 'Import complete',
-          message: `Restored ${importResult.customers} customers and ${importResult.transactions} transactions.`,
+          title: i18n.t('importComplete'),
+          message: i18n.t('restoredCount').replace('{customers}', importResult.customers).replace('{transactions}', importResult.transactions),
         });
         navigation.navigate('Transaction');
       } else {
-        toast({ type: 'error', title: 'Import failed', message: importResult.error || 'Invalid backup file.' });
+        toast({ type: 'error', title: i18n.t('importFailed'), message: importResult.error || i18n.t('invalidBackupFile') });
       }
     } catch (e) {
       console.error('Import error:', e);
-      toast({ type: 'error', title: 'Import failed', message: e.message || 'Could not read backup file.' });
+      toast({ type: 'error', title: i18n.t('importFailed'), message: e.message || i18n.t('couldNotReadBackup') });
     } finally {
       setBackupRestoreBusy(false);
     }
@@ -204,10 +205,10 @@ export default function SettingsScreen({ navigation }) {
     } else {
       (async () => {
         const ok = await confirm({
-          title: 'Disable passcode?',
-          message: 'Are you sure you want to disable passcode protection?',
-          confirmText: 'Disable',
-          cancelText: 'Cancel',
+          title: i18n.t('disablePasscodeQuestion'),
+          message: i18n.t('disablePasscodeConfirm'),
+          confirmText: i18n.t('disable'),
+          cancelText: i18n.t('cancel'),
           destructive: true,
         });
         if (!ok) return;
@@ -215,7 +216,7 @@ export default function SettingsScreen({ navigation }) {
         await Storage.setAuthMethod('none');
         updateAuthMethod('none');
         loadSettings();
-        toast({ type: 'success', title: 'Updated', message: 'Passcode has been disabled.' });
+        toast({ type: 'success', title: i18n.t('updated'), message: i18n.t('passcodeDisabled') });
       })();
     }
   };
@@ -223,7 +224,7 @@ export default function SettingsScreen({ navigation }) {
   const handleBiometricToggle = async (enabled) => {
     if (enabled) {
       if (Platform.OS === 'web') {
-        toast({ type: 'warning', title: 'Not available', message: 'Biometric authentication is not available on web.' });
+        toast({ type: 'warning', title: i18n.t('notAvailable'), message: i18n.t('biometricNotAvailableWeb') });
         return;
       }
       try {
@@ -232,40 +233,40 @@ export default function SettingsScreen({ navigation }) {
         if (!hasHardware || !isEnrolled) {
           toast({
             type: 'warning',
-            title: 'Not available',
-            message: 'Your device does not support biometrics or none are enrolled.',
+            title: i18n.t('notAvailable'),
+            message: i18n.t('biometricNotAvailableDevice'),
           });
           return;
         }
-        const result = await LocalAuthentication.authenticateAsync({ promptMessage: 'Enable biometric authentication' });
+        const result = await LocalAuthentication.authenticateAsync({ promptMessage: i18n.t('enableBiometricPrompt') });
         if (result.success) { 
           await Storage.setAuthMethod('biometric'); 
           updateAuthMethod('biometric');
           loadSettings(); 
-          toast({ type: 'success', title: 'Enabled', message: 'Biometric authentication has been enabled.' });
+          toast({ type: 'success', title: i18n.t('updated'), message: i18n.t('biometricEnabled') });
         }
       } catch { 
-        toast({ type: 'error', title: 'Error', message: 'Failed to enable biometric authentication.' });
+        toast({ type: 'error', title: i18n.t('error'), message: i18n.t('couldNotEnableBiometric') });
       }
     } else {
       const ok = await confirm({
-        title: 'Disable biometric?',
-        message: 'Are you sure you want to disable biometric protection?',
-        confirmText: 'Disable',
-        cancelText: 'Cancel',
+        title: i18n.t('disableBiometricQuestion'),
+        message: i18n.t('disableBiometricConfirm'),
+        confirmText: i18n.t('disable'),
+        cancelText: i18n.t('cancel'),
         destructive: true,
       });
       if (!ok) return;
       await Storage.setAuthMethod('none');
       updateAuthMethod('none');
       loadSettings();
-      toast({ type: 'success', title: 'Updated', message: 'Biometric authentication has been disabled.' });
+      toast({ type: 'success', title: i18n.t('updated'), message: i18n.t('biometricDisabled') });
     }
   };
 
   const handleManualSync = async () => {
     if (!user || user.isGuest) {
-      toast({ type: 'warning', title: 'Guest mode', message: 'Sign in to sync your data to the cloud.' });
+      toast({ type: 'warning', title: i18n.t('guestMode'), message: i18n.t('signInToSyncMsg') });
       return;
     }
 
@@ -274,11 +275,11 @@ export default function SettingsScreen({ navigation }) {
     setSyncing(false);
 
     if (result.success) {
-      toast({ type: 'success', title: 'Sync complete', message: 'Your data has been synced to the cloud.' });
+      toast({ type: 'success', title: i18n.t('syncComplete'), message: i18n.t('dataSynced') });
     } else if (result.pending) {
-      toast({ type: 'info', title: 'Offline', message: 'Data will sync automatically when you reconnect.' });
+      toast({ type: 'info', title: i18n.t('noInternetConnection'), message: i18n.t('dataWillSyncWhenOnline') });
     } else {
-      toast({ type: 'error', title: 'Sync failed', message: result.error || 'Could not sync data. Please try again.' });
+      toast({ type: 'error', title: i18n.t('syncFailed'), message: result.error || i18n.t('couldNotSync') });
     }
   };
 
@@ -313,7 +314,7 @@ export default function SettingsScreen({ navigation }) {
       setShowExchangeRatesModal(false);
       toast({ type: 'success', title: i18n.t('success'), message: i18n.t('exchangeRatesSaved') });
     } else {
-      toast({ type: 'error', title: i18n.t('error'), message: 'Could not save exchange rates.' });
+      toast({ type: 'error', title: i18n.t('error'), message: i18n.t('couldNotSaveExchangeRates') });
     }
   };
 
@@ -328,10 +329,10 @@ export default function SettingsScreen({ navigation }) {
     setShowRemoveCurrencyOptionsModal(false);
     const count = walletToRemove?.transactionCount ?? 0;
     const ok = await confirm({
-      title: 'Delete transactions and remove currency?',
-      message: `This will permanently delete ${count} transaction(s) with ${walletToRemove?.currencyCode} and remove the currency. This cannot be undone.`,
-      confirmText: 'Delete & Remove',
-      cancelText: 'Cancel',
+      title: i18n.t('deleteAndRemoveCurrency'),
+      message: i18n.t('deleteAndRemoveConfirm'),
+      confirmText: i18n.t('deleteAndRemove'),
+      cancelText: i18n.t('cancel'),
       destructive: true,
     });
     if (!ok || !walletToRemove) return;
@@ -341,12 +342,12 @@ export default function SettingsScreen({ navigation }) {
       if (result.success) {
         await loadWallets();
         await refreshBalances();
-        toast({ type: 'success', title: 'Removed', message: `${walletToRemove.currencyCode} and ${result.deletedCount} transaction(s) removed.` });
+        toast({ type: 'success', title: i18n.t('removed'), message: i18n.t('convertedAndRemoved') });
       } else {
-        toast({ type: 'error', title: 'Error', message: result.error });
+        toast({ type: 'error', title: i18n.t('error'), message: result.error });
       }
     } catch (e) {
-      toast({ type: 'error', title: 'Error', message: e.message || 'Could not remove.' });
+      toast({ type: 'error', title: i18n.t('error'), message: e.message || i18n.t('couldNotClearData') });
     } finally {
       setConvertingOrDeleting(false);
       setWalletToRemove(null);
@@ -355,12 +356,12 @@ export default function SettingsScreen({ navigation }) {
 
   const handleConfirmConvertCurrency = async () => {
     if (!walletToRemove || !convertTargetCurrency.trim()) {
-      toast({ type: 'warning', title: 'Select currency', message: 'Choose a target currency.' });
+      toast({ type: 'warning', title: i18n.t('currency'), message: i18n.t('selectTargetCurrency') });
       return;
     }
     const rateNum = parseFloat(convertRate.replace(/,/g, ''));
     if (Number.isNaN(rateNum) || rateNum <= 0) {
-      toast({ type: 'warning', title: 'Invalid rate', message: 'Enter a valid rate (e.g. 0.014 for 1 AFN = 0.014 USD).' });
+      toast({ type: 'warning', title: i18n.t('invalidRate'), message: i18n.t('enterValidRate') });
       return;
     }
     setConvertingOrDeleting(true);
@@ -373,12 +374,12 @@ export default function SettingsScreen({ navigation }) {
         setWalletToRemove(null);
         setConvertTargetCurrency('');
         setConvertRate('');
-        toast({ type: 'success', title: 'Done', message: `${result.convertedCount} transaction(s) converted to ${convertTargetCurrency} and currency removed.` });
+        toast({ type: 'success', title: i18n.t('done'), message: i18n.t('convertedAndRemoved') });
       } else {
-        toast({ type: 'error', title: 'Error', message: result.error });
+        toast({ type: 'error', title: i18n.t('error'), message: result.error });
       }
     } catch (e) {
-      toast({ type: 'error', title: 'Error', message: e.message || 'Could not convert.' });
+      toast({ type: 'error', title: i18n.t('error'), message: e.message || i18n.t('couldNotClearData') });
     } finally {
       setConvertingOrDeleting(false);
     }
@@ -403,14 +404,14 @@ export default function SettingsScreen({ navigation }) {
     try {
       const cleared = await Storage.clearAllTransactions();
       if (!cleared) {
-        toast({ type: 'error', title: 'Error', message: 'Could not clear transactions.' });
+        toast({ type: 'error', title: i18n.t('error'), message: i18n.t('couldNotClearData') });
         setDeletingAll(false);
         return;
       }
       if (user && !user.isGuest) {
         const result = await firebaseSync.syncAllData();
         if (!result.success && !result.pending) {
-          toast({ type: 'warning', title: 'Cleared locally', message: 'Cloud sync failed. Data was cleared on this device only.' });
+          toast({ type: 'warning', title: i18n.t('clearedLocally'), message: i18n.t('cloudSyncFailedMsg') });
         }
       }
       await refreshBalances();
@@ -420,7 +421,7 @@ export default function SettingsScreen({ navigation }) {
       navigation.navigate('Transaction');
     } catch (e) {
       console.error('Delete all transactions error:', e);
-      toast({ type: 'error', title: 'Error', message: e.message || 'Could not delete transactions.' });
+      toast({ type: 'error', title: i18n.t('error'), message: e.message || i18n.t('couldNotClearData') });
     } finally {
       setDeletingAll(false);
     }
@@ -428,16 +429,16 @@ export default function SettingsScreen({ navigation }) {
 
   const handleRefreshFromFirebase = async () => {
     if (!user || user.isGuest) {
-      toast({ type: 'warning', title: 'Guest mode', message: 'Sign in to access cloud data.' });
+      toast({ type: 'warning', title: i18n.t('guestMode'), message: i18n.t('signInToSyncMsg') });
       return;
     }
 
     // Confirm action
     const confirmAction = await confirm({
-      title: 'Refresh from cloud?',
-      message: 'This will replace your local data with the latest data from the cloud.',
-      confirmText: 'Refresh',
-      cancelText: 'Cancel',
+      title: i18n.t('refreshFromFirebase'),
+      message: i18n.t('refreshFromFirebaseSubtitle'),
+      confirmText: i18n.t('confirm'),
+      cancelText: i18n.t('cancel'),
     });
 
     if (!confirmAction) return;
@@ -449,19 +450,19 @@ export default function SettingsScreen({ navigation }) {
     if (result.success) {
       toast({
         type: 'success',
-        title: 'Refresh complete',
-        message: `Loaded ${result.customersCount} customers and ${result.transactionsCount} transactions.`,
+        title: i18n.t('syncComplete'),
+        message: i18n.t('restoredCount').replace('{customers}', result.customersCount).replace('{transactions}', result.transactionsCount),
       });
       navigation.navigate('Transaction');
     } else {
-      const errorMsg = result.error || 'Could not refresh data. Please try again.';
-      toast({ type: 'error', title: 'Refresh failed', message: errorMsg });
+      const errorMsg = result.error || i18n.t('couldNotSync');
+      toast({ type: 'error', title: i18n.t('syncFailed'), message: errorMsg });
     }
   };
 
   const handlePasswordReset = async () => {
     if (!user || user.isGuest || !user.email) {
-      toast({ type: 'error', title: 'Not available', message: 'No email address found for password reset.' });
+      toast({ type: 'error', title: i18n.t('notAvailable'), message: i18n.t('missingEmail') });
       return;
     }
 
@@ -475,11 +476,11 @@ export default function SettingsScreen({ navigation }) {
         const { firebaseAuthREST } = await import('../services/FirebaseAuthREST');
         await firebaseAuthREST.sendPasswordResetEmail(user.email);
       }
-      toast({ type: 'success', title: 'Email sent', message: 'Password reset email sent! Check your inbox.' });
+      toast({ type: 'success', title: i18n.t('emailSent'), message: i18n.t('checkYourEmail') });
     } catch (error) {
       console.error('Password reset error:', error);
       const errorMsg = error.message || 'Failed to send password reset email.';
-      toast({ type: 'error', title: 'Error', message: errorMsg });
+      toast({ type: 'error', title: i18n.t('error'), message: errorMsg });
     }
   };
 
@@ -487,10 +488,10 @@ export default function SettingsScreen({ navigation }) {
     console.log('handleLogout called');
     
     const confirmLogout = await confirm({
-      title: 'Sign out?',
-      message: 'Are you sure you want to sign out?',
-      confirmText: 'Sign Out',
-      cancelText: 'Cancel',
+      title: i18n.t('logout') + '?',
+      message: i18n.t('logout') + '?',
+      confirmText: i18n.t('logout'),
+      cancelText: i18n.t('cancel'),
       destructive: true,
     });
 
@@ -505,22 +506,22 @@ export default function SettingsScreen({ navigation }) {
       console.log('Logout result:', result);
       
       if (result.success) {
-        toast({ type: 'success', title: 'Signed out', message: 'You have been signed out successfully.' });
+        toast({ type: 'success', title: i18n.t('success'), message: i18n.t('logout') });
         console.log('Navigating to Login...');
         navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
       } else {
-        toast({ type: 'error', title: 'Error', message: result.error || 'Could not sign out' });
+        toast({ type: 'error', title: i18n.t('error'), message: result.error || i18n.t('somethingWentWrong') });
       }
     } catch (error) {
       console.error('Logout error:', error);
-      toast({ type: 'error', title: 'Error', message: 'Could not sign out. Please try again.' });
+      toast({ type: 'error', title: i18n.t('error'), message: i18n.t('somethingWentWrong') });
     }
   };
 
   const themeOptions = [
-    { code: 'light', name: 'Light', icon: 'sunny' },
-    { code: 'dark', name: 'Dark', icon: 'moon' },
-    { code: 'device', name: 'System', icon: 'phone-portrait' },
+    { code: 'light', name: i18n.t('lightMode'), icon: 'sunny' },
+    { code: 'dark', name: i18n.t('darkMode'), icon: 'moon' },
+    { code: 'device', name: i18n.t('devicePreference'), icon: 'phone-portrait' },
   ];
 
   const Item = ({ icon, title, subtitle, right, onPress, last, iconColor }) => (
@@ -553,6 +554,7 @@ export default function SettingsScreen({ navigation }) {
         ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
       >
         <Animated.View style={[styles.header, { opacity: headerAnim }]}>
           <Text style={[styles.title, { color: colors.text }]}>{i18n.t('settings')}</Text>
@@ -571,14 +573,14 @@ export default function SettingsScreen({ navigation }) {
                 />
                 <Item
                   icon="key"
-                  title="Change Password"
-                  subtitle="Update your password"
+                  title={i18n.t('changePasscode')}
+                  subtitle={i18n.t('resetPassword')}
                   onPress={async () => {
                     const ok = await confirm({
-                      title: 'Send password reset email?',
-                      message: `A password reset link will be sent to ${user.email}.`,
-                      confirmText: 'Send Link',
-                      cancelText: 'Cancel',
+                      title: i18n.t('resetPassword'),
+                      message: `${i18n.t('resetPasswordSubtitle')}`,
+                      confirmText: i18n.t('sendLink'),
+                      cancelText: i18n.t('cancel'),
                     });
                     if (ok) handlePasswordReset();
                   }}
@@ -587,8 +589,8 @@ export default function SettingsScreen({ navigation }) {
                 />
                 <Item
                   icon="cloud-upload"
-                  title="Sync Data"
-                  subtitle="Backup your data to cloud"
+                  title={i18n.t('syncToFirebase')}
+                  subtitle={i18n.t('syncToFirebaseSubtitle')}
                   onPress={handleManualSync}
                   iconColor={colors.success}
                   right={
@@ -601,8 +603,8 @@ export default function SettingsScreen({ navigation }) {
                 />
                 <Item
                   icon="cloud-download"
-                  title="Refresh from Firebase"
-                  subtitle="Get latest data from cloud"
+                  title={i18n.t('refreshFromFirebase')}
+                  subtitle={i18n.t('refreshFromFirebaseSubtitle')}
                   onPress={handleRefreshFromFirebase}
                   iconColor={colors.accent}
                   right={
@@ -615,8 +617,8 @@ export default function SettingsScreen({ navigation }) {
                 />
                 <Item
                   icon="log-out"
-                  title="Sign Out"
-                  subtitle="Log out from your account"
+                  title={i18n.t('logout')}
+                  subtitle={i18n.t('logout')}
                   onPress={handleLogout}
                   last
                   iconColor={colors.error}
@@ -627,19 +629,19 @@ export default function SettingsScreen({ navigation }) {
               <>
                 <Item
                   icon="person"
-                  title="Guest Mode"
-                  subtitle="Data stored locally only"
+                  title={i18n.t('guestMode')}
+                  subtitle={i18n.t('guestAccountSubtitle')}
                 />
                 <Item
                   icon="log-in"
-                  title="Sign In"
-                  subtitle="Sign in to sync your data"
+                  title={i18n.t('signIn')}
+                  subtitle={i18n.t('signInToSync')}
                   onPress={async () => {
                     const ok = await confirm({
-                      title: 'Switch account?',
-                      message: 'If you sign in, your guest data will remain on this device.',
-                      confirmText: 'Continue',
-                      cancelText: 'Cancel',
+                      title: i18n.t('signIn'),
+                      message: i18n.t('guestNote'),
+                      confirmText: i18n.t('signIn'),
+                      cancelText: i18n.t('cancel'),
                     });
                     if (ok) navigation.navigate('Login');
                   }}
@@ -647,8 +649,8 @@ export default function SettingsScreen({ navigation }) {
                 />
                 <Item
                   icon="person-add"
-                  title="Create Account"
-                  subtitle="Sign up to sync across devices"
+                  title={i18n.t('createAccount')}
+                  subtitle={i18n.t('signUpSubtitle')}
                   onPress={() => navigation.navigate('Signup')}
                   last
                   right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
@@ -658,15 +660,15 @@ export default function SettingsScreen({ navigation }) {
               <>
                 <Item
                   icon="log-in"
-                  title="Sign In"
-                  subtitle="Access your account"
+                  title={i18n.t('signIn')}
+                  subtitle={i18n.t('signInSubtitle')}
                   onPress={() => navigation.navigate('Login')}
                   right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
                 />
                 <Item
                   icon="person-add"
-                  title="Sign Up"
-                  subtitle="Create a new account"
+                  title={i18n.t('createAccount')}
+                  subtitle={i18n.t('signUpSubtitle')}
                   onPress={() => navigation.navigate('Signup')}
                   last
                   right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
@@ -676,12 +678,12 @@ export default function SettingsScreen({ navigation }) {
           </GlassCard>
 
           {/* Backup & restore - available to all */}
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Backup & restore</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{i18n.t('backup')} & {i18n.t('restore')}</Text>
           <GlassCard style={styles.section}>
             <Item
               icon="save-outline"
-              title="Backup data"
-              subtitle="Save to file Mbackup.Mbackup"
+              title={i18n.t('createBackup')}
+              subtitle={i18n.t('createBackupSubtitle')}
               onPress={handleBackupData}
               iconColor={colors.success}
               right={
@@ -694,8 +696,8 @@ export default function SettingsScreen({ navigation }) {
             />
             <Item
               icon="document-attach-outline"
-              title="Import backup"
-              subtitle="Restore from Mbackup.Mbackup file"
+              title={i18n.t('restoreBackup')}
+              subtitle={i18n.t('restoreBackupSubtitle')}
               onPress={handleImportData}
               iconColor={colors.accent}
               last
@@ -710,7 +712,7 @@ export default function SettingsScreen({ navigation }) {
           </GlassCard>
 
           {/* Delete all transactions */}
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Data</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{i18n.t('dataManagement')}</Text>
           <GlassCard style={styles.section}>
             <Item
               icon="trash-outline"
@@ -725,14 +727,14 @@ export default function SettingsScreen({ navigation }) {
           {/* Sync Status (for logged in users) */}
           {user && !isGuest && (
             <>
-              <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Data Status</Text>
+              <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{i18n.t('dataManagement')}</Text>
               <GlassCard style={[styles.statusCard, { backgroundColor: colors.surface }]}>
                 <View style={styles.statusRow}>
                   <Ionicons name="cloud-done" size={24} color={colors.success} />
                   <View style={styles.statusInfo}>
-                    <Text style={[styles.statusTitle, { color: colors.text }]}>Cloud Sync Active</Text>
+                    <Text style={[styles.statusTitle, { color: colors.text }]}>{i18n.t('syncToFirebase')}</Text>
                     <Text style={[styles.statusSub, { color: colors.textSecondary }]}>
-                      Data syncs automatically when online
+                      {i18n.t('syncToFirebaseSubtitle')}
                     </Text>
                   </View>
                 </View>
@@ -745,8 +747,8 @@ export default function SettingsScreen({ navigation }) {
           <GlassCard style={styles.section}>
             <Item
               icon="lock-closed"
-              title="Passcode"
-              subtitle={authMethod === 'passcode' ? 'Enabled' : 'Disabled'}
+              title={i18n.t('passcode')}
+              subtitle={authMethod === 'passcode' ? i18n.t('enablePasscode') : i18n.t('disable')}
               right={
                 <Switch
                   value={authMethod === 'passcode'}
@@ -757,8 +759,8 @@ export default function SettingsScreen({ navigation }) {
             />
             <Item
               icon="finger-print"
-              title="Biometric"
-              subtitle={authMethod === 'biometric' ? 'Enabled' : 'Disabled'}
+              title={i18n.t('useFingerprint')}
+              subtitle={authMethod === 'biometric' ? i18n.t('enablePasskey') : i18n.t('disable')}
               right={
                 <Switch
                   value={authMethod === 'biometric'}
@@ -770,7 +772,7 @@ export default function SettingsScreen({ navigation }) {
             {(authMethod === 'passcode' || authMethod === 'biometric') && (
               <Item
                 icon="time-outline"
-                title="Auto-Lock"
+                title={i18n.t('autoLock')}
                 subtitle={lockTimeoutOptions.find(opt => opt.value === lockTimeout)?.label || 'Immediately'}
                 onPress={() => setTimeout(() => setShowLockTimeoutModal(true), 0)}
                 last
@@ -847,10 +849,10 @@ export default function SettingsScreen({ navigation }) {
                         <TouchableOpacity
                           onPress={async () => {
                             const ok = await confirm({
-                              title: 'Remove currency',
+                              title: i18n.t('removeWallet'),
                               message: i18n.t('confirmRemoveCurrency'),
-                              confirmText: 'Remove',
-                              cancelText: 'Cancel',
+                              confirmText: i18n.t('remove'),
+                              cancelText: i18n.t('cancel'),
                               destructive: true,
                             });
                             if (!ok) return;
@@ -858,12 +860,12 @@ export default function SettingsScreen({ navigation }) {
                             const result = await removeWallet(w.id);
                             setRemovingWalletId(null);
                             if (result.success) {
-                              toast({ type: 'success', title: 'Removed', message: `${w.currencyCode} removed.` });
+                              toast({ type: 'success', title: i18n.t('removed'), message: `${w.currencyCode} ${i18n.t('removed').toLowerCase()}` });
                             } else if (result.transactionCount > 0) {
                               setWalletToRemove({ ...w, transactionCount: result.transactionCount });
                               setTimeout(() => setShowRemoveCurrencyOptionsModal(true), 0);
                             } else {
-                              toast({ type: 'error', title: 'Cannot remove', message: result.error });
+                              toast({ type: 'error', title: i18n.t('error'), message: result.error });
                             }
                           }}
                           disabled={removingWalletId !== null}
@@ -912,56 +914,56 @@ export default function SettingsScreen({ navigation }) {
           </GlassCard>
 
           {/* Help & Support */}
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Help & Support</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{i18n.t('contactSupport')}</Text>
           <GlassCard style={styles.section}>
             <Item
               icon="logo-whatsapp"
-              title="WhatsApp Support"
+              title={i18n.t('contactSupport')}
               subtitle="+93 790 285 355"
               iconColor={colors.success}
               onPress={() => {
                 const url = 'https://wa.me/93790285355';
-                Linking.openURL(url).catch(() => toast({ type: 'error', title: 'Error', message: 'Could not open WhatsApp' }));
+                Linking.openURL(url).catch(() => toast({ type: 'error', title: i18n.t('error'), message: i18n.t('somethingWentWrong') }));
               }}
               right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
             />
             <Item
               icon="mail"
-              title="Email Support"
+              title={i18n.t('contact')}
               subtitle="rohanidgtl@gmail.com"
               iconColor={colors.warning}
               onPress={() => {
                 const url = 'mailto:rohanidgtl@gmail.com?subject=Hesabay Money Support';
-                Linking.openURL(url).catch(() => toast({ type: 'error', title: 'Error', message: 'Could not open email' }));
+                Linking.openURL(url).catch(() => toast({ type: 'error', title: i18n.t('error'), message: i18n.t('somethingWentWrong') }));
               }}
               right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
             />
             <Item
               icon="shield-checkmark"
-              title="Privacy Policy"
-              subtitle="View our privacy policy"
+              title={i18n.t('privacyPolicy')}
+              subtitle={i18n.t('privacyPolicy')}
               iconColor={colors.info}
               onPress={() => {
                 const url = getPrivacyPolicyUrl();
-                Linking.openURL(url).catch(() => toast({ type: 'error', title: 'Error', message: 'Could not open link' }));
+                Linking.openURL(url).catch(() => toast({ type: 'error', title: i18n.t('error'), message: i18n.t('somethingWentWrong') }));
               }}
               right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
             />
             <Item
               icon="star"
-              title="Rate App"
-              subtitle="Share your feedback"
+              title={i18n.t('rateApp')}
+              subtitle={i18n.t('shareApp')}
               iconColor={colors.warning}
               onPress={async () => {
                 const ok = await confirm({
-                  title: 'Rate Hesabay Money',
-                  message: 'Would you like to rate us on the store?',
-                  confirmText: 'Rate Now',
-                  cancelText: 'Later',
+                  title: i18n.t('rateApp'),
+                  message: i18n.t('rateApp'),
+                  confirmText: i18n.t('rate'),
+                  cancelText: i18n.t('cancel'),
                 });
                 if (!ok) return;
                 const url = getRateAppUrl();
-                Linking.openURL(url).catch(() => toast({ type: 'error', title: 'Error', message: 'Could not open store link' }));
+                Linking.openURL(url).catch(() => toast({ type: 'error', title: i18n.t('error'), message: i18n.t('somethingWentWrong') }));
               }}
               last
               right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
@@ -974,7 +976,7 @@ export default function SettingsScreen({ navigation }) {
             <Item
               icon="information-circle"
               title={i18n.t('about')}
-              subtitle="App info & version"
+              subtitle={i18n.t('appVersion')}
               onPress={() => navigation.navigate('About')}
               last
               right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
@@ -995,9 +997,9 @@ export default function SettingsScreen({ navigation }) {
       </ScrollView>
 
       {/* Theme Modal */}
-      <Modal visible={showThemeModal} animationType="slide" transparent onRequestClose={() => setShowThemeModal(false)}>
+      <Modal visible={showThemeModal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setShowThemeModal(false)}>
         <View style={styles.modalOverlay}>
-          <TouchableOpacity style={styles.modalBackdrop} onPress={() => setShowThemeModal(false)} activeOpacity={1} />
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowThemeModal(false); }} activeOpacity={1} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('selectTheme')}</Text>
@@ -1021,9 +1023,9 @@ export default function SettingsScreen({ navigation }) {
       </Modal>
 
       {/* Language Modal */}
-      <Modal visible={showLanguageModal} animationType="slide" transparent onRequestClose={() => setShowLanguageModal(false)}>
+      <Modal visible={showLanguageModal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setShowLanguageModal(false)}>
         <View style={styles.modalOverlay}>
-          <TouchableOpacity style={styles.modalBackdrop} onPress={() => setShowLanguageModal(false)} activeOpacity={1} />
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowLanguageModal(false); }} activeOpacity={1} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('selectLanguage')}</Text>
@@ -1049,17 +1051,17 @@ export default function SettingsScreen({ navigation }) {
       </Modal>
 
       {/* Add Wallet Modal */}
-      <Modal visible={showAddWalletModal} animationType="slide" transparent onRequestClose={() => setShowAddWalletModal(false)}>
+      <Modal visible={showAddWalletModal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setShowAddWalletModal(false)}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.modalOverlay}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 0}
+          keyboardVerticalOffset={0}
         >
-          <TouchableOpacity style={[styles.modalBackdrop, { zIndex: 0 }]} onPress={() => setShowAddWalletModal(false)} activeOpacity={1} />
+          <TouchableOpacity style={[styles.modalBackdrop, { zIndex: 0 }]} onPress={() => { Keyboard.dismiss(); setShowAddWalletModal(false); }} activeOpacity={1} />
           <View style={[styles.modalContent, styles.modalContentScrollable, { backgroundColor: colors.background, zIndex: 1 }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('addCurrency')}</Text>
-            <Text style={[styles.walletModalLabel, { color: colors.textSecondary }]}>Currency</Text>
+            <Text style={[styles.walletModalLabel, { color: colors.textSecondary }]}>{i18n.t('currency')}</Text>
             <ScrollView style={{ maxHeight: 260 }} keyboardShouldPersistTaps="handled" nestedScrollEnabled showsVerticalScrollIndicator={false}>
               {CURRENCIES.filter(c => !wallets.some(w => w.currencyCode === c.code)).length === 0 ? (
                 <Text style={[styles.walletModalHint, { color: colors.textTertiary, marginVertical: 12 }]}>{i18n.t('maxCurrenciesReached')}</Text>
@@ -1086,7 +1088,7 @@ export default function SettingsScreen({ navigation }) {
               disabled={!walletForm.currencyCode || addWalletSubmitting}
               onPress={async () => {
                 if (!walletForm.currencyCode) {
-                  toast({ type: 'warning', title: 'Select currency', message: i18n.t('selectCurrency') });
+                  toast({ type: 'warning', title: i18n.t('currency'), message: i18n.t('selectCurrency') });
                   return;
                 }
                 setAddWalletSubmitting(true);
@@ -1098,13 +1100,13 @@ export default function SettingsScreen({ navigation }) {
                   if (result && result.success) {
                     setShowAddWalletModal(false);
                     setWalletForm({ currencyCode: '', initialBalance: '' });
-                    toast({ type: 'success', title: 'Added', message: `${result.wallet?.currencyCode || walletForm.currencyCode} added.` });
+                    toast({ type: 'success', title: i18n.t('added'), message: `${result.wallet?.currencyCode || walletForm.currencyCode} ${i18n.t('added').toLowerCase()}` });
                   } else {
-                    toast({ type: 'error', title: 'Error', message: (result && result.error) || 'Could not add currency.' });
+                    toast({ type: 'error', title: i18n.t('error'), message: (result && result.error) || i18n.t('somethingWentWrong') });
                   }
                 } catch (e) {
                   console.error('addWallet:', e);
-                  toast({ type: 'error', title: 'Error', message: e?.message || 'Could not add currency.' });
+                  toast({ type: 'error', title: i18n.t('error'), message: e?.message || i18n.t('somethingWentWrong') });
                 } finally {
                   setAddWalletSubmitting(false);
                 }
@@ -1117,13 +1119,13 @@ export default function SettingsScreen({ navigation }) {
       </Modal>
 
       {/* Change currency Modal */}
-      <Modal visible={showEditWalletModal} animationType="slide" transparent onRequestClose={() => setShowEditWalletModal(false)}>
+      <Modal visible={showEditWalletModal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setShowEditWalletModal(false)}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.modalOverlay}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 0}
+          keyboardVerticalOffset={0}
         >
-          <TouchableOpacity style={styles.modalBackdrop} onPress={() => setShowEditWalletModal(false)} activeOpacity={1} />
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowEditWalletModal(false); }} activeOpacity={1} />
           <View style={[styles.modalContent, styles.modalContentScrollable, { backgroundColor: colors.background }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
@@ -1131,9 +1133,9 @@ export default function SettingsScreen({ navigation }) {
               {editingWallet && (
                 <>
                   <Text style={[styles.walletModalHint, { color: colors.textSecondary, marginBottom: 12 }]}>
-                    Current: {CURRENCIES.find(c => c.code === editingWallet.currencyCode)?.name || editingWallet.currencyCode} ({editingWallet.currencyCode})
+                    {CURRENCIES.find(c => c.code === editingWallet.currencyCode)?.name || editingWallet.currencyCode} ({editingWallet.currencyCode})
                   </Text>
-                  <Text style={[styles.walletModalLabel, { color: colors.textSecondary }]}>New currency</Text>
+                  <Text style={[styles.walletModalLabel, { color: colors.textSecondary }]}>{i18n.t('changeCurrency')}</Text>
                   <ScrollView style={{ maxHeight: 260 }} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
                     {CURRENCIES.filter(c => c.code !== editingWallet.currencyCode && !wallets.some(w => w.id !== editingWallet.id && w.currencyCode === c.code)).map((curr) => (
                       <TouchableOpacity
@@ -1184,13 +1186,13 @@ export default function SettingsScreen({ navigation }) {
       </Modal>
 
       {/* Delete all transactions verification modal */}
-      <Modal visible={showDeleteAllModal} animationType="slide" transparent onRequestClose={() => !deletingAll && setShowDeleteAllModal(false)}>
+      <Modal visible={showDeleteAllModal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => !deletingAll && setShowDeleteAllModal(false)}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.modalOverlay}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 0}
+          keyboardVerticalOffset={0}
         >
-          <TouchableOpacity style={styles.modalBackdrop} onPress={() => { if (!deletingAll) setShowDeleteAllModal(false); }} activeOpacity={1} />
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); if (!deletingAll) setShowDeleteAllModal(false); }} activeOpacity={1} />
           <View style={[styles.modalContent, styles.modalContentScrollable, { backgroundColor: colors.background }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
@@ -1226,19 +1228,20 @@ export default function SettingsScreen({ navigation }) {
                   )}
                 </TouchableOpacity>
               </View>
+              <KeyboardSpacer />
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
       {/* Exchange rates modal */}
-      <Modal visible={showExchangeRatesModal} animationType="slide" transparent onRequestClose={() => setShowExchangeRatesModal(false)}>
+      <Modal visible={showExchangeRatesModal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setShowExchangeRatesModal(false)}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.modalOverlay}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 0}
+          keyboardVerticalOffset={0}
         >
-          <TouchableOpacity style={styles.modalBackdrop} onPress={() => setShowExchangeRatesModal(false)} activeOpacity={1} />
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowExchangeRatesModal(false); }} activeOpacity={1} />
           <View style={[styles.modalContent, styles.modalContentScrollable, { backgroundColor: colors.background, maxHeight: '90%' }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <ScrollView
@@ -1309,42 +1312,43 @@ export default function SettingsScreen({ navigation }) {
                   {savingRates ? <ActivityIndicator size="small" color={colors.onAccent} /> : <Text style={[styles.walletSubmitText, { color: colors.onAccent }]}>{i18n.t('save')}</Text>}
                 </TouchableOpacity>
               </View>
+              <KeyboardSpacer />
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
       {/* Remove currency: options when currency has transactions */}
-      <Modal visible={showRemoveCurrencyOptionsModal} animationType="slide" transparent onRequestClose={() => !convertingOrDeleting && setShowRemoveCurrencyOptionsModal(false)}>
+      <Modal visible={showRemoveCurrencyOptionsModal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => !convertingOrDeleting && setShowRemoveCurrencyOptionsModal(false)}>
         <View style={styles.modalOverlay}>
-          <TouchableOpacity style={styles.modalBackdrop} onPress={() => { if (!convertingOrDeleting) setShowRemoveCurrencyOptionsModal(false); }} activeOpacity={1} />
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); if (!convertingOrDeleting) setShowRemoveCurrencyOptionsModal(false); }} activeOpacity={1} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]} pointerEvents="auto">
           <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
           <Text style={[styles.modalTitle, { color: colors.text }]}>
-            {walletToRemove?.currencyCode} has {walletToRemove?.transactionCount ?? 0} transaction(s)
+            {walletToRemove?.currencyCode} ({walletToRemove?.transactionCount ?? 0})
           </Text>
           <Text style={[styles.walletModalHint, { color: colors.textSecondary, marginBottom: 20 }]}>
-            Choose how to proceed:
+            {i18n.t('selectTargetCurrency')}
           </Text>
           <TouchableOpacity
             style={[styles.walletSubmitBtn, { backgroundColor: colors.accentLight, marginBottom: 12 }]}
             onPress={handleChooseConvertCurrency}
             disabled={convertingOrDeleting || (walletBalances.filter(w => w.id !== walletToRemove?.id).length === 0)}
           >
-            <Text style={[styles.walletSubmitText, { color: colors.accent }]}>Convert to another currency</Text>
+            <Text style={[styles.walletSubmitText, { color: colors.accent }]}>{i18n.t('changeCurrency')}</Text>
           </TouchableOpacity>
           <Text style={[styles.walletModalHint, { color: colors.textTertiary, marginBottom: 12, fontSize: 13 }]}>
-            Transactions will be converted at a rate you provide, then this currency will be removed.
+            {i18n.t('convertedAndRemoved')}
           </Text>
           <TouchableOpacity
             style={[styles.walletSubmitBtn, { backgroundColor: colors.error + '25', marginBottom: 12 }]}
             onPress={handleChooseDeleteTransactions}
             disabled={convertingOrDeleting}
           >
-            <Text style={[styles.walletSubmitText, { color: colors.error }]}>Delete all transactions with this currency</Text>
+            <Text style={[styles.walletSubmitText, { color: colors.error }]}>{i18n.t('deleteAndRemove')}</Text>
           </TouchableOpacity>
           <Text style={[styles.walletModalHint, { color: colors.textTertiary, fontSize: 13 }]}>
-            Permanently delete these transactions and remove the currency.
+            {i18n.t('deleteAndRemoveConfirm')}
           </Text>
           <TouchableOpacity
             style={[styles.walletSubmitBtn, { marginTop: 20, backgroundColor: colors.backgroundSecondary }]}
@@ -1358,21 +1362,21 @@ export default function SettingsScreen({ navigation }) {
       </Modal>
 
       {/* Convert currency: pick target and rate */}
-      <Modal visible={showConvertCurrencyModal} animationType="slide" transparent onRequestClose={() => !convertingOrDeleting && setShowConvertCurrencyModal(false)}>
+      <Modal visible={showConvertCurrencyModal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => !convertingOrDeleting && setShowConvertCurrencyModal(false)}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.modalOverlay}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 0}
+          keyboardVerticalOffset={0}
         >
           <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); if (!convertingOrDeleting) setShowConvertCurrencyModal(false); }} activeOpacity={1} />
           <View style={[styles.modalContent, styles.modalContentScrollable, { backgroundColor: colors.background }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Convert to another currency</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('changeCurrency')}</Text>
               <Text style={[styles.walletModalHint, { color: colors.textSecondary, marginBottom: 12 }]}>
-                All {walletToRemove?.transactionCount ?? 0} transaction(s) in {walletToRemove?.currencyCode} will be converted using the rate below.
+                {walletToRemove?.currencyCode} ({walletToRemove?.transactionCount ?? 0})
               </Text>
-              <Text style={[styles.walletModalLabel, { color: colors.textSecondary }]}>Target currency</Text>
+              <Text style={[styles.walletModalLabel, { color: colors.textSecondary }]}>{i18n.t('selectTargetCurrency')}</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
                 {walletBalances.filter(w => w.id !== walletToRemove?.id).map((w) => (
                   <TouchableOpacity
@@ -1391,7 +1395,7 @@ export default function SettingsScreen({ navigation }) {
               {convertTargetCurrency ? (
                 <>
                   <Text style={[styles.walletModalLabel, { color: colors.textSecondary }]}>
-                    Rate: 1 {walletToRemove?.currencyCode} = ? {convertTargetCurrency}
+                    {i18n.t('rate')}: 1 {walletToRemove?.currencyCode} = ? {convertTargetCurrency}
                   </Text>
                   <TextInput
                     style={[styles.walletInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.backgroundSecondary, marginBottom: 20 }]}
@@ -1417,22 +1421,23 @@ export default function SettingsScreen({ navigation }) {
                   onPress={handleConfirmConvertCurrency}
                   disabled={convertingOrDeleting || !convertTargetCurrency || !convertRate}
                 >
-                  {convertingOrDeleting ? <ActivityIndicator size="small" color={colors.onAccent} /> : <Text style={[styles.walletSubmitText, { color: colors.onAccent }]}>Convert & Remove</Text>}
+                  {convertingOrDeleting ? <ActivityIndicator size="small" color={colors.onAccent} /> : <Text style={[styles.walletSubmitText, { color: colors.onAccent }]}>{i18n.t('confirm')}</Text>}
                 </TouchableOpacity>
               </View>
+              <KeyboardSpacer />
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
       {/* Lock Timeout Modal */}
-      <Modal visible={showLockTimeoutModal} animationType="slide" transparent onRequestClose={() => setShowLockTimeoutModal(false)}>
+      <Modal visible={showLockTimeoutModal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setShowLockTimeoutModal(false)}>
         <View style={styles.modalOverlay}>
-          <TouchableOpacity style={styles.modalBackdrop} onPress={() => setShowLockTimeoutModal(false)} activeOpacity={1} />
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowLockTimeoutModal(false); }} activeOpacity={1} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Auto-Lock Timeout</Text>
-            <ScrollView style={{ maxHeight: 400 }}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('autoLock')}</Text>
+            <ScrollView style={{ maxHeight: 400 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
               {lockTimeoutOptions.map((option) => (
                 <TouchableOpacity
                   key={option.value}
@@ -1440,7 +1445,7 @@ export default function SettingsScreen({ navigation }) {
                   onPress={async () => { 
                     await updateLockTimeout(option.value); 
                     setShowLockTimeoutModal(false); 
-                    toast({ type: 'success', title: 'Auto-lock updated', message: `App will lock ${option.label.toLowerCase()}.` });
+                    toast({ type: 'success', title: i18n.t('updated'), message: option.label });
                   }}
                 >
                   <Ionicons 
@@ -1457,7 +1462,9 @@ export default function SettingsScreen({ navigation }) {
         </View>
       </Modal>
 
-      <BottomNavigation navigation={navigation} />
+      {!showThemeModal && !showLanguageModal && !showAddWalletModal && !showEditWalletModal && !showLockTimeoutModal && !showDeleteAllModal && !showExchangeRatesModal && !showRemoveCurrencyOptionsModal && !showConvertCurrencyModal && (
+        <BottomNavigation navigation={navigation} />
+      )}
     </View>
   );
 }
@@ -1465,15 +1472,15 @@ export default function SettingsScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { padding: 16 },
-  header: { marginBottom: 24 },
-  title: { fontSize: 34, fontWeight: '700', letterSpacing: -0.5 },
-  sectionTitle: { fontSize: 13, fontWeight: '500', marginBottom: 8, marginLeft: 4, textTransform: 'uppercase' },
-  section: { marginBottom: 24, overflow: 'hidden' },
+  header: { marginBottom: 20 },
+  title: { fontSize: 30, fontWeight: '800', letterSpacing: -0.5 },
+  sectionTitle: { fontSize: 12, fontWeight: '700', marginBottom: 8, marginLeft: 4, textTransform: 'uppercase', letterSpacing: 0.8 },
+  section: { marginBottom: 20, overflow: 'hidden' },
   item: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12 },
-  iconBox: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  iconBox: { width: 32, height: 32, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   itemInfo: { flex: 1 },
-  itemTitle: { fontSize: 16, fontWeight: '500' },
-  itemSub: { fontSize: 13, marginTop: 2 },
+  itemTitle: { fontSize: 15, fontWeight: '600' },
+  itemSub: { fontSize: 12, marginTop: 2 },
   statusCard: { marginBottom: 24, padding: 16 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   statusInfo: { flex: 1 },
@@ -1484,16 +1491,16 @@ const styles = StyleSheet.create({
   logoText: { fontSize: 26, fontWeight: '700' },
   appName: { fontSize: 18, fontWeight: '600', marginBottom: 4 },
   version: { fontSize: 13 },
-  footer: { marginTop: 32, marginBottom: 16, alignItems: 'center', gap: 4 },
+  footer: { marginTop: 28, marginBottom: 16, alignItems: 'center', gap: 6 },
   footerText: { fontSize: 13, textAlign: 'center' },
-  footerBrand: { fontWeight: '600' },
+  footerBrand: { fontWeight: '700' },
   footerCopyright: { fontSize: 11 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'flex-end' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   modalBackdrop: { flex: 1, minHeight: 0 },
-  modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: Platform.OS === 'ios' ? 40 : 20 },
+  modalContent: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 20, paddingBottom: Platform.OS === 'ios' ? 40 : 24 },
   modalContentScrollable: { maxHeight: '85%' },
-  modalHandle: { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
-  modalTitle: { fontSize: 20, fontWeight: '600', marginBottom: 16, textAlign: 'center' },
+  modalHandle: { width: 36, height: 5, borderRadius: 3, alignSelf: 'center', marginBottom: 16 },
+  modalTitle: { fontSize: 20, fontWeight: '700', marginBottom: 16, textAlign: 'center' },
   themeOpt: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 12, marginBottom: 8, gap: 12 },
   themeOptText: { flex: 1, fontSize: 16, fontWeight: '500' },
   currencySymbol: { fontSize: 24, fontWeight: '600', width: 40, textAlign: 'center' },
@@ -1510,6 +1517,6 @@ const styles = StyleSheet.create({
   walletModalLabel: { fontSize: 14, fontWeight: '500', marginBottom: 6 },
   walletModalHint: { fontSize: 12, marginTop: 4, fontStyle: 'italic' },
   walletInput: { borderWidth: 1, borderRadius: 12, padding: 14, fontSize: 18 },
-  walletSubmitBtn: { marginTop: 16, padding: 14, borderRadius: 12, alignItems: 'center' },
+  walletSubmitBtn: { marginTop: 16, padding: 14, borderRadius: 14, alignItems: 'center' },
   walletSubmitText: { fontSize: 16, fontWeight: '700' },
 });

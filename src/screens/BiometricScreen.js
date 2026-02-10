@@ -33,7 +33,7 @@ export default function BiometricScreen({ navigation, onSuccess }) {
 
   const authenticate = async () => {
     if (Platform.OS === 'web') {
-      toast({ type: 'warning', title: 'Not available', message: 'Biometric authentication is not available on web.' });
+      toast({ type: 'warning', title: i18n.t('notAvailable'), message: i18n.t('biometricNotAvailableWeb') });
       return;
     }
     if (isAuthenticating) return;

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Animated, Dimensions, Easing } from 'react-nati
 import { Ionicons } from '@expo/vector-icons';
 import { Storage } from '../utils/Storage';
 import { ThemeContext } from '../context/ThemeContext';
+import i18n from '../utils/i18n';
 import PasscodeScreen from './PasscodeScreen';
 import BiometricScreen from './BiometricScreen';
 
@@ -129,8 +130,8 @@ export default function AuthCheckScreen({ navigation }) {
               transform: [{ translateY: titleTranslateY }],
             }}
           >
-            <Text style={[styles.title, { color: colors.text }]}>Hesabay</Text>
-            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Money</Text>
+            <Text style={[styles.title, { color: colors.text }]}>{i18n.t('appName')}</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}></Text>
           </Animated.View>
         </View>
 
@@ -146,7 +147,7 @@ export default function AuthCheckScreen({ navigation }) {
           ]}
         >
           <Ionicons name="shield-checkmark" size={16} color={colors.success} />
-          <Text style={[styles.badgeText, { color: colors.textSecondary }]}>Secure & Private</Text>
+          <Text style={[styles.badgeText, { color: colors.textSecondary }]}>{i18n.t('secureAndPrivate')}</Text>
         </Animated.View>
       </View>
     );

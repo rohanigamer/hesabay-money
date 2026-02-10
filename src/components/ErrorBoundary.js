@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { ThemeContext } from '../context/ThemeContext';
+import i18n from '../utils/i18n';
 
 const defaultColors = { background: '#0f0f12', text: '#fff', textSecondary: '#888', accent: '#007AFF' };
 
@@ -31,12 +32,12 @@ class ErrorBoundaryInner extends React.Component {
       return (
         <View style={[styles.container, { backgroundColor: c.background }]}>
           <Text style={[styles.emoji]}>⚠️</Text>
-          <Text style={[styles.title, { color: c.text }]}>Something went wrong</Text>
+          <Text style={[styles.title, { color: c.text }]}>{i18n.t('somethingWentWrong')}</Text>
           <Text style={[styles.message, { color: c.textSecondary }]}>
-            The app ran into an error. Please try again.
+            {i18n.t('tryAgain')}
           </Text>
           <TouchableOpacity style={[styles.button, { backgroundColor: c.accent }]} onPress={this.handleRetry} activeOpacity={0.8}>
-            <Text style={styles.buttonText}>Try again</Text>
+            <Text style={styles.buttonText}>{i18n.t('tryAgain')}</Text>
           </TouchableOpacity>
         </View>
       );

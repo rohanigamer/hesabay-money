@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, Animated } from 'react-native';
+import { View, StyleSheet, Animated, Easing } from 'react-native';
 import { useContext } from 'react';
 import { ThemeContext } from '../context/ThemeContext';
 
@@ -15,8 +15,8 @@ export function SkeletonBox({ width, height, style, borderRadius = 8 }) {
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(opacity, { toValue: 0.6, duration: 600, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 0.35, duration: 600, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.65, duration: 800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.3, duration: 800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
       ])
     );
     loop.start();
@@ -92,12 +92,12 @@ export function SkeletonCustomers() {
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <SkeletonBox width={120} height={32} borderRadius={10} />
-        <SkeletonBox width={44} height={44} borderRadius={22} />
+        <SkeletonBox width={44} height={44} borderRadius={14} />
       </View>
       <SkeletonBox width="100%" height={48} style={styles.searchBar} />
       {[1, 2, 3, 4, 5].map((i) => (
         <View key={i} style={[styles.customerRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <SkeletonBox width={44} height={44} borderRadius={12} />
+          <SkeletonBox width={44} height={44} borderRadius={14} />
           <View style={{ flex: 1, marginLeft: 12 }}>
             <SkeletonBox width="55%" height={16} style={{ marginBottom: 6 }} />
             <SkeletonBox width="35%" height={12} />
@@ -146,10 +146,23 @@ export function SkeletonCalculation() {
 const styles = StyleSheet.create({
   container: { padding: 16 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-  searchBar: { marginBottom: 18, borderRadius: 14 },
+  searchBar: { marginBottom: 18, borderRadius: 10 },
   walletCard: { padding: 20, marginBottom: 24 },
   sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
   listCard: { overflow: 'hidden', marginBottom: 8, padding: 0 },
   listRow: { flexDirection: 'row', alignItems: 'center', padding: 14 },
   customerRow: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 14, marginBottom: 8, borderWidth: StyleSheet.hairlineWidth },
+  transactionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  transactionIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+  },
 });

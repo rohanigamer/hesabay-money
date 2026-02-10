@@ -111,13 +111,12 @@ class FirebaseSyncService {
     this._notifyStatus();
 
     try {
-      // Get local data
-      const [customers, transactions, wallets, exchangeRates] = await Promise.all([
-        Storage.getCustomers(),
-        Storage.getTransactions(),
-        Storage.getWallets(),
-        Storage.getExchangeRates(),
-      ]);
+      // Get local data — sequential to avoid race conditions
+      // (getCustomers and getWallets internally read/write transactions)
+      const wallets = await Storage.getWallets();
+      const transactions = await Storage.getTransactions();
+      const customers = await Storage.getCustomers();
+      const exchangeRates = await Storage.getExchangeRates();
       
       const dataToSync = {
         customers: customers,
@@ -359,11 +358,10 @@ class FirebaseSyncService {
     const firebaseData = await this.loadFromFirebase();
     if (!firebaseData) return;
 
-    const [localCustomers, localTransactions, localWallets] = await Promise.all([
-      Storage.getCustomers(),
-      Storage.getTransactions(),
-      Storage.getWallets(),
-    ]);
+    // Sequential to avoid race conditions (getWallets/getCustomers can write data internally)
+    const localWallets = await Storage.getWallets();
+    const localTransactions = await Storage.getTransactions();
+    const localCustomers = await Storage.getCustomers();
 
     if (localWallets.length === 0 && firebaseData.wallets && firebaseData.wallets.length > 0) {
       await Storage.saveWallets(firebaseData.wallets);
@@ -380,17 +378,8 @@ class FirebaseSyncService {
 
     // If local is empty, use Firebase data
     if (localCustomers.length === 0 && firebaseData.customers.length > 0) {
-      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-      const SecureStore = require('expo-secure-store');
-      const userId = getCurrentUserId();
-      const key = `${userId}_customers`;
-      
       try {
-        if (Platform.OS === 'web') {
-          await AsyncStorage.setItem(key, JSON.stringify(firebaseData.customers));
-        } else {
-          await SecureStore.setItemAsync(key, JSON.stringify(firebaseData.customers));
-        }
+        await Storage.saveCustomers(firebaseData.customers);
         console.log('📥 Merged customers from Firebase');
       } catch (e) {
         console.log('Error saving customers:', e);
@@ -398,17 +387,8 @@ class FirebaseSyncService {
     }
     
     if (localTransactions.length === 0 && firebaseData.transactions.length > 0) {
-      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-      const SecureStore = require('expo-secure-store');
-      const userId = getCurrentUserId();
-      const key = `${userId}_transactions`;
-      
       try {
-        if (Platform.OS === 'web') {
-          await AsyncStorage.setItem(key, JSON.stringify(firebaseData.transactions));
-        } else {
-          await SecureStore.setItemAsync(key, JSON.stringify(firebaseData.transactions));
-        }
+        await Storage.saveTransactions(firebaseData.transactions);
         console.log('📥 Merged transactions from Firebase');
       } catch (e) {
         console.log('Error saving transactions:', e);
@@ -452,17 +432,9 @@ class FirebaseSyncService {
         console.log('✅ Refreshed exchange rates from Firebase');
       }
 
-      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-      const SecureStore = require('expo-secure-store');
-      
       // OVERWRITE customers
-      const customersKey = `${userId}_customers`;
       try {
-        if (Platform.OS === 'web') {
-          await AsyncStorage.setItem(customersKey, JSON.stringify(firebaseData.customers));
-        } else {
-          await SecureStore.setItemAsync(customersKey, JSON.stringify(firebaseData.customers));
-        }
+        await Storage.saveCustomers(firebaseData.customers);
         console.log(`✅ Refreshed ${firebaseData.customers.length} customers from Firebase`);
       } catch (e) {
         console.error('Error saving customers:', e);
@@ -470,13 +442,8 @@ class FirebaseSyncService {
       }
       
       // OVERWRITE transactions
-      const transactionsKey = `${userId}_transactions`;
       try {
-        if (Platform.OS === 'web') {
-          await AsyncStorage.setItem(transactionsKey, JSON.stringify(firebaseData.transactions));
-        } else {
-          await SecureStore.setItemAsync(transactionsKey, JSON.stringify(firebaseData.transactions));
-        }
+        await Storage.saveTransactions(firebaseData.transactions);
         console.log(`✅ Refreshed ${firebaseData.transactions.length} transactions from Firebase`);
       } catch (e) {
         console.error('Error saving transactions:', e);

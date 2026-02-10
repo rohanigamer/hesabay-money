@@ -223,7 +223,7 @@ export default function PasscodeScreen({ navigation, route, onSuccess }) {
               style={[styles.cancelBtn, { marginTop: 28 }]}
               onPress={() => navigation.goBack()}
             >
-              <Text style={[styles.cancelText, { color: colors.accent }]}>Cancel</Text>
+              <Text style={[styles.cancelText, { color: colors.accent }]}>{i18n.t('cancel')}</Text>
             </TouchableOpacity>
           )}
         </Animated.View>

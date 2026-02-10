@@ -18,6 +18,7 @@ import { ThemeContext } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import AnimatedBackground from '../components/AnimatedBackground';
 import { useFeedback } from '../context/FeedbackContext';
+import KeyboardSpacer from '../components/KeyboardSpacer';
 import i18n from '../utils/i18n';
 
 export default function LoginScreen({ navigation }) {
@@ -36,11 +37,11 @@ export default function LoginScreen({ navigation }) {
 
   const handleLogin = async () => {
     if (!email.trim()) {
-      toast({ type: 'warning', title: 'Missing email', message: 'Please enter your email address.' });
+      toast({ type: 'warning', title: i18n.t('missingEmail'), message: i18n.t('missingEmailMsg') });
       return;
     }
     if (!password) {
-      toast({ type: 'warning', title: 'Missing password', message: 'Please enter your password.' });
+      toast({ type: 'warning', title: i18n.t('missingPassword'), message: i18n.t('missingPasswordMsg') });
       return;
     }
 
@@ -48,30 +49,30 @@ export default function LoginScreen({ navigation }) {
     try {
       const result = await signIn(email.trim().toLowerCase(), password);
       if (result.success) {
-        toast({ type: 'success', title: 'Welcome', message: result.message || 'Login successful.' });
+        toast({ type: 'success', title: i18n.t('welcome'), message: result.message || i18n.t('success') });
         navigation.reset({
           index: 0,
           routes: [{ name: 'Transaction' }],
         });
       } else if (result.needsVerification) {
-        await alert({ title: 'Email verification required', message: result.error, confirmText: 'OK' });
+        await alert({ title: i18n.t('verifyYourEmail'), message: result.error, confirmText: i18n.t('ok') });
       } else {
         const errorMsg = result.error || 'Login failed. Please try again.';
         if (errorMsg.includes("don't have an account")) {
           const goToSignup = await confirm({
-            title: 'Account not found',
-            message: `${errorMsg}\n\nWould you like to create an account?`,
-            confirmText: 'Sign Up',
-            cancelText: 'Try Again',
+            title: i18n.t('accountNotFound'),
+            message: `${errorMsg}\n\n${i18n.t('wouldYouLikeToSignUp')}`,
+            confirmText: i18n.t('createAccount'),
+            cancelText: i18n.t('tryAgain'),
           });
           if (goToSignup) navigation.navigate('Signup');
         } else {
-          toast({ type: 'error', title: 'Login failed', message: errorMsg });
+          toast({ type: 'error', title: i18n.t('loginFailed'), message: errorMsg });
         }
       }
     } catch (err) {
       console.error('Login error:', err);
-      toast({ type: 'error', title: 'Login failed', message: err?.message || 'Something went wrong. Try again.' });
+      toast({ type: 'error', title: i18n.t('loginFailed'), message: err?.message || i18n.t('somethingWentWrong') });
     } finally {
       setLoading(false);
     }
@@ -79,7 +80,7 @@ export default function LoginScreen({ navigation }) {
 
   const handleForgotPassword = async () => {
     if (!resetEmail.trim()) {
-      toast({ type: 'warning', title: 'Missing email', message: 'Please enter your email address.' });
+      toast({ type: 'warning', title: i18n.t('missingEmail'), message: i18n.t('missingEmailMsg') });
       return;
     }
 
@@ -87,15 +88,15 @@ export default function LoginScreen({ navigation }) {
     try {
       const result = await forgotPassword(resetEmail.trim().toLowerCase());
       if (result.success) {
-        toast({ type: 'success', title: 'Email sent', message: result.message });
+        toast({ type: 'success', title: i18n.t('emailSent'), message: result.message });
         setForgotPasswordModal(false);
         setResetEmail('');
       } else {
-        toast({ type: 'error', title: 'Could not send email', message: result.error });
+        toast({ type: 'error', title: i18n.t('couldNotSendEmail'), message: result.error });
       }
     } catch (err) {
       console.error('Forgot password error:', err);
-      toast({ type: 'error', title: 'Error', message: err?.message || 'Could not send email.' });
+      toast({ type: 'error', title: i18n.t('error'), message: err?.message || i18n.t('couldNotSendEmail') });
     } finally {
       setLoading(false);
     }
@@ -113,18 +114,18 @@ export default function LoginScreen({ navigation }) {
         });
       } else if (result.showAlternatives) {
         const goEmail = await confirm({
-          title: 'Google Sign-In not available',
-          message: `${result.error}\n\nUse email instead?`,
-          confirmText: 'Sign up with Email',
-          cancelText: 'Cancel',
+          title: i18n.t('googleSignInNotAvailable'),
+          message: `${result.error}\n\n${i18n.t('useEmailInstead')}`,
+          confirmText: i18n.t('signUpWithEmail'),
+          cancelText: i18n.t('cancel'),
         });
         if (goEmail) navigation.navigate('Signup');
       } else if (result.error) {
-        toast({ type: 'error', title: 'Google Sign-In failed', message: result.error });
+        toast({ type: 'error', title: i18n.t('googleSignInFailed'), message: result.error });
       }
     } catch (err) {
       console.error('Google sign-in error:', err);
-      toast({ type: 'error', title: 'Error', message: err?.message || 'Google Sign-In failed.' });
+      toast({ type: 'error', title: i18n.t('error'), message: err?.message || i18n.t('googleSignInFailed') });
     } finally {
       setLoading(false);
     }
@@ -132,7 +133,7 @@ export default function LoginScreen({ navigation }) {
 
   const handleGuestLogin = () => {
     const result = continueAsGuest();
-    toast({ type: 'info', title: 'Guest mode', message: result.message });
+    toast({ type: 'info', title: i18n.t('guestMode'), message: result.message });
     navigation.reset({
       index: 0,
       routes: [{ name: 'Transaction' }],
@@ -143,8 +144,8 @@ export default function LoginScreen({ navigation }) {
     <AnimatedBackground>
     <KeyboardAvoidingView 
       style={[styles.container, { backgroundColor: 'transparent' }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={0}
     >
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -302,13 +303,14 @@ export default function LoginScreen({ navigation }) {
       <Modal
         visible={forgotPasswordModal}
         transparent
+        statusBarTranslucent
         animationType="fade"
         onRequestClose={() => setForgotPasswordModal(false)}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.modalOverlay}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
+          keyboardVerticalOffset={0}
         >
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setForgotPasswordModal(false); }} activeOpacity={1} />
           <ScrollView
@@ -354,6 +356,7 @@ export default function LoginScreen({ navigation }) {
                   )}
                 </TouchableOpacity>
               </View>
+              <KeyboardSpacer />
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -367,10 +370,10 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { flexGrow: 1, paddingHorizontal: 24, justifyContent: 'center' },
   
-  header: { alignItems: 'center', marginBottom: 40 },
-  iconCircle: { width: 88, height: 88, borderRadius: 44, justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
-  title: { fontSize: 30, fontWeight: '800', marginBottom: 8, letterSpacing: -0.5 },
-  subtitle: { fontSize: 15, textAlign: 'center', maxWidth: 280 },
+  header: { alignItems: 'center', marginBottom: 36 },
+  iconCircle: { width: 80, height: 80, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  title: { fontSize: 28, fontWeight: '800', marginBottom: 8, letterSpacing: -0.5 },
+  subtitle: { fontSize: 15, textAlign: 'center', maxWidth: 280, lineHeight: 22 },
   
   form: { width: '100%' },
   inputGroup: { marginBottom: 20 },
@@ -381,8 +384,8 @@ const styles = StyleSheet.create({
   forgotPassword: { alignSelf: 'flex-end', marginBottom: 20 },
   forgotPasswordText: { fontSize: 14, fontWeight: '600' },
   
-  loginBtn: { paddingVertical: 18, borderRadius: 14, alignItems: 'center' },
-  loginBtnText: { fontSize: 16, fontWeight: '600' },
+  loginBtn: { paddingVertical: 16, borderRadius: 14, alignItems: 'center' },
+  loginBtnText: { fontSize: 16, fontWeight: '700' },
   
   divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 24 },
   dividerLine: { flex: 1, height: 1 },
@@ -391,8 +394,8 @@ const styles = StyleSheet.create({
   socialBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 12, borderWidth: 1, gap: 12, marginBottom: 12 },
   socialBtnText: { fontSize: 15, fontWeight: '500' },
   
-  guestBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 12, borderWidth: 1, gap: 12 },
-  guestBtnText: { fontSize: 15, fontWeight: '500' },
+  guestBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 14, borderWidth: 1, gap: 10 },
+  guestBtnText: { fontSize: 15, fontWeight: '600' },
   
   guestNote: { fontSize: 12, textAlign: 'center', marginTop: 8 },
   connectionBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12, marginBottom: 20, gap: 10 },
@@ -403,12 +406,12 @@ const styles = StyleSheet.create({
   signupLink: { fontSize: 14, fontWeight: '600' },
 
   // Modal styles
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   forgotModalScroll: { flexGrow: 1, justifyContent: 'center', padding: 24, paddingVertical: 48 },
-  modalContent: { width: '100%', maxWidth: 400, borderRadius: 20, padding: 24 },
+  modalContent: { width: '100%', maxWidth: 400, borderRadius: 22, padding: 24 },
   modalTitle: { fontSize: 20, fontWeight: '700', marginBottom: 8 },
-  modalSubtitle: { fontSize: 14, lineHeight: 20 },
+  modalSubtitle: { fontSize: 14, lineHeight: 21 },
   modalButtons: { flexDirection: 'row', gap: 12, marginTop: 24 },
-  modalBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
-  modalBtnText: { fontSize: 15, fontWeight: '600' },
+  modalBtn: { flex: 1, paddingVertical: 14, borderRadius: 14, alignItems: 'center' },
+  modalBtnText: { fontSize: 15, fontWeight: '700' },
 });

@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import { setCurrentUserId, Storage } from '../utils/Storage';
 import { isFirebaseReady, initializeFirebase, isWeb } from '../config/firebase';
 import { firebaseAuthREST } from '../services/FirebaseAuthREST';
+import i18n from '../utils/i18n';
 
 export const AuthContext = createContext();
 
@@ -146,7 +147,7 @@ export const AuthProvider = ({ children }) => {
       return { 
         success: true, 
         user: null,
-        message: 'Account created! Please check your email to verify before logging in.'
+        message: i18n.t('verificationInstructions')
       };
     } catch (error) {
       console.error('Sign up error:', error);
@@ -184,7 +185,7 @@ export const AuthProvider = ({ children }) => {
       return { 
         success: true, 
         user: userCredential.user,
-        message: `Welcome back, ${userCredential.user.displayName || 'User'}!`
+        message: `${i18n.t('welcome')}, ${userCredential.user.displayName || i18n.t('guestMode')}!`
       };
     } catch (error) {
       console.error('Sign in error:', error);
@@ -195,7 +196,7 @@ export const AuthProvider = ({ children }) => {
   // Forgot password
   const forgotPassword = async (email) => {
     if (!email) {
-      return { success: false, error: 'Please enter your email address.' };
+      return { success: false, error: i18n.t('missingEmailMsg') };
     }
 
     try {
@@ -209,7 +210,7 @@ export const AuthProvider = ({ children }) => {
       
       return { 
         success: true, 
-        message: 'Password reset email sent! Check your inbox.' 
+        message: i18n.t('emailSent') 
       };
     } catch (error) {
       console.error('Forgot password error:', error);
@@ -220,7 +221,7 @@ export const AuthProvider = ({ children }) => {
   // Resend verification email
   const resendVerificationEmail = async () => {
     if (!user) {
-      return { success: false, error: 'No user logged in.' };
+      return { success: false, error: i18n.t('error') };
     }
 
     try {
@@ -231,7 +232,7 @@ export const AuthProvider = ({ children }) => {
         await firebaseAuthREST.sendEmailVerification(user);
       }
       
-      return { success: true, message: 'Verification email sent!' };
+      return { success: true, message: i18n.t('emailSent') };
     } catch (error) {
       return { success: false, error: error.message };
     }
@@ -261,7 +262,7 @@ export const AuthProvider = ({ children }) => {
       
       setUser(null);
       setCurrentUserId(null);
-      return { success: true, message: 'Logged out successfully!' };
+      return { success: true, message: i18n.t('success') };
     } catch (error) {
       console.error('Logout error:', error);
       return { success: false, error: error.message };
@@ -273,7 +274,7 @@ export const AuthProvider = ({ children }) => {
     if (Platform.OS !== 'web') {
       return { 
         success: false, 
-        error: 'Google Sign-In on mobile requires additional setup.\n\nPlease use Email/Password or Continue as Guest.',
+        error: i18n.t('googleSignInNotAvailable'),
         showAlternatives: true
       };
     }
@@ -293,14 +294,14 @@ export const AuthProvider = ({ children }) => {
         user: result.user,
         isNewUser: isNewUser,
         message: isNewUser 
-          ? `Welcome! Account created with ${result.user.email}` 
-          : `Welcome back, ${result.user.displayName || 'User'}!`
+          ? `${i18n.t('welcome')}! ${result.user.email}` 
+          : `${i18n.t('welcome')}, ${result.user.displayName || i18n.t('guestMode')}!`
       };
     } catch (error) {
       console.error('Google Sign-In error:', error);
       
       if (error.code === 'auth/popup-closed-by-user') {
-        return { success: false, error: 'Sign-in was cancelled.' };
+        return { success: false, error: i18n.t('loginFailed') };
       }
       
       return { success: false, error: getErrorMessage(error) };
@@ -322,7 +323,7 @@ export const AuthProvider = ({ children }) => {
     return { 
       success: true, 
       user: guestUser,
-      message: 'You are using the app as a guest. Data is stored locally on this device only.'
+      message: i18n.t('guestNote')
     };
   };
 

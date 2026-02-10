@@ -23,6 +23,8 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { ThemeContext } from '../context/ThemeContext';
 import { useCurrency } from '../context/CurrencyContext';
+import KeyboardSpacer from '../components/KeyboardSpacer';
+import DatePickerRow from '../components/DatePickerRow';
 import { Storage } from '../utils/Storage';
 import BottomNavigation from '../components/BottomNavigation';
 import GlassCard from '../components/GlassCard';
@@ -48,6 +50,7 @@ export default function TransactionScreen({ navigation }) {
   const [transactions, setTransactions] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [stats, setStats] = useState({ totalIncome: 0, totalExpenses: 0, totalBalance: 0 });
+  const [statsPerCurrency, setStatsPerCurrency] = useState({});
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -55,7 +58,7 @@ export default function TransactionScreen({ navigation }) {
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
   const [addCustomerSubmitting, setAddCustomerSubmitting] = useState(false);
   const [selectedType, setSelectedType] = useState('income');
-  const [formData, setFormData] = useState({ amount: '', description: '', customerId: null, customerName: '', currencyCode: null });
+  const [formData, setFormData] = useState({ amount: '', description: '', customerId: null, customerName: '', currencyCode: null, date: new Date().toISOString() });
   const [editData, setEditData] = useState(null);
   const [deleteData, setDeleteData] = useState(null);
   const [customerSearch, setCustomerSearch] = useState('');
@@ -108,19 +111,21 @@ export default function TransactionScreen({ navigation }) {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [loadedTransactions, loadedCustomers, loadedStats] = await Promise.all([
+      const [loadedTransactions, loadedCustomers, loadedStats, perCurrency] = await Promise.all([
         Storage.getTransactions(),
         Storage.getCustomers(),
         Storage.getStats(),
+        Storage.getStatsPerCurrency(),
       ]);
       setTransactions(Array.isArray(loadedTransactions) ? loadedTransactions : []);
       setCustomers(Array.isArray(loadedCustomers) ? loadedCustomers : []);
       setStats(loadedStats && typeof loadedStats === 'object' ? loadedStats : { totalIncome: 0, totalExpenses: 0, totalBalance: 0 });
+      setStatsPerCurrency(perCurrency && typeof perCurrency === 'object' ? perCurrency : {});
       refreshBalances();
       hasLoadedOnce.current = true;
     } catch (err) {
       console.error('Transaction loadData:', err);
-      toast({ type: 'error', title: 'Error', message: 'Could not load data. Pull to refresh or try again.' });
+      toast({ type: 'error', title: i18n.t('error'), message: i18n.t('couldNotLoadData') });
     } finally {
       setLoading(false);
     }
@@ -128,7 +133,7 @@ export default function TransactionScreen({ navigation }) {
 
   const handleAddTransaction = async () => {
     if (!formData.amount || parseFloat(formData.amount) <= 0) {
-      toast({ type: 'warning', title: 'Invalid amount', message: 'Please enter a valid amount.' });
+      toast({ type: 'warning', title: i18n.t('invalidAmount'), message: i18n.t('pleaseEnterValidAmount') });
       return;
     }
     const currencyCode = formData.currencyCode || primaryCurrency;
@@ -136,28 +141,29 @@ export default function TransactionScreen({ navigation }) {
       const result = await Storage.addTransaction({
         amount: parseFloat(formData.amount),
         type: selectedType,
-        description: formData.description || (selectedType === 'income' ? 'Income' : 'Expense'),
+        description: formData.description || (selectedType === 'income' ? i18n.t('income') : i18n.t('expenses')),
         customerId: formData.customerId,
         customerName: formData.customerName,
         currencyCode,
+        date: formData.date,
       });
       if (result) {
-        setFormData({ amount: '', description: '', customerId: null, customerName: '', currencyCode: null });
+        setFormData({ amount: '', description: '', customerId: null, customerName: '', currencyCode: null, date: new Date().toISOString() });
         setShowAddModal(false);
-        toast({ type: 'success', title: 'Added', message: 'Transaction added.' });
+        toast({ type: 'success', title: i18n.t('added'), message: i18n.t('transactionAdded') });
         await loadData();
       } else {
-        toast({ type: 'error', title: 'Error', message: 'Could not add transaction. Try again.' });
+        toast({ type: 'error', title: i18n.t('error'), message: i18n.t('couldNotAddTransaction') });
       }
     } catch (err) {
       console.error('handleAddTransaction:', err);
-      toast({ type: 'error', title: 'Error', message: err?.message || 'Could not add transaction.' });
+      toast({ type: 'error', title: i18n.t('error'), message: err?.message || i18n.t('couldNotAddTransaction') });
     }
   };
 
   const handleEditTransaction = async () => {
     if (!editData?.amount || parseFloat(editData.amount) <= 0) {
-      toast({ type: 'warning', title: 'Invalid amount', message: 'Please enter a valid amount.' });
+      toast({ type: 'warning', title: i18n.t('invalidAmount'), message: i18n.t('pleaseEnterValidAmount') });
       return;
     }
     try {
@@ -168,18 +174,19 @@ export default function TransactionScreen({ navigation }) {
         customerId: editData.customerId,
         customerName: editData.customerName,
         currencyCode: editData.currencyCode || primaryCurrency,
+        createdAt: editData.date,
       });
       if (result) {
         setShowEditModal(false);
         setEditData(null);
-        toast({ type: 'success', title: 'Updated', message: 'Transaction updated.' });
+        toast({ type: 'success', title: i18n.t('updated'), message: i18n.t('transactionUpdated') });
         await loadData();
       } else {
-        toast({ type: 'error', title: 'Error', message: 'Could not update transaction.' });
+        toast({ type: 'error', title: i18n.t('error'), message: i18n.t('couldNotUpdateTransaction') });
       }
     } catch (err) {
       console.error('handleEditTransaction:', err);
-      toast({ type: 'error', title: 'Error', message: err?.message || 'Could not update.' });
+      toast({ type: 'error', title: i18n.t('error'), message: err?.message || i18n.t('couldNotUpdateTransaction') });
     }
   };
 
@@ -189,17 +196,17 @@ export default function TransactionScreen({ navigation }) {
       await Storage.deleteTransaction(deleteData.id);
       setShowDeleteModal(false);
       setDeleteData(null);
-      toast({ type: 'success', title: 'Deleted', message: 'Transaction removed.' });
+      toast({ type: 'success', title: i18n.t('deleted'), message: i18n.t('transactionDeleted') });
       await loadData();
     } catch (err) {
       console.error('handleDeleteTransaction:', err);
-      toast({ type: 'error', title: 'Error', message: err?.message || 'Could not delete transaction.' });
+      toast({ type: 'error', title: i18n.t('error'), message: err?.message || i18n.t('couldNotDeleteTransaction') });
     }
   };
 
   const handleAddCustomer = async () => {
     if (!newCustomerData.name.trim()) {
-      toast({ type: 'warning', title: 'Missing name', message: 'Please enter customer name.' });
+      toast({ type: 'warning', title: i18n.t('missingName'), message: i18n.t('missingNameMsg') });
       return;
     }
     if (addCustomerSubmitting) return;
@@ -221,13 +228,13 @@ export default function TransactionScreen({ navigation }) {
         if (newCustomer) {
           setFormData(prev => ({ ...prev, customerId: newCustomer.id, customerName: newCustomer.name }));
         }
-        toast({ type: 'success', title: 'Added', message: 'Customer added.' });
+        toast({ type: 'success', title: i18n.t('added'), message: i18n.t('customerAdded') });
       } else {
-        toast({ type: 'error', title: 'Error', message: 'Could not add customer.' });
+        toast({ type: 'error', title: i18n.t('error'), message: i18n.t('couldNotAddCustomer') });
       }
     } catch (err) {
       console.error('handleAddCustomer:', err);
-      toast({ type: 'error', title: 'Error', message: err?.message || 'Could not add customer.' });
+      toast({ type: 'error', title: i18n.t('error'), message: err?.message || i18n.t('couldNotAddCustomer') });
     } finally {
       setAddCustomerSubmitting(false);
     }
@@ -242,6 +249,7 @@ export default function TransactionScreen({ navigation }) {
       customerId: transaction.customerId,
       customerName: transaction.customerName,
       currencyCode: transaction.currencyCode || primaryCurrency,
+      date: transaction.createdAt || new Date().toISOString(),
     });
     setShowEditModal(true);
   };
@@ -253,12 +261,12 @@ export default function TransactionScreen({ navigation }) {
 
   const formatDateTime = (d) => {
     const date = new Date(d);
-    const time = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-    const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const time = date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true });
+    const dateStr = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
     return `${time} • ${dateStr}`;
   };
 
-  const formatDateHeader = (d) => new Date(d).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
+  const formatDateHeader = (d) => new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
 
   // Filter customers by search
   const filteredCustomers = customers.filter(c => 
@@ -273,7 +281,8 @@ export default function TransactionScreen({ navigation }) {
     return (
       t.description?.toLowerCase().includes(query) ||
       t.customerName?.toLowerCase().includes(query) ||
-      t.amount?.toString().includes(query)
+      t.amount?.toString().includes(query) ||
+      t.currencyCode?.toLowerCase().includes(query)
     );
   });
 
@@ -306,11 +315,11 @@ export default function TransactionScreen({ navigation }) {
       const report = generateTextReport();
       await Share.share({
         message: report,
-        title: 'Transactions Report',
+        title: i18n.t('transactionsReport'),
       });
       setShowExportModal(false);
     } catch (error) {
-      toast({ type: 'error', title: 'Export failed', message: 'Could not export report.' });
+      toast({ type: 'error', title: i18n.t('exportFailed'), message: i18n.t('couldNotExportReport') });
     }
   };
 
@@ -326,12 +335,12 @@ export default function TransactionScreen({ navigation }) {
 
   const exportToCSV = async () => {
     try {
-      let csv = 'Date,Time,Type,Amount,Currency,Description,Customer\n';
+      let csv = `${i18n.t('selectDate')},${i18n.t('today')},${i18n.t('entryType')},${i18n.t('amount')},${i18n.t('currency')},${i18n.t('description')},${i18n.t('customers')}\n`;
       transactions.forEach(t => {
         const date = new Date(t.createdAt);
         const dateStr = date.toLocaleDateString();
         const timeStr = date.toLocaleTimeString();
-        const type = (t.type === 'income' || t.type === 'credit') ? 'Income' : 'Expense';
+        const type = (t.type === 'income' || t.type === 'credit') ? i18n.t('income') : i18n.t('expenses');
         const amount = t.amount;
         const currency = t.currencyCode || primaryCurrency;
         const desc = escapeCSV(t.description);
@@ -341,7 +350,7 @@ export default function TransactionScreen({ navigation }) {
 
       if (Platform.OS === 'web') {
         // For web, use Share
-        await Share.share({ message: csv, title: 'Transactions.csv' });
+        await Share.share({ message: csv, title: i18n.t('transactionsReport') + '.csv' });
       } else {
         // For mobile, save and share file
         const fileUri = FileSystem.documentDirectory + 'transactions.csv';
@@ -350,32 +359,40 @@ export default function TransactionScreen({ navigation }) {
         if (canShare) {
           await Sharing.shareAsync(fileUri);
         } else {
-          toast({ type: 'success', title: 'Exported', message: 'File saved to: ' + fileUri });
+          toast({ type: 'success', title: i18n.t('exported'), message: i18n.t('fileSavedTo') + fileUri });
         }
       }
       setShowExportModal(false);
     } catch (error) {
       console.error('Export error:', error);
-      toast({ type: 'error', title: 'Export failed', message: 'Could not export CSV.' });
+      toast({ type: 'error', title: i18n.t('exportFailed'), message: i18n.t('couldNotExportCSV') });
     }
   };
 
   // Generate text report
   const generateTextReport = () => {
-    let report = `=== TRANSACTIONS REPORT ===\n`;
+    let report = `=== ${i18n.t('transactionsReport').toUpperCase()} ===\n`;
     report += `Generated: ${new Date().toLocaleString()}\n\n`;
     report += `--- SUMMARY ---\n`;
-    report += `Total Income: ${format(stats.totalIncome)}\n`;
-    report += `Total Expenses: ${format(stats.totalExpenses)}\n`;
-    report += `Net Balance: ${format(stats.totalBalance)}\n`;
-    report += `Total Transactions: ${transactions.length}\n\n`;
+    const codes = Object.keys(statsPerCurrency);
+    if (codes.length > 0) {
+      codes.forEach(code => {
+        const s = statsPerCurrency[code];
+        report += `[${code}] ${i18n.t('income')}: ${format(s.totalIncome, code)}  ${i18n.t('expenses')}: ${format(s.totalExpenses, code)}  ${i18n.t('netBalance')}: ${format(s.totalBalance, code)}\n`;
+      });
+    } else {
+      report += `${i18n.t('totalIncome')}: ${format(stats.totalIncome)}\n`;
+      report += `${i18n.t('totalExpenses')}: ${format(stats.totalExpenses)}\n`;
+      report += `${i18n.t('netBalance')}: ${format(stats.totalBalance)}\n`;
+    }
+    report += `${i18n.t('totalTransactions')}: ${transactions.length}\n\n`;
     report += `--- TRANSACTIONS ---\n\n`;
     
     transactions.forEach((t, i) => {
       const type = (t.type === 'income' || t.type === 'credit') ? 'IN' : 'OUT';
       report += `${i + 1}. ${formatDateTime(t.createdAt)}\n`;
       report += `   ${type}: ${format(t.amount, t.currencyCode)} ${t.currencyCode || ''}\n`;
-      report += `   ${t.description || 'No description'}`;
+      report += `   ${t.description || i18n.t('noDescription')}`;
       if (t.customerName) report += ` (${t.customerName})`;
       report += `\n\n`;
     });
@@ -521,6 +538,7 @@ export default function TransactionScreen({ navigation }) {
         ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         ListHeaderComponent={listHeader}
         sections={transactionSections}
         keyExtractor={(item) => item.id}
@@ -550,13 +568,14 @@ export default function TransactionScreen({ navigation }) {
       )}
 
       {/* Bottom Action Buttons - responsive for small screens */}
+      {!showAddModal && !showEditModal && !showDeleteModal && !showCustomerPicker && !showAddCustomerModal && !showExportModal && (
       <View style={[styles.bottomActionsWrapper, { backgroundColor: colors.background, borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, 8) + 8 }]}>
         <View style={[styles.bottomActions, isNarrow && { paddingHorizontal: 12, gap: 8 }]}>
           <TouchableOpacity
             style={[styles.cashInBtn, { backgroundColor: colors.success }, isNarrow && styles.cashBtnNarrow]}
             onPress={() => {
               if (walletBalances.length === 0) {
-                toast({ type: 'warning', title: 'No currency', message: i18n.t('addCurrencyInSettingsFirst') });
+                toast({ type: 'warning', title: i18n.t('noCurrency'), message: i18n.t('addCurrencyInSettingsFirst') });
                 return;
               }
               setSelectedType('income');
@@ -565,13 +584,13 @@ export default function TransactionScreen({ navigation }) {
             }}
           >
             <Ionicons name="add" size={isNarrow ? 18 : 20} color={colors.onSuccess} />
-            <Text style={[styles.cashBtnText, { color: colors.onSuccess }, isNarrow && styles.cashBtnTextNarrow]}>CASH IN</Text>
+            <Text style={[styles.cashBtnText, { color: colors.onSuccess }, isNarrow && styles.cashBtnTextNarrow]}>{i18n.t('cashIn').toUpperCase()}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.cashOutBtn, { backgroundColor: colors.error }, isNarrow && styles.cashBtnNarrow]}
             onPress={() => {
               if (walletBalances.length === 0) {
-                toast({ type: 'warning', title: 'No currency', message: i18n.t('addCurrencyInSettingsFirst') });
+                toast({ type: 'warning', title: i18n.t('noCurrency'), message: i18n.t('addCurrencyInSettingsFirst') });
                 return;
               }
               setSelectedType('expense');
@@ -580,17 +599,18 @@ export default function TransactionScreen({ navigation }) {
             }}
           >
             <Ionicons name="remove" size={isNarrow ? 18 : 20} color={colors.onError} />
-            <Text style={[styles.cashBtnText, { color: colors.onError }, isNarrow && styles.cashBtnTextNarrow]}>CASH OUT</Text>
+            <Text style={[styles.cashBtnText, { color: colors.onError }, isNarrow && styles.cashBtnTextNarrow]}>{i18n.t('cashOut').toUpperCase()}</Text>
           </TouchableOpacity>
         </View>
       </View>
+      )}
 
       {/* Add Modal */}
-      <Modal visible={showAddModal} animationType="slide" transparent onRequestClose={() => setShowAddModal(false)}>
+      <Modal visible={showAddModal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setShowAddModal(false)}>
         <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.modalOverlay}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? (insets?.top ?? 0) + 20 : 0}
+          keyboardVerticalOffset={0}
         >
           <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowAddModal(false); }} activeOpacity={1} />
           <View style={[styles.modalContent, { backgroundColor: colors.background, paddingTop: Math.max(insets.top, 12) + 8, paddingBottom: Math.max(insets.bottom, 20) + 24 }]} pointerEvents="auto">
@@ -613,7 +633,7 @@ export default function TransactionScreen({ navigation }) {
                   onPress={() => setSelectedType('income')}
                 >
                   <Text style={[styles.typeBtnText, { color: selectedType === 'income' ? colors.success : colors.textSecondary }]}>
-                    + CASH IN
+                    + {i18n.t('cashIn').toUpperCase()}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -621,7 +641,7 @@ export default function TransactionScreen({ navigation }) {
                   onPress={() => setSelectedType('expense')}
                 >
                   <Text style={[styles.typeBtnText, { color: selectedType === 'expense' ? colors.error : colors.textSecondary }]}>
-                    - CASH OUT
+                    - {i18n.t('cashOut').toUpperCase()}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -629,7 +649,7 @@ export default function TransactionScreen({ navigation }) {
               {/* Wallet selector */}
               {walletBalances.length > 0 && (
                 <View style={[styles.walletSelectorRow, { marginBottom: 12 }]}>
-                  <Text style={[styles.walletSelectorLabel, { color: colors.textSecondary }]}>Currency</Text>
+                  <Text style={[styles.walletSelectorLabel, { color: colors.textSecondary }]}>{i18n.t('currency')}</Text>
                   <View style={styles.walletSelectorChips}>
                     {walletBalances.map((w) => {
                       const selected = (formData.currencyCode || primaryCurrency) === w.currencyCode;
@@ -680,6 +700,12 @@ export default function TransactionScreen({ navigation }) {
                 onSubmitEditing={Keyboard.dismiss}
               />
 
+              {/* Date */}
+              <DatePickerRow
+                date={formData.date}
+                onChange={(d) => setFormData(f => ({ ...f, date: d }))}
+              />
+
               {/* Customer */}
               <TouchableOpacity
                 onPress={() => { Keyboard.dismiss(); setShowCustomerPicker(true); }}
@@ -700,17 +726,18 @@ export default function TransactionScreen({ navigation }) {
               >
                 <Text style={[styles.submitBtnText, { color: selectedType === 'income' ? colors.onSuccess : colors.onError }]}>{selectedType === 'income' ? i18n.t('addIncome') : i18n.t('addExpense')}</Text>
               </TouchableOpacity>
+              <KeyboardSpacer />
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
       {/* Edit Modal */}
-      <Modal visible={showEditModal} animationType="slide" transparent onRequestClose={() => setShowEditModal(false)}>
+      <Modal visible={showEditModal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setShowEditModal(false)}>
         <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.modalOverlay}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? (insets?.top ?? 0) + 20 : 0}
+          keyboardVerticalOffset={0}
         >
           <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowEditModal(false); }} activeOpacity={1} />
           <View style={[styles.modalContent, { backgroundColor: colors.background, paddingTop: Math.max(insets.top, 12) + 8, paddingBottom: Math.max(insets.bottom, 20) + 24 }]} pointerEvents="auto">
@@ -738,7 +765,7 @@ export default function TransactionScreen({ navigation }) {
                       onPress={() => setEditData({ ...editData, type: 'income' })}
                     >
                       <Text style={[styles.typeBtnText, { color: (editData.type === 'income' || editData.type === 'credit') ? colors.success : colors.textSecondary }]}>
-                        + CASH IN
+                        + {i18n.t('cashIn').toUpperCase()}
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -746,7 +773,7 @@ export default function TransactionScreen({ navigation }) {
                       onPress={() => setEditData({ ...editData, type: 'expense' })}
                     >
                       <Text style={[styles.typeBtnText, { color: (editData.type === 'expense' || editData.type === 'debit') ? colors.error : colors.textSecondary }]}>
-                        - CASH OUT
+                        - {i18n.t('cashOut').toUpperCase()}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -754,7 +781,7 @@ export default function TransactionScreen({ navigation }) {
                   {/* Wallet selector */}
                   {walletBalances.length > 0 && (
                     <View style={[styles.walletSelectorRow, { marginBottom: 12 }]}>
-                      <Text style={[styles.walletSelectorLabel, { color: colors.textSecondary }]}>Currency</Text>
+                      <Text style={[styles.walletSelectorLabel, { color: colors.textSecondary }]}>{i18n.t('currency')}</Text>
                       <View style={styles.walletSelectorChips}>
                         {walletBalances.map((w) => {
                           const selected = (editData.currencyCode || primaryCurrency) === w.currencyCode;
@@ -804,6 +831,12 @@ export default function TransactionScreen({ navigation }) {
                     onSubmitEditing={Keyboard.dismiss}
                   />
 
+                  {/* Date */}
+                  <DatePickerRow
+                    date={editData.date}
+                    onChange={(d) => setEditData(prev => ({ ...prev, date: d }))}
+                  />
+
                   {/* Customer */}
                   <TouchableOpacity
                     style={[styles.input, styles.customerBtn, { backgroundColor: colors.backgroundSecondary }]}
@@ -825,20 +858,21 @@ export default function TransactionScreen({ navigation }) {
                   </TouchableOpacity>
                 </>
               )}
+              <KeyboardSpacer />
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
       {/* Delete Confirmation Modal */}
-      <Modal visible={showDeleteModal} animationType="fade" transparent onRequestClose={() => setShowDeleteModal(false)}>
+      <Modal visible={showDeleteModal} animationType="fade" transparent statusBarTranslucent onRequestClose={() => setShowDeleteModal(false)}>
         <View style={styles.modalOverlay}>
-          <TouchableOpacity style={styles.modalBackdrop} onPress={() => setShowDeleteModal(false)} activeOpacity={1} />
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowDeleteModal(false); }} activeOpacity={1} />
           <View style={[styles.deleteModalContent, { backgroundColor: colors.background }]} pointerEvents="auto">
             <Ionicons name="trash-outline" size={48} color={colors.error} style={{ marginBottom: 16 }} />
             <Text style={[styles.deleteTitle, { color: colors.error }]}>{i18n.t('deleteTransaction')}</Text>
             <Text style={[styles.deleteMessage, { color: colors.textSecondary }]}>
-              Are you sure you want to delete this transaction? This action cannot be undone.
+              {i18n.t('deleteConfirm')} {i18n.t('cannotBeUndone')}
             </Text>
 
             {deleteData && (
@@ -858,30 +892,25 @@ export default function TransactionScreen({ navigation }) {
                 onPress={() => setShowDeleteModal(false)}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.deleteCancelText, { color: colors.textSecondary }]}>Cancel</Text>
+                <Text style={[styles.deleteCancelText, { color: colors.textSecondary }]}>{i18n.t('cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.deleteConfirmBtn, { backgroundColor: colors.error }]}
                 onPress={handleDeleteTransaction}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.deleteConfirmText, { color: colors.onError }]}>Delete</Text>
+                <Text style={[styles.deleteConfirmText, { color: colors.onError }]}>{i18n.t('delete')}</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Customer Picker - KeyboardAvoidingView so list stays visible when searching */}
-      <Modal visible={showCustomerPicker} animationType="slide" transparent onRequestClose={() => setShowCustomerPicker(false)}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={{ flex: 1 }}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? (insets?.top ?? 0) + 20 : 20}
-        >
-          <View style={styles.modalOverlay}>
-            <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowCustomerPicker(false); }} activeOpacity={1} />
-            <View style={[styles.pickerContent, { backgroundColor: colors.background, paddingTop: Math.max(insets.top, 8), paddingBottom: Math.max(insets.bottom, 20) + 24 }]} pointerEvents="auto">
+      {/* Customer Picker - near full-screen so keyboard doesn't hide results */}
+      <Modal visible={showCustomerPicker} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setShowCustomerPicker(false)}>
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={{ height: Math.max(insets.top, 20) + 40 }} onPress={() => { Keyboard.dismiss(); setShowCustomerPicker(false); }} activeOpacity={1} />
+          <View style={[styles.pickerContent, { backgroundColor: colors.background, paddingTop: 12, paddingBottom: Math.max(insets.bottom, 20) + 24, flex: 1 }]} pointerEvents="auto">
               <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
               <View style={styles.pickerHeader}>
                 <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('selectCustomer')}</Text>
@@ -925,7 +954,7 @@ export default function TransactionScreen({ navigation }) {
               </TouchableOpacity>
 
               <ScrollView
-                  style={{ maxHeight: 300 }}
+                  style={{ flex: 1 }}
                   contentContainerStyle={{ paddingBottom: 24 }}
                   keyboardShouldPersistTaps="handled"
                   keyboardDismissMode="on-drag"
@@ -964,16 +993,15 @@ export default function TransactionScreen({ navigation }) {
                 )}
                 </ScrollView>
             </View>
-          </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
 
       {/* Add Customer Modal */}
-      <Modal visible={showAddCustomerModal} animationType="slide" transparent onRequestClose={() => setShowAddCustomerModal(false)}>
+      <Modal visible={showAddCustomerModal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setShowAddCustomerModal(false)}>
         <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.modalOverlay}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? (insets?.top ?? 0) + 20 : 0}
+          keyboardVerticalOffset={0}
         >
           <TouchableOpacity style={[styles.modalBackdrop, { zIndex: 0 }]} onPress={() => { Keyboard.dismiss(); setShowAddCustomerModal(false); }} activeOpacity={1} />
           <View style={[styles.modalContent, { backgroundColor: colors.background, paddingTop: Math.max(insets.top, 12) + 8, paddingBottom: Math.max(insets.bottom, 20) + 24, zIndex: 1 }]} pointerEvents="auto">
@@ -1014,15 +1042,16 @@ export default function TransactionScreen({ navigation }) {
               >
                 <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>{addCustomerSubmitting ? '...' : i18n.t('addCustomer')}</Text>
               </Pressable>
+              <KeyboardSpacer />
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
       {/* Export Modal */}
-      <Modal visible={showExportModal} animationType="fade" transparent onRequestClose={() => setShowExportModal(false)}>
+      <Modal visible={showExportModal} animationType="fade" transparent statusBarTranslucent onRequestClose={() => setShowExportModal(false)}>
         <View style={styles.modalOverlay}>
-          <TouchableOpacity style={styles.modalBackdrop} onPress={() => setShowExportModal(false)} activeOpacity={1} />
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowExportModal(false); }} activeOpacity={1} />
           <View style={[styles.exportModalContent, { backgroundColor: colors.background }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('exportData')}</Text>
@@ -1035,8 +1064,8 @@ export default function TransactionScreen({ navigation }) {
                 <Ionicons name="document-text-outline" size={24} color={colors.onSuccess} />
               </View>
               <View style={styles.exportOptionText}>
-                <Text style={[styles.exportOptionTitle, { color: colors.text }]}>Export as CSV</Text>
-                <Text style={[styles.exportOptionDesc, { color: colors.textSecondary }]}>Excel compatible spreadsheet</Text>
+                <Text style={[styles.exportOptionTitle, { color: colors.text }]}>{i18n.t('exportCSV')}</Text>
+                <Text style={[styles.exportOptionDesc, { color: colors.textSecondary }]}>{i18n.t('exportCSV')}</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
             </TouchableOpacity>
@@ -1049,8 +1078,8 @@ export default function TransactionScreen({ navigation }) {
                 <Ionicons name="newspaper-outline" size={24} color={colors.onWarning} />
               </View>
               <View style={styles.exportOptionText}>
-                <Text style={[styles.exportOptionTitle, { color: colors.text }]}>Share Report</Text>
-                <Text style={[styles.exportOptionDesc, { color: colors.textSecondary }]}>Text format summary</Text>
+                <Text style={[styles.exportOptionTitle, { color: colors.text }]}>{i18n.t('shareReport')}</Text>
+                <Text style={[styles.exportOptionDesc, { color: colors.textSecondary }]}>{i18n.t('exportText')}</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
             </TouchableOpacity>
@@ -1059,7 +1088,7 @@ export default function TransactionScreen({ navigation }) {
               style={[styles.cancelExportBtn, { borderColor: colors.border }]} 
               onPress={() => setShowExportModal(false)}
             >
-              <Text style={{ color: colors.text, fontWeight: '600' }}>Cancel</Text>
+              <Text style={{ color: colors.text, fontWeight: '600' }}>{i18n.t('cancel')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1075,12 +1104,12 @@ export default function TransactionScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { padding: 16 },
-  header: { marginBottom: 24, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontSize: 32, fontWeight: '800', letterSpacing: -0.5 },
-  exportBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
-  transSearchBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 14, marginBottom: 18, borderWidth: 1, gap: 10 },
+  header: { marginBottom: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  title: { fontSize: 30, fontWeight: '800', letterSpacing: -0.5 },
+  exportBtn: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  transSearchBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 11, borderRadius: 12, marginBottom: 16, borderWidth: 1, gap: 10 },
   transSearchInput: { flex: 1, fontSize: 15, padding: 0 },
-  balanceCard: { marginBottom: 24, padding: 20 },
+  balanceCard: { marginBottom: 20, padding: 18 },
   balanceContent: { alignItems: 'center' },
   balanceLabel: { fontSize: 13, fontWeight: '500', marginBottom: 4 },
   balanceAmount: { fontSize: 40, fontWeight: '700', letterSpacing: -1, marginBottom: 16, flexShrink: 0 },
@@ -1093,21 +1122,21 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 20, fontWeight: '700' },
   entriesCount: { fontSize: 13 },
   dateHeader: { fontSize: 13, fontWeight: '500', marginTop: 16, marginBottom: 8 },
-  empty: { alignItems: 'center', paddingVertical: 60, gap: 8 },
-  emptyText: { fontSize: 15, fontWeight: '500' },
-  emptySubtext: { fontSize: 13 },
+  empty: { alignItems: 'center', paddingVertical: 60, gap: 12 },
+  emptyText: { fontSize: 16, fontWeight: '600' },
+  emptySubtext: { fontSize: 13, textAlign: 'center', maxWidth: 240 },
   listCard: { overflow: 'hidden', marginBottom: 8 },
   transactionItem: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12 },
-  transactionIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  transactionIcon: { width: 38, height: 38, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   transactionInfo: { flex: 1 },
-  transactionDesc: { fontSize: 15, fontWeight: '500', marginBottom: 2 },
-  transactionMeta: { fontSize: 11 },
-  transactionAmount: { fontSize: 15, fontWeight: '600', flexShrink: 0, minWidth: 80, textAlign: 'right' },
-  transactionCurrencyBadge: { fontSize: 10, marginTop: 2 },
-  walletBalancesContent: { gap: 8 },
-  walletBalanceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth },
-  walletBalanceCode: { fontSize: 13, fontWeight: '600' },
-  walletBalanceAmount: { fontSize: 18, fontWeight: '700' },
+  transactionDesc: { fontSize: 15, fontWeight: '600', marginBottom: 3 },
+  transactionMeta: { fontSize: 11, lineHeight: 15 },
+  transactionAmount: { fontSize: 15, fontWeight: '700', flexShrink: 0, minWidth: 80, textAlign: 'right' },
+  transactionCurrencyBadge: { fontSize: 10, marginTop: 2, fontWeight: '500' },
+  walletBalancesContent: { gap: 4 },
+  walletBalanceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
+  walletBalanceCode: { fontSize: 13, fontWeight: '700', letterSpacing: 0.5 },
+  walletBalanceAmount: { fontSize: 20, fontWeight: '700', letterSpacing: -0.3 },
   noWalletsRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 16, paddingHorizontal: 14, borderWidth: 1, borderStyle: 'dashed', borderRadius: 12 },
   noWalletsText: { fontSize: 14, flex: 1 },
   walletSelectorRow: {},
@@ -1130,22 +1159,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, 
     gap: 12,
   },
-  cashInBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, paddingHorizontal: 8, borderRadius: 12, gap: 6, minHeight: 48 },
-  cashOutBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, paddingHorizontal: 8, borderRadius: 12, gap: 6, minHeight: 48 },
-  cashBtnNarrow: { paddingVertical: 12, paddingHorizontal: 6, borderRadius: 10, gap: 4 },
-  cashBtnText: { fontSize: 14, fontWeight: '700' },
+  cashInBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 15, paddingHorizontal: 8, borderRadius: 14, gap: 6, minHeight: 50 },
+  cashOutBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 15, paddingHorizontal: 8, borderRadius: 14, gap: 6, minHeight: 50 },
+  cashBtnNarrow: { paddingVertical: 12, paddingHorizontal: 6, borderRadius: 12, gap: 4 },
+  cashBtnText: { fontSize: 14, fontWeight: '700', letterSpacing: 0.5 },
   cashBtnTextNarrow: { fontSize: 12 },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   modalBackdrop: { flex: 1, minHeight: 0 },
-  modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: Platform.OS === 'ios' ? 40 : 20 },
-  modalHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
+  modalContent: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 20, paddingBottom: Platform.OS === 'ios' ? 40 : 24 },
+  modalHandle: { width: 36, height: 5, borderRadius: 3, alignSelf: 'center', marginBottom: 20 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   modalTitle: { fontSize: 20, fontWeight: '600', textAlign: 'center', flex: 1 },
   deleteIconBtn: { padding: 4 },
   
-  typeToggle: { flexDirection: 'row', borderRadius: 8, padding: 4, marginBottom: 24 },
-  typeBtn: { flex: 1, paddingVertical: 12, borderRadius: 6, alignItems: 'center' },
+  typeToggle: { flexDirection: 'row', borderRadius: 12, padding: 4, marginBottom: 24 },
+  typeBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
   typeBtnActive: {},
   typeBtnActiveRed: {},
   typeBtnText: { fontSize: 14, fontWeight: '600' },
@@ -1158,22 +1187,22 @@ const styles = StyleSheet.create({
   
   input: { padding: 14, borderRadius: 12, fontSize: 16, marginBottom: 12 },
   customerBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  submitBtn: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
-  submitBtnText: { fontSize: 16, fontWeight: '600' },
+  submitBtn: { paddingVertical: 16, borderRadius: 14, alignItems: 'center', marginTop: 8 },
+  submitBtnText: { fontSize: 16, fontWeight: '700' },
   
-  deleteModalContent: { marginHorizontal: 20, borderRadius: 16, padding: 24, alignItems: 'center' },
+  deleteModalContent: { marginHorizontal: 20, borderRadius: 22, padding: 24, alignItems: 'center' },
   deleteTitle: { fontSize: 20, fontWeight: '700', marginBottom: 8 },
   deleteMessage: { fontSize: 14, textAlign: 'center', marginBottom: 20 },
   deletePreview: { width: '100%', padding: 16, borderRadius: 12, borderWidth: 1, marginBottom: 20, alignItems: 'center' },
   deletePreviewAmount: { fontSize: 24, fontWeight: '700', marginBottom: 4 },
   deletePreviewDesc: { fontSize: 14 },
   deleteActions: { flexDirection: 'row', gap: 12, width: '100%' },
-  deleteCancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
+  deleteCancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, alignItems: 'center' },
   deleteCancelText: { fontSize: 15, fontWeight: '600' },
-  deleteConfirmBtn: { flex: 1, paddingVertical: 14, borderRadius: 10, alignItems: 'center' },
+  deleteConfirmBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
   deleteConfirmText: { fontSize: 15, fontWeight: '600' },
   
-  pickerContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: Platform.OS === 'ios' ? 40 : 20, maxHeight: '80%' },
+  pickerContent: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 20, paddingBottom: Platform.OS === 'ios' ? 40 : 24, maxHeight: '80%', flexShrink: 1 },
   pickerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
   addCustomerBtn: { padding: 4 },
   searchBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, marginBottom: 12, gap: 8 },
@@ -1183,7 +1212,7 @@ const styles = StyleSheet.create({
   avatarText: { fontSize: 15, fontWeight: '600' },
   noResults: { paddingVertical: 40, alignItems: 'center' },
   
-  exportModalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: Platform.OS === 'ios' ? 40 : 24 },
+  exportModalContent: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 20, paddingBottom: Platform.OS === 'ios' ? 40 : 24 },
   exportOption: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 12, marginBottom: 12 },
   exportIconBox: { width: 48, height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 14 },
   exportOptionText: { flex: 1 },

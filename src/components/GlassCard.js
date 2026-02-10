@@ -15,15 +15,15 @@ export default function GlassCard({ children, style }) {
         styles.container,
         {
           backgroundColor: colors.surface,
-          borderColor: colors.border,
+          borderColor: colors.isDark ? colors.border : colors.borderLight,
           borderRadius: r,
           ...(Platform.OS === 'android' && {
-            elevation: 2,
+            elevation: 4,
           }),
           ...(Platform.OS !== 'android' && {
-            shadowColor: colors.shadowStrong || colors.shadow,
+            shadowColor: colors.isDark ? '#000' : '#64748B',
             shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.08,
+            shadowOpacity: colors.isDark ? 0.35 : 0.07,
             shadowRadius: 12,
           }),
         },
@@ -37,7 +37,7 @@ export default function GlassCard({ children, style }) {
 
 const styles = StyleSheet.create({
   container: {
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     overflow: 'hidden',
   },
 });

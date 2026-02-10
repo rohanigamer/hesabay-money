@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, useWindowDimensions } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, useWindowDimensions, Keyboard } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useContext } from 'react';
 import { ThemeContext } from '../context/ThemeContext';
@@ -139,9 +139,9 @@ export default function CalculatorInput({ value, onChangeText, placeholder, styl
       </TouchableOpacity>
     </View>
 
-      <Modal visible={showCalc} animationType="slide" transparent onRequestClose={() => setShowCalc(false)}>
+      <Modal visible={showCalc} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setShowCalc(false)}>
         <View style={styles.calcOverlay}>
-          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowCalc(false)} />
+          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { Keyboard.dismiss(); setShowCalc(false); }} activeOpacity={1} />
           <View style={[styles.calcModal, { backgroundColor: colors.background, maxHeight: calcModalMaxHeight, paddingBottom: Math.max(insets.bottom, 24) + 16 }]}>
             <View style={[styles.calcHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.calcTitle, { color: colors.text }, isSmallScreen && { fontSize: 18, marginBottom: 12 }]}>{i18n.t('calculator')}</Text>
@@ -214,31 +214,31 @@ const styles = StyleSheet.create({
   },
   calcOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'flex-end',
   },
   calcModal: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     padding: 24,
     paddingBottom: 40,
   },
   calcHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
+    width: 36,
+    height: 5,
+    borderRadius: 3,
     alignSelf: 'center',
     marginBottom: 16,
   },
   calcTitle: {
     fontSize: 20,
-    fontWeight: '600',
+    fontWeight: '700',
     marginBottom: 16,
     textAlign: 'center',
   },
   calcDisplay: {
     padding: 20,
-    borderRadius: 12,
+    borderRadius: 16,
     marginBottom: 16,
     minHeight: 60,
     justifyContent: 'center',
@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   calcBtn: {
-    borderRadius: 12,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -269,12 +269,12 @@ const styles = StyleSheet.create({
   calcDoneBtn: {
     marginTop: 16,
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
   },
   calcDoneText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });
 

@@ -109,6 +109,22 @@ export default function CalculationScreen({ navigation }) {
     : 0;
   const canShowConversion = convertibleCurrencies.length > 0 && walletBalances.length > 0;
 
+  // Aggregate customer balances per currency
+  const customerBalanceByCurrency = React.useMemo(() => {
+    const byCurrency = {};
+    customers.forEach(c => {
+      if (c.balanceByCurrency && typeof c.balanceByCurrency === 'object') {
+        Object.entries(c.balanceByCurrency).forEach(([code, bal]) => {
+          byCurrency[code] = (byCurrency[code] || 0) + (parseFloat(bal) || 0);
+        });
+      } else {
+        const code = primaryCurrency;
+        byCurrency[code] = (byCurrency[code] || 0) + (parseFloat(c.balance) || 0);
+      }
+    });
+    return byCurrency;
+  }, [customers, primaryCurrency]);
+
   // Get top customers by balance
   const getTopCustomers = () => {
     return [...customers]
@@ -179,7 +195,7 @@ export default function CalculationScreen({ navigation }) {
               >
                 <GlassCard style={[styles.balanceCard, { marginBottom: 12 }]}>
                   <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>
-                    {w.currencyCode} Balance
+                    {w.currencyCode} {i18n.t('netBalance')}
                   </Text>
                   <Text style={[styles.balanceAmount, { color: balance >= 0 ? colors.success : colors.error }]}>
                     {formatWithSign(balance, w.currencyCode)}
@@ -212,7 +228,7 @@ export default function CalculationScreen({ navigation }) {
             }}
           >
             <GlassCard style={styles.balanceCard}>
-              <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>Net Balance</Text>
+              <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>{i18n.t('netBalance')}</Text>
               <Text style={[styles.balanceAmount, { color: stats.totalBalance >= 0 ? colors.success : colors.error }]}>
                 {formatWithSign(stats.totalBalance)}
               </Text>
@@ -271,7 +287,7 @@ export default function CalculationScreen({ navigation }) {
           <View style={{ flex: 1 }}>
             <StatCard
               icon="people"
-              label="Customers"
+              label={i18n.t('customers')}
               value={stats.totalCustomers.toString()}
               color={colors.info}
             />
@@ -279,7 +295,7 @@ export default function CalculationScreen({ navigation }) {
           <View style={{ flex: 1 }}>
             <StatCard
               icon="receipt"
-              label="Transactions"
+              label={i18n.t('transaction')}
               value={stats.totalTransactions.toString()}
               color={colors.warning}
             />
@@ -298,11 +314,19 @@ export default function CalculationScreen({ navigation }) {
               <Ionicons name="wallet" size={24} color={colors.accent} />
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <Text style={[styles.customerBalanceLabel, { color: colors.textSecondary }]}>
-                  Customer Balance
+                  {i18n.t('customerBalance')}
                 </Text>
-                <Text style={[styles.customerBalanceValue, { color: colors.text }]}>
-                  {formatWithSign(stats.totalCustomerBalance)}
-                </Text>
+                {Object.keys(customerBalanceByCurrency).length > 0 ? (
+                  Object.entries(customerBalanceByCurrency).map(([code, bal]) => (
+                    <Text key={code} style={[styles.customerBalanceValue, { color: bal >= 0 ? colors.success : colors.error }]}>
+                      {formatWithSign(bal, code)}
+                    </Text>
+                  ))
+                ) : (
+                  <Text style={[styles.customerBalanceValue, { color: colors.text }]}>
+                    {formatWithSign(0)}
+                  </Text>
+                )}
               </View>
             </View>
           </GlassCard>
@@ -316,7 +340,7 @@ export default function CalculationScreen({ navigation }) {
               transform: [{ translateY: cardsAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
             }}
           >
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Top Customers</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>{i18n.t('topCustomers')}</Text>
             <GlassCard style={styles.listCard}>
               {getTopCustomers().map((customer, index) => (
                 <View
@@ -326,23 +350,29 @@ export default function CalculationScreen({ navigation }) {
                     index < getTopCustomers().length - 1 && { borderBottomWidth: 0.5, borderBottomColor: colors.border },
                   ]}
                 >
-                  <View style={[styles.avatar, { backgroundColor: colors.accent }]}>
+                  <View style={[styles.avatar, { backgroundColor: (colors.avatarColors || [colors.accent])[customer.name.charCodeAt(0) % (colors.avatarColors || [colors.accent]).length] }]}>
                     <Text style={styles.avatarText}>{customer.name.charAt(0).toUpperCase()}</Text>
                   </View>
                   <View style={styles.customerInfo}>
                     <Text style={[styles.customerName, { color: colors.text }]}>{customer.name}</Text>
                     <Text style={[styles.customerNumber, { color: colors.textTertiary }]}>
-                      {customer.number || 'No phone'}
+                      {customer.number || i18n.t('noPhone')}
                     </Text>
                   </View>
-                  <Text
-                    style={[
-                      styles.customerBalance,
-                      { color: (parseFloat(customer.balance) || 0) < 0 ? colors.error : colors.success },
-                    ]}
-                  >
-                    {formatWithSign(customer.balance)}
-                  </Text>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    {customer.balanceByCurrency && typeof customer.balanceByCurrency === 'object' && Object.keys(customer.balanceByCurrency).length > 0
+                      ? Object.entries(customer.balanceByCurrency).filter(([, bal]) => bal !== 0).map(([code, bal]) => (
+                          <Text key={code} style={[styles.customerBalance, { color: bal < 0 ? colors.error : colors.success }]}>
+                            {formatWithSign(bal, code)}
+                          </Text>
+                        ))
+                      : (
+                        <Text style={[styles.customerBalance, { color: (parseFloat(customer.balance) || 0) < 0 ? colors.error : colors.success }]}>
+                          {formatWithSign(customer.balance)}
+                        </Text>
+                      )
+                    }
+                  </View>
                 </View>
               ))}
             </GlassCard>
@@ -357,7 +387,7 @@ export default function CalculationScreen({ navigation }) {
               transform: [{ translateY: cardsAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
             }}
           >
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Activity</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>{i18n.t('recentActivity')}</Text>
             <GlassCard style={styles.listCard}>
               {getRecentTransactions().map((item, index) => {
                 const isIncome = item.type === 'income' || item.type === 'credit';
@@ -405,9 +435,9 @@ export default function CalculationScreen({ navigation }) {
         {stats.totalTransactions === 0 && (
           <View style={styles.empty}>
             <Ionicons name="stats-chart-outline" size={64} color={colors.textTertiary} />
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No data yet</Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{i18n.t('noDataYet')}</Text>
             <Text style={[styles.emptySubtext, { color: colors.textTertiary }]}>
-              Start adding transactions to see your summary
+              {i18n.t('addTransactionsToSee')}
             </Text>
           </View>
         )}
@@ -423,50 +453,50 @@ export default function CalculationScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { padding: 16 },
-  header: { marginBottom: 24 },
-  title: { fontSize: 32, fontWeight: '800', letterSpacing: -0.5 },
+  header: { marginBottom: 20 },
+  title: { fontSize: 30, fontWeight: '800', letterSpacing: -0.5 },
   
-  balanceCard: { padding: 28, marginBottom: 20, alignItems: 'center' },
-  balanceLabel: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
-  balanceAmount: { fontSize: 44, fontWeight: '800', letterSpacing: -1, flexShrink: 0 },
+  balanceCard: { padding: 24, marginBottom: 16, alignItems: 'center' },
+  balanceLabel: { fontSize: 13, fontWeight: '600', marginBottom: 8, letterSpacing: 0.3 },
+  balanceAmount: { fontSize: 38, fontWeight: '800', letterSpacing: -1, flexShrink: 0 },
   convertedSub: { fontSize: 13, marginTop: 6, fontWeight: '500' },
   convertChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, borderWidth: 1, marginRight: 8 },
   convertChipText: { fontSize: 14, fontWeight: '600' },
-  walletStatsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 12, gap: 16 },
+  walletStatsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 14, gap: 16 },
   walletStatItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   walletStatText: { fontSize: 13, fontWeight: '600' },
   walletStatDivider: { width: 1, height: 20 },
   
-  row: { flexDirection: 'row', gap: 14, marginBottom: 18 },
-  statCard: { padding: 18, alignItems: 'center' },
-  statIcon: { width: 52, height: 52, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
-  statLabel: { fontSize: 12, fontWeight: '500', marginBottom: 4, textAlign: 'center' },
-  statValue: { fontSize: 20, fontWeight: '700', textAlign: 'center', flexShrink: 0 },
+  row: { flexDirection: 'row', gap: 12, marginBottom: 16 },
+  statCard: { padding: 16, alignItems: 'center' },
+  statIcon: { width: 48, height: 48, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
+  statLabel: { fontSize: 12, fontWeight: '600', marginBottom: 4, textAlign: 'center', letterSpacing: 0.2 },
+  statValue: { fontSize: 22, fontWeight: '800', textAlign: 'center', flexShrink: 0 },
   
   customerBalanceCard: { padding: 16, marginBottom: 16 },
   customerBalanceHeader: { flexDirection: 'row', alignItems: 'center' },
   customerBalanceLabel: { fontSize: 13, fontWeight: '500', marginBottom: 4 },
   customerBalanceValue: { fontSize: 24, fontWeight: '700', flexShrink: 0 },
   
-  sectionTitle: { fontSize: 20, fontWeight: '600', marginBottom: 12, marginTop: 8 },
+  sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12, marginTop: 8 },
   listCard: { overflow: 'hidden', marginBottom: 16 },
   
   customerItem: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12 },
-  avatar: { width: 40, height: 40, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  avatarText: { color: '#fff', fontSize: 16, fontWeight: '600' }, // avatar bg is custom; keep light text
+  avatar: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  avatarText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   customerInfo: { flex: 1 },
   customerName: { fontSize: 15, fontWeight: '500', marginBottom: 2 },
   customerNumber: { fontSize: 12 },
   customerBalance: { fontSize: 15, fontWeight: '600', flexShrink: 0, minWidth: 80, textAlign: 'right' },
   
   transactionItem: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12 },
-  transactionIcon: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  transactionIcon: { width: 34, height: 34, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   transactionInfo: { flex: 1 },
   transactionDesc: { fontSize: 14, fontWeight: '500', marginBottom: 2 },
   transactionMeta: { fontSize: 11 },
   transactionAmount: { fontSize: 14, fontWeight: '600', flexShrink: 0, minWidth: 70, textAlign: 'right' },
   
-  empty: { alignItems: 'center', paddingVertical: 80, gap: 12 },
-  emptyText: { fontSize: 18, fontWeight: '600' },
-  emptySubtext: { fontSize: 14, textAlign: 'center', maxWidth: 250 },
+  empty: { alignItems: 'center', paddingVertical: 80, gap: 14 },
+  emptyText: { fontSize: 18, fontWeight: '700' },
+  emptySubtext: { fontSize: 14, textAlign: 'center', maxWidth: 250, lineHeight: 20 },
 });

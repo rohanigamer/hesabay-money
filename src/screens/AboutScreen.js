@@ -59,7 +59,7 @@ export default function AboutScreen({ navigation }) {
 
             <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Ionicons name="star" size={24} color={colors.warning} />
-              <Text style={[styles.infoTitle, { color: colors.text }]}>Features</Text>
+              <Text style={[styles.infoTitle, { color: colors.text }]}>{i18n.t('features')}</Text>
               <Text style={[styles.infoText, { color: colors.textSecondary }]}>
                 {'• '}{i18n.t('featureOfflineFirst')}{'\n'}
                 {'• '}{i18n.t('featureMultiCurrency')}{'\n'}
@@ -117,54 +117,57 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   header: {
-    marginBottom: 30,
+    marginBottom: 24,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 30,
+    fontWeight: '800',
+    letterSpacing: -0.5,
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 32,
   },
   logoCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 88,
+    height: 88,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    elevation: 10,
+    marginBottom: 16,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 8,
   },
   logoText: {
-    fontSize: 50,
-    fontWeight: 'bold',
+    fontSize: 42,
+    fontWeight: '800',
   },
   appName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 5,
+    fontSize: 22,
+    fontWeight: '800',
+    marginBottom: 4,
+    letterSpacing: -0.3,
   },
   version: {
     fontSize: 14,
+    fontWeight: '500',
   },
   infoContainer: {
-    marginBottom: 30,
+    marginBottom: 24,
   },
   infoCard: {
-    borderRadius: 15,
+    borderRadius: 16,
     padding: 20,
-    marginBottom: 15,
+    marginBottom: 14,
     borderWidth: 1,
   },
   infoTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 17,
+    fontWeight: '700',
     marginTop: 10,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   infoText: {
     fontSize: 14,
@@ -180,11 +183,11 @@ const styles = StyleSheet.create({
   },
   footer: {
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: 16,
     marginBottom: 20,
   },
   footerText: {
     fontSize: 12,
-    marginBottom: 5,
+    marginBottom: 4,
   },
 });

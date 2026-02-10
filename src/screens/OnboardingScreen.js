@@ -363,7 +363,7 @@ const styles = StyleSheet.create({
   },
   optionTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   themeGrid: {
     flexDirection: 'row',
@@ -382,7 +382,7 @@ const styles = StyleSheet.create({
   },
   themeLabel: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
     textAlign: 'center',
   },
   themeCheck: {
@@ -404,7 +404,7 @@ const styles = StyleSheet.create({
   backBtn: {
     width: 50,
     height: 50,
-    borderRadius: 25,
+    borderRadius: 16,
     borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
@@ -415,7 +415,7 @@ const styles = StyleSheet.create({
   nextBtn: {
     flex: 1,
     flexDirection: 'row',
-    height: 54,
+    height: 52,
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
@@ -423,7 +423,8 @@ const styles = StyleSheet.create({
   },
   nextBtnText: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
   skipBtn: {
     alignSelf: 'center',

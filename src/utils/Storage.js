@@ -69,6 +69,9 @@ const triggerSync = () => {
   }
 };
 
+// Collision-safe ID: timestamp + random suffix
+const generateId = () => `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
 // User-specific storage keys
 const getUserKey = (key) => {
   return `${currentUserId}_${key}`;
@@ -241,21 +244,58 @@ export const Storage = {
       let wallets = raw ? JSON.parse(raw) : [];
       if (!Array.isArray(wallets)) wallets = [];
 
+      // Only create a default wallet if storage was truly never written.
+      // Check a migration flag to avoid destructive re-migration on transient read failures.
       if (wallets.length === 0) {
+        const migrationKey = getUserKey('wallets_initialized');
+        const alreadyMigrated = await storage.getItemAsync(migrationKey);
+        if (alreadyMigrated === 'true') {
+          // Wallets were previously initialized but now read as empty.
+          // This is likely a transient storage error — do NOT destroy transactions.
+          console.warn('getWallets: wallets read as empty but migration flag exists. Skipping destructive migration.');
+          return [];
+        }
+
         const currency = await this.getCurrency();
-        const stats = await this.getStats();
         const transactions = await this.getTransactions();
         const primaryCode = currency || DEFAULT_CURRENCY;
-        const wallet = {
-          id: Date.now().toString(),
-          currencyCode: primaryCode,
-          initialBalance: parseFloat(stats.totalBalance) || 0,
-        };
-        wallets = [wallet];
+
+        // Detect currencies already used in existing transactions to preserve multi-currency data
+        const usedCurrencies = new Set();
+        transactions.forEach(t => {
+          if (t.currencyCode) usedCurrencies.add(t.currencyCode.toUpperCase());
+        });
+
+        if (usedCurrencies.size > 0) {
+          // Create wallets for each currency already in use (up to MAX_WALLETS)
+          wallets = [...usedCurrencies].slice(0, MAX_WALLETS).map(code => ({
+            id: generateId(),
+            currencyCode: code,
+            initialBalance: 0,
+          }));
+        } else {
+          // No transactions — create a single default wallet
+          wallets = [{
+            id: generateId(),
+            currencyCode: primaryCode,
+            initialBalance: 0,
+          }];
+        }
+
         await this.saveWallets(wallets);
+        await storage.setItemAsync(migrationKey, 'true');
+
+        // Only fill in missing currencyCode on transactions — NEVER overwrite existing ones
         if (transactions.length > 0) {
-          const updated = transactions.map(t => ({ ...t, currencyCode: t.currencyCode || primaryCode }));
-          await this.saveTransactions(updated);
+          let needsSave = false;
+          const updated = transactions.map(t => {
+            if (!t.currencyCode) {
+              needsSave = true;
+              return { ...t, currencyCode: primaryCode };
+            }
+            return t;
+          });
+          if (needsSave) await this.saveTransactions(updated);
         }
       }
 
@@ -270,6 +310,11 @@ export const Storage = {
     try {
       const key = getUserKey(STORAGE_KEYS.CURRENCY_WALLETS);
       await storage.setItemAsync(key, JSON.stringify(wallets));
+      // Mark wallets as initialized to prevent destructive migration on future empty reads
+      if (wallets && wallets.length > 0) {
+        const migrationKey = getUserKey('wallets_initialized');
+        await storage.setItemAsync(migrationKey, 'true');
+      }
       triggerSync();
       return true;
     } catch (error) {
@@ -293,7 +338,7 @@ export const Storage = {
       }
       const num = Number.isNaN(parseFloat(initialBalance)) ? 0 : parseFloat(initialBalance);
       const wallet = {
-        id: Date.now().toString(),
+        id: generateId(),
         currencyCode: code,
         initialBalance: num,
       };
@@ -576,7 +621,7 @@ export const Storage = {
     try {
       const customers = await this.getCustomers();
       const newCustomer = {
-        id: Date.now().toString(),
+        id: generateId(),
         ...customer,
         balanceByCurrency: {},
         balance: 0,
@@ -655,14 +700,16 @@ export const Storage = {
 
   async addTransaction(transaction) {
     try {
-      const [transactions, wallets] = await Promise.all([this.getTransactions(), this.getWallets()]);
+      // Sequential: getWallets() must complete before getTransactions() to avoid migration race
+      const wallets = await this.getWallets();
+      const transactions = await this.getTransactions();
       const primaryCode = wallets.length > 0 ? wallets[0].currencyCode : DEFAULT_CURRENCY;
       const currencyCode = (transaction.currencyCode || primaryCode).toString().toUpperCase();
       const newTransaction = {
-        id: Date.now().toString(),
+        id: generateId(),
         ...transaction,
         currencyCode,
-        createdAt: new Date().toISOString(),
+        createdAt: transaction.date || new Date().toISOString(),
       };
       transactions.unshift(newTransaction);
       await this.saveTransactions(transactions);
@@ -704,7 +751,9 @@ export const Storage = {
 
   async updateTransaction(transactionId, updates) {
     try {
-      const [transactions, wallets] = await Promise.all([this.getTransactions(), this.getWallets()]);
+      // Sequential: getWallets() must complete before getTransactions() to avoid migration race
+      const wallets = await this.getWallets();
+      const transactions = await this.getTransactions();
       const transactionIndex = transactions.findIndex(t => t.id === transactionId);
       const primaryCode = wallets.length > 0 ? wallets[0].currencyCode : DEFAULT_CURRENCY;
 
@@ -857,10 +906,11 @@ export const Storage = {
   // Backup: export all app data as JSON for .Mbackup file
   async exportBackup() {
     try {
-      const [customers, transactions, wallets, theme, currency, language, exchangeRates] = await Promise.all([
-        this.getCustomers(),
-        this.getTransactions(),
-        this.getWallets(),
+      // Sequential to avoid race conditions (getWallets/getCustomers can write data internally)
+      const wallets = await this.getWallets();
+      const transactions = await this.getTransactions();
+      const customers = await this.getCustomers();
+      const [theme, currency, language, exchangeRates] = await Promise.all([
         this.getTheme(),
         this.getCurrency(),
         this.getLanguage(),
@@ -902,7 +952,7 @@ export const Storage = {
       if (wallets.length === 0 && (data.currency || data.theme !== undefined)) {
         const code = data.currency || DEFAULT_CURRENCY;
         const primaryCode = validCodes.has(code) ? code : DEFAULT_CURRENCY;
-        wallets = [{ id: Date.now().toString(), currencyCode: primaryCode, initialBalance: 0 }];
+        wallets = [{ id: generateId(), currencyCode: primaryCode, initialBalance: 0 }];
         transactions = transactions.map(t => ({ ...t, currencyCode: t.currencyCode || primaryCode }));
       } else if (wallets.length > 0) {
         const primaryCode = wallets[0].currencyCode;

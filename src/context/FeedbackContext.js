@@ -3,6 +3,7 @@ import { Animated, Easing, TouchableOpacity, Pressable, Text, StyleSheet, View }
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemeContext } from './ThemeContext';
+import i18n from '../utils/i18n';
 
 const FeedbackContext = createContext(null);
 
@@ -18,7 +19,8 @@ function createId() {
 }
 
 /** Normalize any error shape to { title, message, code? } for consistent handling */
-function normalizeError(error, fallbackTitle = 'Something went wrong') {
+function normalizeError(error, fallbackTitle = null) {
+  fallbackTitle = fallbackTitle || i18n.t('somethingWentWrong');
   if (error == null) return { title: fallbackTitle, message: '' };
   if (typeof error === 'string') return { title: fallbackTitle, message: error };
   if (Array.isArray(error)) {
@@ -31,7 +33,7 @@ function normalizeError(error, fallbackTitle = 'Something went wrong') {
     return { title: firstNorm.title, message };
   }
   const msg = error.message || error.error || error.err || (error.code && String(error.code));
-  const title = error.title || (error.code === 'auth/email-not-verified' ? 'Email not verified' : fallbackTitle);
+  const title = error.title || (error.code === 'auth/email-not-verified' ? i18n.t('verifyYourEmail') : fallbackTitle);
   return { title, message: msg || '', code: error.code };
 }
 
@@ -117,19 +119,19 @@ export function FeedbackProvider({ children }) {
   }, []);
 
   /** Show any error (Error, string, { message }, Firebase shape, or array). Option: { asDialog: true } for critical errors. */
-  const showError = useCallback((error, fallbackTitleOrOpts = 'Something went wrong') => {
+  const showError = useCallback((error, fallbackTitleOrOpts = null) => {
     const opts = typeof fallbackTitleOrOpts === 'object' && fallbackTitleOrOpts !== null
       ? fallbackTitleOrOpts
       : { fallbackTitle: fallbackTitleOrOpts };
-    const fallbackTitle = opts.fallbackTitle || 'Something went wrong';
+    const fallbackTitle = opts.fallbackTitle || i18n.t('somethingWentWrong');
     const asDialog = opts.asDialog === true;
 
     const { title, message } = normalizeError(error, fallbackTitle);
     if (asDialog) {
       return showDialog({
         title,
-        message: message || 'Please try again.',
-        confirmText: 'OK',
+        message: message || i18n.t('tryAgain'),
+        confirmText: i18n.t('ok'),
         type: 'error',
       });
     }
@@ -295,7 +297,7 @@ function ToastItem({ toast, index, colors, onDismiss }) {
           <Text style={[styles.toastMessage, { color: palette.msg }]} numberOfLines={3}>{toast.message}</Text>
         )}
         <Pressable onPress={() => onDismiss(toast.id)} hitSlop={8} style={styles.toastDismiss}>
-          <Text style={[styles.toastDismissText, { color: colors.textTertiary }]}>Dismiss</Text>
+          <Text style={[styles.toastDismissText, { color: colors.textTertiary }]}>{i18n.t('close')}</Text>
         </Pressable>
       </View>
       {/* Countdown bar: shrinks from full to empty until toast disappears */}
@@ -470,7 +472,7 @@ const styles = StyleSheet.create({
   toastItem: {
     flexDirection: 'row',
     marginBottom: 10,
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
     overflow: 'hidden',
     minHeight: 56,
@@ -535,8 +537,8 @@ const styles = StyleSheet.create({
   },
   toastAccent: {
     width: 4,
-    borderTopLeftRadius: 14,
-    borderBottomLeftRadius: 14,
+    borderTopLeftRadius: 16,
+    borderBottomLeftRadius: 16,
   },
   toastBody: {
     flex: 1,
@@ -552,7 +554,7 @@ const styles = StyleSheet.create({
   },
   toastTitle: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
     flex: 1,
   },
   toastMessage: {
@@ -598,7 +600,7 @@ const styles = StyleSheet.create({
   },
   dialogTitle: {
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: '800',
     flex: 1,
   },
   dialogMessage: {
@@ -620,7 +622,7 @@ const styles = StyleSheet.create({
   },
   dialogBtnText: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   dialogBtnConfirm: {},
 });

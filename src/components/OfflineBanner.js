@@ -1,5 +1,5 @@
-import React, { useContext } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import React, { useContext, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ActivityIndicator, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemeContext } from '../context/ThemeContext';
@@ -10,20 +10,39 @@ export default function OfflineBanner() {
   const { colors } = useContext(ThemeContext);
   const { isOnline, isSyncing } = useSyncStatus();
   const insets = useSafeAreaInsets();
+  const slideAnim = useRef(new Animated.Value(-60)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
+  const isVisible = !isOnline || isSyncing;
 
-  if (isOnline && !isSyncing) return null;
+  useEffect(() => {
+    if (isVisible) {
+      Animated.parallel([
+        Animated.spring(slideAnim, { toValue: 0, tension: 80, friction: 12, useNativeDriver: true }),
+        Animated.timing(opacityAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(slideAnim, { toValue: -60, duration: 200, useNativeDriver: true }),
+        Animated.timing(opacityAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [isVisible]);
+
+  if (!isVisible) return null;
 
   const message = isSyncing ? i18n.t('syncingMessage') : i18n.t('offlineMessage');
   const bgColor = isSyncing ? colors.accent : colors.warning || '#E65100';
 
   return (
-    <View
+    <Animated.View
       style={[
         styles.banner,
         {
           backgroundColor: bgColor + 'EE',
           paddingTop: Math.max(insets.top, 8) + 6,
           paddingBottom: 8,
+          transform: [{ translateY: slideAnim }],
+          opacity: opacityAnim,
         },
       ]}
     >
@@ -35,7 +54,7 @@ export default function OfflineBanner() {
       <Text style={styles.text} numberOfLines={1}>
         {message}
       </Text>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -55,6 +74,7 @@ const styles = StyleSheet.create({
   text: {
     color: '#fff',
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
 });

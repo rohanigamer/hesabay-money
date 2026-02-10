@@ -18,6 +18,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { ThemeContext } from '../context/ThemeContext';
 import { useCurrency } from '../context/CurrencyContext';
 import { Storage } from '../utils/Storage';
+import KeyboardSpacer from '../components/KeyboardSpacer';
+import DatePickerRow from '../components/DatePickerRow';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFeedback } from '../context/FeedbackContext';
@@ -50,9 +52,9 @@ export default function CustomerDetailScreen({ navigation, route }) {
   
   // Form states
   const [selectedType, setSelectedType] = useState('credit');
-  const [formData, setFormData] = useState({ amount: '', description: '', currencyCode: null });
+  const [formData, setFormData] = useState({ amount: '', description: '', currencyCode: null, date: new Date().toISOString() });
   const [editCustomerData, setEditCustomerData] = useState({ name: '', number: '' });
-  const [editEntryData, setEditEntryData] = useState({ id: '', amount: '', description: '', type: '', currencyCode: null });
+  const [editEntryData, setEditEntryData] = useState({ id: '', amount: '', description: '', type: '', currencyCode: null, date: new Date().toISOString() });
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [entryToDelete, setEntryToDelete] = useState(null);
   
@@ -124,7 +126,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
     } catch (err) {
       console.error('CustomerDetail loadData:', err);
       setLoadError(err?.message || 'Could not load data');
-      toast({ type: 'error', title: 'Error', message: 'Could not load customer. Try again.' });
+      toast({ type: 'error', title: i18n.t('error'), message: i18n.t('couldNotLoadData') });
     }
   }, [customerId, toast]);
 
@@ -169,7 +171,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
   const handleAdd = async () => {
     if (!customer?.id) return;
     if (!formData.amount || parseFloat(formData.amount) <= 0) {
-      toast({ type: 'warning', title: 'Invalid amount', message: 'Enter a valid amount.' });
+      toast({ type: 'warning', title: i18n.t('invalidAmount'), message: i18n.t('pleaseEnterValidAmount') });
       return;
     }
     setActionLoading(true);
@@ -177,22 +179,23 @@ export default function CustomerDetailScreen({ navigation, route }) {
       const result = await Storage.addTransaction({
         amount: parseFloat(formData.amount),
         type: selectedType,
-        description: formData.description || (selectedType === 'credit' ? 'Cash In' : 'Cash Out'),
+        description: formData.description || (selectedType === 'credit' ? i18n.t('cashIn') : i18n.t('cashOut')),
         customerId: customer.id,
         customerName: customer.name,
         currencyCode: formData.currencyCode || primaryCurrency,
+        date: formData.date,
       });
       if (result) {
-        setFormData({ amount: '', description: '', currencyCode: null });
+        setFormData({ amount: '', description: '', currencyCode: null, date: new Date().toISOString() });
         setShowAddModal(false);
-        toast({ type: 'success', title: 'Added', message: 'Entry added.' });
+        toast({ type: 'success', title: i18n.t('added'), message: i18n.t('transactionAdded') });
         await loadData();
       } else {
-        toast({ type: 'error', title: 'Error', message: 'Could not add entry. Try again.' });
+        toast({ type: 'error', title: i18n.t('error'), message: i18n.t('couldNotAddTransaction') });
       }
     } catch (err) {
       console.error('handleAdd:', err);
-      toast({ type: 'error', title: 'Error', message: err?.message || 'Could not add entry.' });
+      toast({ type: 'error', title: i18n.t('error'), message: err?.message || i18n.t('couldNotAddTransaction') });
     } finally {
       setActionLoading(false);
     }
@@ -201,7 +204,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
   // Edit customer
   const handleEditCustomer = async () => {
     if (!editCustomerData.name.trim()) {
-      toast({ type: 'warning', title: 'Missing name', message: 'Name is required.' });
+      toast({ type: 'warning', title: i18n.t('missingName'), message: i18n.t('missingNameMsg') });
       return;
     }
     setActionLoading(true);
@@ -212,14 +215,14 @@ export default function CustomerDetailScreen({ navigation, route }) {
       });
       if (updated) {
         setShowEditModal(false);
-        toast({ type: 'success', title: 'Updated', message: 'Customer updated.' });
+        toast({ type: 'success', title: i18n.t('updated'), message: i18n.t('customerUpdated') });
         await loadData();
       } else {
-        toast({ type: 'error', title: 'Error', message: 'Could not update customer.' });
+        toast({ type: 'error', title: i18n.t('error'), message: i18n.t('couldNotUpdateCustomer') });
       }
     } catch (err) {
       console.error('handleEditCustomer:', err);
-      toast({ type: 'error', title: 'Error', message: err?.message || 'Could not update.' });
+      toast({ type: 'error', title: i18n.t('error'), message: err?.message || i18n.t('couldNotUpdateCustomer') });
     } finally {
       setActionLoading(false);
     }
@@ -234,7 +237,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
   const confirmDeleteCustomer = async () => {
     if (!customer) return;
     if (deleteConfirmText.trim().toLowerCase() !== customer.name.trim().toLowerCase()) {
-      toast({ type: 'error', title: 'Name does not match', message: 'Type the exact customer name to confirm deletion.' });
+      toast({ type: 'error', title: i18n.t('nameDoesNotMatch'), message: i18n.t('typeExactNameToConfirm') });
       return;
     }
     setActionLoading(true);
@@ -243,14 +246,14 @@ export default function CustomerDetailScreen({ navigation, route }) {
       if (ok) {
         setShowDeleteConfirmModal(false);
         setDeleteConfirmText('');
-        toast({ type: 'success', title: 'Deleted', message: 'Customer removed.' });
+        toast({ type: 'success', title: i18n.t('deleted'), message: i18n.t('customerRemoved') });
         navigation.goBack();
       } else {
-        toast({ type: 'error', title: 'Error', message: 'Could not delete customer.' });
+        toast({ type: 'error', title: i18n.t('error'), message: i18n.t('couldNotDeleteCustomer') });
       }
     } catch (err) {
       console.error('confirmDeleteCustomer:', err);
-      toast({ type: 'error', title: 'Error', message: err?.message || 'Could not delete.' });
+      toast({ type: 'error', title: i18n.t('error'), message: err?.message || i18n.t('couldNotDeleteCustomer') });
     } finally {
       setActionLoading(false);
     }
@@ -270,11 +273,11 @@ export default function CustomerDetailScreen({ navigation, route }) {
       await Storage.deleteTransaction(entryToDelete.id);
       setShowDeleteEntryModal(false);
       setEntryToDelete(null);
-      toast({ type: 'success', title: 'Deleted', message: 'Entry removed.' });
+      toast({ type: 'success', title: i18n.t('deleted'), message: i18n.t('transactionDeleted') });
       await loadData();
     } catch (err) {
       console.error('confirmDeleteEntry:', err);
-      toast({ type: 'error', title: 'Error', message: err?.message || 'Could not delete entry.' });
+      toast({ type: 'error', title: i18n.t('error'), message: err?.message || i18n.t('couldNotDeleteTransaction') });
     } finally {
       setActionLoading(false);
     }
@@ -288,6 +291,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
       description: item.description || '',
       type: item.type,
       currencyCode: item.currencyCode || primaryCurrency,
+      date: item.createdAt || new Date().toISOString(),
     });
     setShowEditEntryModal(true);
   };
@@ -309,6 +313,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
         customerId: customer.id,
         customerName: customer.name,
         currencyCode: editEntryData.currencyCode || primaryCurrency,
+        createdAt: editEntryData.date,
       });
       if (success) {
         setShowEditEntryModal(false);
@@ -331,40 +336,40 @@ export default function CustomerDetailScreen({ navigation, route }) {
     try {
       await Share.share({
         message: report,
-        title: `${customer.name} - Account Statement`,
+        title: `${customer.name} - ${i18n.t('customerStatement')}`,
       });
     } catch (error) {
-      toast({ type: 'error', title: 'Share failed', message: 'Could not share report.' });
+      toast({ type: 'error', title: i18n.t('exportFailed'), message: i18n.t('couldNotExportReport') });
     }
   };
 
   // Generate text report (uses per-currency totals; run after totalsByCurrency is in scope)
   const generateReportText = () => {
-    let report = `=== ACCOUNT STATEMENT ===\n\n`;
-    report += `Customer: ${customer.name}\n`;
-    report += `Phone: ${customer.number || 'N/A'}\n`;
-    report += `Date: ${new Date().toLocaleDateString()}\n\n`;
+    let report = `=== ${i18n.t('customerStatement').toUpperCase()} ===\n\n`;
+    report += `${i18n.t('customers')}: ${customer.name}\n`;
+    report += `${i18n.t('phone')}: ${customer.number || '-'}\n`;
+    report += `${i18n.t('selectDate')}: ${new Date().toLocaleDateString()}\n\n`;
     report += `--- SUMMARY ---\n`;
     currencyCodes.forEach(code => {
       const tot = totalsByCurrency[code] || { in: 0, out: 0, net: 0 };
       const net = code === primaryCurrency ? primaryNet : tot.net;
       report += `[${code}] Net: ${formatWithSign(net, code)} | In: ${format(tot.in, code)} | Out: ${format(tot.out, code)}\n`;
     });
-    report += `Total Entries: ${transactions.length}\n\n`;
+    report += `${i18n.t('totalEntries')}: ${transactions.length}\n\n`;
     report += `--- TRANSACTIONS ---\n\n`;
     transactions.forEach((t, i) => {
       const type = (t.type === 'credit' || t.type === 'income') ? 'IN' : 'OUT';
       report += `${i + 1}. ${formatDateFull(t.createdAt)}\n`;
       report += `   ${type}: ${format(t.amount, t.currencyCode)}\n`;
-      report += `   ${t.description || 'No description'}\n\n`;
+      report += `   ${t.description || i18n.t('noDescription')}\n\n`;
     });
     return report;
   };
 
   // Format helpers
-  const formatTime = (d) => new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
-  const formatDateHeader = (d) => new Date(d).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
-  const formatDateFull = (d) => new Date(d).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const formatTime = (d) => new Date(d).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
+  const formatDateHeader = (d) => new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
+  const formatDateFull = (d) => new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 
   // Group transactions by date
   const groupedTransactions = () => {
@@ -384,7 +389,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.loading}>
-          <Text style={{ color: colors.textSecondary }}>Loading...</Text>
+          <Text style={{ color: colors.textSecondary }}>{i18n.t('loading')}</Text>
         </View>
       </View>
     );
@@ -393,15 +398,15 @@ export default function CustomerDetailScreen({ navigation, route }) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.loading}>
-          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Customer not found</Text>
+          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{i18n.t('noCustomersFound')}</Text>
           <Text style={{ color: colors.textTertiary, marginTop: 8, textAlign: 'center' }}>
-            {loadError === 'Invalid customer' ? 'Invalid or missing customer.' : 'They may have been deleted.'}
+            {i18n.t('error')}
           </Text>
           <TouchableOpacity
             style={[styles.submitBtn, { backgroundColor: colors.accent, marginTop: 24, paddingHorizontal: 24 }]}
             onPress={() => navigation.goBack()}
           >
-            <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>Go back</Text>
+            <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>{i18n.t('cancel')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -515,7 +520,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
                 </View>
 
       <Animated.View style={{ flex: 1, opacity: contentAnim }}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           {/* Summary Card — per currency */}
           <View style={[styles.summaryCard, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
             {currencyCodes.map((code) => {
@@ -524,17 +529,17 @@ export default function CustomerDetailScreen({ navigation, route }) {
               return (
                 <View key={code}>
                   <View style={styles.summaryRow}>
-                    <Text style={[styles.summaryLabel, { color: colors.text }]}>Net Balance ({code})</Text>
+                    <Text style={[styles.summaryLabel, { color: colors.text }]}>{i18n.t('netBalance')} ({code})</Text>
                     <Text style={[styles.summaryValue, { color: net < 0 ? colors.error : colors.text }]}>
                       {formatWithSign(net, code)}
                     </Text>
                   </View>
                   <View style={styles.summaryRow}>
-                    <Text style={[styles.summaryLabel, { color: colors.text }]}>Total In (+)</Text>
+                    <Text style={[styles.summaryLabel, { color: colors.text }]}>{i18n.t('totalIn')}</Text>
                     <Text style={[styles.summaryValueBlue, { color: colors.info }]}>{format(tot.in, code)}</Text>
                   </View>
                   <View style={styles.summaryRow}>
-                    <Text style={[styles.summaryLabel, { color: colors.text }]}>Total Out (-)</Text>
+                    <Text style={[styles.summaryLabel, { color: colors.text }]}>{i18n.t('totalOut')}</Text>
                     <Text style={[styles.summaryValueRed, { color: colors.error }]}>{format(tot.out, code)}</Text>
                   </View>
                   {currencyCodes.indexOf(code) < currencyCodes.length - 1 && (
@@ -571,16 +576,12 @@ export default function CustomerDetailScreen({ navigation, route }) {
                   >
                       <View style={styles.transactionLeft}>
                       <View style={styles.badgeRow}>
-                        <View style={[styles.typeBadge, { backgroundColor: isCredit ? colors.accentLight : colors.error + '20' }]}>
-                          <Text style={[styles.typeBadgeText, { color: isCredit ? colors.info : colors.error }]}>
-                            Cash
+                        <View style={[styles.typeBadge, { backgroundColor: isCredit ? colors.successLight || (colors.success + '15') : colors.errorLight || (colors.error + '15') }]}>
+                          <Ionicons name={isCredit ? 'arrow-down' : 'arrow-up'} size={12} color={isCredit ? colors.success : colors.error} style={{ marginRight: 4 }} />
+                          <Text style={[styles.typeBadgeText, { color: isCredit ? colors.success : colors.error }]}>
+                            {isCredit ? i18n.t('cashIn') : i18n.t('cashOut')}
                           </Text>
                         </View>
-                        {item.type === 'credit' && (
-                          <View style={[styles.typeBadge, { backgroundColor: colors.success + '20', marginLeft: 6 }]}>
-                            <Text style={[styles.typeBadgeText, { color: colors.success }]}>Cash</Text>
-                          </View>
-                        )}
                       </View>
                       {item.description && (
                         <Text style={[styles.transactionDesc, { color: colors.textSecondary }]} numberOfLines={2}>
@@ -622,31 +623,33 @@ export default function CustomerDetailScreen({ navigation, route }) {
       </Animated.View>
 
       {/* Bottom Action Buttons */}
+      {!showAddModal && !showEditEntryModal && !showEditModal && !showMenuModal && !showFilterModal && !showDateModal && !showReportsModal && !showDeleteConfirmModal && !showDeleteEntryModal && (
       <View style={[styles.bottomActionsWrapper, { backgroundColor: colors.background, borderTopColor: colors.border }]}>
         <View style={styles.bottomActions}>
           <TouchableOpacity
             style={[styles.cashInBtn, { backgroundColor: colors.success }]}
-            onPress={() => { setSelectedType('credit'); setFormData({ amount: '', description: '' }); setTimeout(() => setShowAddModal(true), 0); }}
+            onPress={() => { setSelectedType('credit'); setFormData({ amount: '', description: '', currencyCode: null, date: new Date().toISOString() }); setTimeout(() => setShowAddModal(true), 0); }}
           >
             <Ionicons name="add" size={20} color={colors.onSuccess} />
-            <Text style={[styles.cashBtnText, { color: colors.onSuccess }]}>CASH IN</Text>
+            <Text style={[styles.cashBtnText, { color: colors.onSuccess }]}>{i18n.t('cashIn').toUpperCase()}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.cashOutBtn, { backgroundColor: colors.error }]}
-            onPress={() => { setSelectedType('debit'); setFormData({ amount: '', description: '' }); setTimeout(() => setShowAddModal(true), 0); }}
+            onPress={() => { setSelectedType('debit'); setFormData({ amount: '', description: '', currencyCode: null, date: new Date().toISOString() }); setTimeout(() => setShowAddModal(true), 0); }}
           >
             <Ionicons name="remove" size={20} color={colors.onError} />
-            <Text style={[styles.cashBtnText, { color: colors.onError }]}>CASH OUT</Text>
+            <Text style={[styles.cashBtnText, { color: colors.onError }]}>{i18n.t('cashOut').toUpperCase()}</Text>
           </TouchableOpacity>
         </View>
       </View>
+      )}
 
       {/* Add Entry Modal */}
-      <Modal visible={showAddModal} animationType="slide" transparent onRequestClose={() => setShowAddModal(false)}>
+      <Modal visible={showAddModal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setShowAddModal(false)}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.modalOverlay}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 0}
+          keyboardVerticalOffset={0}
         >
           <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowAddModal(false); }} activeOpacity={1} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]} pointerEvents="auto">
@@ -668,7 +671,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
                 onPress={() => setSelectedType('credit')}
               >
                 <Text style={[styles.typeBtnText2, { color: selectedType === 'credit' ? colors.success : colors.textSecondary }]}>
-                  + CASH IN
+                  + {i18n.t('cashIn').toUpperCase()}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -676,14 +679,14 @@ export default function CustomerDetailScreen({ navigation, route }) {
                 onPress={() => setSelectedType('debit')}
               >
                 <Text style={[styles.typeBtnText2, { color: selectedType === 'debit' ? colors.error : colors.textSecondary }]}>
-                  - CASH OUT
+                  - {i18n.t('cashOut').toUpperCase()}
                 </Text>
               </TouchableOpacity>
             </View>
 
             {walletBalances.length > 0 && (
               <View style={styles.walletSelectorRow}>
-                <Text style={[styles.walletSelectorLabel, { color: colors.textSecondary }]}>Currency</Text>
+                <Text style={[styles.walletSelectorLabel, { color: colors.textSecondary }]}>{i18n.t('currency')}</Text>
                 <View style={styles.walletSelectorChips}>
                   {walletBalances.map((w) => {
                     const selected = (formData.currencyCode || primaryCurrency) === w.currencyCode;
@@ -722,6 +725,11 @@ export default function CustomerDetailScreen({ navigation, route }) {
               onChangeText={(t) => setFormData({ ...formData, description: t })}
             />
 
+            <DatePickerRow
+              date={formData.date}
+              onChange={(d) => setFormData(f => ({ ...f, date: d }))}
+            />
+
             <TouchableOpacity
               style={[styles.submitBtn, { backgroundColor: selectedType === 'credit' ? colors.success : colors.error, opacity: actionLoading ? 0.7 : 1 }]}
               onPress={handleAdd}
@@ -730,17 +738,18 @@ export default function CustomerDetailScreen({ navigation, route }) {
             >
               <Text style={[styles.submitBtnText, { color: selectedType === 'credit' ? colors.onSuccess : colors.onError }]}>{i18n.t('saveEntry')}</Text>
             </TouchableOpacity>
+            <KeyboardSpacer />
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
       {/* Edit Entry Modal */}
-      <Modal visible={showEditEntryModal} animationType="slide" transparent onRequestClose={() => setShowEditEntryModal(false)}>
+      <Modal visible={showEditEntryModal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setShowEditEntryModal(false)}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.modalOverlay}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 0}
+          keyboardVerticalOffset={0}
         >
           <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowEditEntryModal(false); }} activeOpacity={1} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]} pointerEvents="auto">
@@ -760,7 +769,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
                 onPress={() => setEditEntryData({ ...editEntryData, type: 'credit' })}
               >
                 <Text style={[styles.typeBtnText2, { color: editEntryData.type === 'credit' ? colors.success : colors.textSecondary }]}>
-                  + CASH IN
+                  + {i18n.t('cashIn').toUpperCase()}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -768,14 +777,14 @@ export default function CustomerDetailScreen({ navigation, route }) {
                 onPress={() => setEditEntryData({ ...editEntryData, type: 'debit' })}
               >
                 <Text style={[styles.typeBtnText2, { color: editEntryData.type === 'debit' ? colors.error : colors.textSecondary }]}>
-                  - CASH OUT
+                  - {i18n.t('cashOut').toUpperCase()}
                 </Text>
               </TouchableOpacity>
             </View>
 
             {walletBalances.length > 0 && (
               <View style={styles.walletSelectorRow}>
-                <Text style={[styles.walletSelectorLabel, { color: colors.textSecondary }]}>Currency</Text>
+                <Text style={[styles.walletSelectorLabel, { color: colors.textSecondary }]}>{i18n.t('currency')}</Text>
                 <View style={styles.walletSelectorChips}>
                   {walletBalances.map((w) => {
                     const selected = (editEntryData.currencyCode || primaryCurrency) === w.currencyCode;
@@ -813,6 +822,11 @@ export default function CustomerDetailScreen({ navigation, route }) {
               onChangeText={(t) => setEditEntryData({ ...editEntryData, description: t })}
             />
 
+            <DatePickerRow
+              date={editEntryData.date}
+              onChange={(d) => setEditEntryData(prev => ({ ...prev, date: d }))}
+            />
+
             <View style={styles.editBtnRow}>
               <TouchableOpacity
                 style={[styles.editDeleteBtn, { backgroundColor: colors.error + '15' }]}
@@ -830,40 +844,41 @@ export default function CustomerDetailScreen({ navigation, route }) {
                 <Text style={[styles.submitBtnText, { color: editEntryData.type === 'credit' ? colors.onSuccess : colors.onError }]}>{i18n.t('updateEntry')}</Text>
               </TouchableOpacity>
             </View>
+            <KeyboardSpacer />
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
       {/* Menu Modal */}
-      <Modal visible={showMenuModal} animationType="fade" transparent onRequestClose={() => setShowMenuModal(false)}>
-        <TouchableOpacity style={[styles.menuOverlay, { paddingTop: Math.max(insets.top, 12) + 60 }]} onPress={() => setShowMenuModal(false)} activeOpacity={1}>
+      <Modal visible={showMenuModal} animationType="fade" transparent statusBarTranslucent onRequestClose={() => setShowMenuModal(false)}>
+        <TouchableOpacity style={[styles.menuOverlay, { paddingTop: Math.max(insets.top, 12) + 60 }]} onPress={() => { Keyboard.dismiss(); setShowMenuModal(false); }} activeOpacity={1}>
           <View style={[styles.menuContent, { backgroundColor: colors.background, shadowColor: colors.shadow }]}>
             <TouchableOpacity style={styles.menuItem} onPress={() => { setShowMenuModal(false); setShowEditModal(true); }} activeOpacity={0.7}>
               <Ionicons name="create-outline" size={22} color={colors.text} />
-              <Text style={[styles.menuText, { color: colors.text }]}>Edit Customer</Text>
+              <Text style={[styles.menuText, { color: colors.text }]}>{i18n.t('editCustomer')}</Text>
             </TouchableOpacity>
             <View style={[styles.menuDivider, { backgroundColor: colors.border }]} />
             <TouchableOpacity style={styles.menuItem} onPress={handleDeleteCustomer} activeOpacity={0.7}>
               <Ionicons name="trash-outline" size={22} color={colors.error} />
-              <Text style={[styles.menuText, { color: colors.error }]}>Delete Customer</Text>
+              <Text style={[styles.menuText, { color: colors.error }]}>{i18n.t('deleteCustomer')}</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
       </Modal>
 
       {/* Delete Customer Confirmation Modal */}
-      <Modal visible={showDeleteConfirmModal} animationType="slide" transparent onRequestClose={() => setShowDeleteConfirmModal(false)}>
+      <Modal visible={showDeleteConfirmModal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setShowDeleteConfirmModal(false)}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.modalOverlay}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 0}
+          keyboardVerticalOffset={0}
         >
           <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowDeleteConfirmModal(false); setDeleteConfirmText(''); }} activeOpacity={1} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Ionicons name="warning" size={48} color={colors.error} style={{ alignSelf: 'center', marginBottom: 16 }} />
-            <Text style={[styles.modalTitle, { color: colors.error }]}>Delete Customer</Text>
+            <Text style={[styles.modalTitle, { color: colors.error }]}>{i18n.t('deleteCustomer')}</Text>
             <ScrollView
               style={{ width: '100%' }}
               contentContainerStyle={{ paddingBottom: 40 }}
@@ -872,10 +887,10 @@ export default function CustomerDetailScreen({ navigation, route }) {
               keyboardDismissMode="on-drag"
             >
             <Text style={[styles.deleteWarning, { color: colors.textSecondary }]}>
-              This will permanently delete "{customer.name}" and all their {transactions.length} entries. This action cannot be undone.
+              {i18n.t('deleteCustomerConfirm')}
             </Text>
             <Text style={[styles.deleteInstruction, { color: colors.text }]}>
-              Type the customer name to confirm:
+              {i18n.t('typeExactNameToConfirm')}
             </Text>
             <Text style={[styles.customerNameDisplay, { color: colors.accent }]}>
               {customer.name}
@@ -895,7 +910,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
                 onPress={() => { setShowDeleteConfirmModal(false); setDeleteConfirmText(''); }}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.cancelDeleteText, { color: colors.text }]}>Cancel</Text>
+                <Text style={[styles.cancelDeleteText, { color: colors.text }]}>{i18n.t('cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.confirmDeleteBtn, { 
@@ -906,39 +921,40 @@ export default function CustomerDetailScreen({ navigation, route }) {
                 disabled={deleteConfirmText.trim().toLowerCase() !== customer.name.trim().toLowerCase()}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.submitBtnText, { color: colors.onError }]}>DELETE PERMANENTLY</Text>
+                <Text style={[styles.submitBtnText, { color: colors.onError }]}>{i18n.t('delete').toUpperCase()}</Text>
               </TouchableOpacity>
             </View>
+            <KeyboardSpacer />
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
       {/* Delete Entry Confirmation Modal */}
-      <Modal visible={showDeleteEntryModal} animationType="slide" transparent onRequestClose={() => setShowDeleteEntryModal(false)}>
+      <Modal visible={showDeleteEntryModal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setShowDeleteEntryModal(false)}>
         <View style={styles.modalOverlay}>
-          <TouchableOpacity style={styles.modalBackdrop} onPress={() => { setShowDeleteEntryModal(false); setEntryToDelete(null); }} activeOpacity={1} />
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowDeleteEntryModal(false); setEntryToDelete(null); }} activeOpacity={1} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Ionicons name="trash" size={48} color={colors.error} style={{ alignSelf: 'center', marginBottom: 16 }} />
-            <Text style={[styles.modalTitle, { color: colors.error }]}>Delete Entry</Text>
+            <Text style={[styles.modalTitle, { color: colors.error }]}>{i18n.t('deleteTransaction')}</Text>
             {entryToDelete && (
               <>
                   <View style={[styles.entryDeleteCard, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
                   <View style={styles.entryDeleteRow}>
-                    <Text style={[styles.entryDeleteLabel, { color: colors.textSecondary }]}>Type</Text>
+                    <Text style={[styles.entryDeleteLabel, { color: colors.textSecondary }]}>{i18n.t('entryType')}</Text>
                     <View style={[styles.typeBadge, { 
                       backgroundColor: (entryToDelete.type === 'credit' || entryToDelete.type === 'income') ? colors.accentLight : colors.error + '15'
                     }]}>
                       <Text style={[styles.typeBadgeText, { 
                         color: (entryToDelete.type === 'credit' || entryToDelete.type === 'income') ? colors.accent : colors.error 
                       }]}>
-                        {(entryToDelete.type === 'credit' || entryToDelete.type === 'income') ? 'Cash In' : 'Cash Out'}
+                        {(entryToDelete.type === 'credit' || entryToDelete.type === 'income') ? i18n.t('cashIn') : i18n.t('cashOut')}
                       </Text>
                     </View>
                   </View>
                   <View style={styles.entryDeleteRow}>
-                    <Text style={[styles.entryDeleteLabel, { color: colors.textSecondary }]}>Amount</Text>
+                    <Text style={[styles.entryDeleteLabel, { color: colors.textSecondary }]}>{i18n.t('amount')}</Text>
                     <Text style={[styles.entryDeleteValue, { 
                       color: (entryToDelete.type === 'credit' || entryToDelete.type === 'income') ? colors.success : colors.error 
                     }]}>
@@ -947,7 +963,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
                   </View>
                   {entryToDelete.description && (
                     <View style={styles.entryDeleteRow}>
-                      <Text style={[styles.entryDeleteLabel, { color: colors.textSecondary }]}>Remark</Text>
+                      <Text style={[styles.entryDeleteLabel, { color: colors.textSecondary }]}>{i18n.t('remark')}</Text>
                       <Text style={[styles.entryDeleteValue, { color: colors.text }]} numberOfLines={2}>
                         {entryToDelete.description}
                       </Text>
@@ -955,7 +971,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
                   )}
                 </View>
                 <Text style={[styles.deleteWarning, { color: colors.textSecondary, marginTop: 16 }]}>
-                  This will permanently delete this entry and update the customer balance. This action cannot be undone.
+                  {i18n.t('cannotBeUndone')}
                 </Text>
                 <View style={styles.deleteButtonRow}>
                   <TouchableOpacity
@@ -963,7 +979,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
                     onPress={() => { setShowDeleteEntryModal(false); setEntryToDelete(null); }}
                     activeOpacity={0.8}
                   >
-                    <Text style={[styles.cancelDeleteText, { color: colors.text }]}>Cancel</Text>
+                    <Text style={[styles.cancelDeleteText, { color: colors.text }]}>{i18n.t('cancel')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.confirmDeleteBtn, { backgroundColor: colors.error }]}
@@ -971,7 +987,7 @@ export default function CustomerDetailScreen({ navigation, route }) {
                     activeOpacity={0.8}
                   >
                     <Ionicons name="trash" size={18} color={colors.onError} style={{ marginRight: 6 }} />
-                    <Text style={[styles.submitBtnText, { color: colors.onError }]}>DELETE ENTRY</Text>
+                    <Text style={[styles.submitBtnText, { color: colors.onError }]}>{i18n.t('delete').toUpperCase()}</Text>
                   </TouchableOpacity>
                 </View>
               </>
@@ -981,11 +997,11 @@ export default function CustomerDetailScreen({ navigation, route }) {
       </Modal>
 
       {/* Edit Customer Modal */}
-      <Modal visible={showEditModal} animationType="slide" transparent onRequestClose={() => setShowEditModal(false)}>
+      <Modal visible={showEditModal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setShowEditModal(false)}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.modalOverlay}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 0}
+          keyboardVerticalOffset={0}
         >
           <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowEditModal(false); }} activeOpacity={1} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]} pointerEvents="auto">
@@ -1021,15 +1037,16 @@ export default function CustomerDetailScreen({ navigation, route }) {
             <TouchableOpacity style={[styles.submitBtn, { backgroundColor: colors.accent }]} onPress={handleEditCustomer} activeOpacity={0.8}>
               <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>{i18n.t('save')}</Text>
             </TouchableOpacity>
+            <KeyboardSpacer />
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
       {/* Filter by Type Modal (Options button) */}
-      <Modal visible={showFilterModal} animationType="slide" transparent onRequestClose={() => setShowFilterModal(false)}>
+      <Modal visible={showFilterModal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setShowFilterModal(false)}>
         <View style={styles.modalOverlay}>
-          <TouchableOpacity style={styles.modalBackdrop} onPress={() => setShowFilterModal(false)} activeOpacity={1} />
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowFilterModal(false); }} activeOpacity={1} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('filterByEntryType')}</Text>
@@ -1054,9 +1071,9 @@ export default function CustomerDetailScreen({ navigation, route }) {
       </Modal>
 
       {/* Date Filter Modal */}
-      <Modal visible={showDateModal} animationType="slide" transparent onRequestClose={() => setShowDateModal(false)}>
+      <Modal visible={showDateModal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setShowDateModal(false)}>
         <View style={styles.modalOverlay}>
-          <TouchableOpacity style={styles.modalBackdrop} onPress={() => setShowDateModal(false)} activeOpacity={1} />
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowDateModal(false); }} activeOpacity={1} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('filterByDate')}</Text>
@@ -1083,15 +1100,15 @@ export default function CustomerDetailScreen({ navigation, route }) {
       </Modal>
 
       {/* Reports Modal */}
-      <Modal visible={showReportsModal} animationType="slide" transparent onRequestClose={() => setShowReportsModal(false)}>
+      <Modal visible={showReportsModal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setShowReportsModal(false)}>
         <View style={styles.modalOverlay}>
-          <TouchableOpacity style={styles.modalBackdrop} onPress={() => setShowReportsModal(false)} activeOpacity={1} />
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowReportsModal(false); }} activeOpacity={1} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>{i18n.t('reports')}</Text>
 
             <View style={[styles.reportCard, { backgroundColor: colors.backgroundSecondary }]}>
-              <Text style={[styles.reportLabel, { color: colors.textSecondary }]}>Customer</Text>
+              <Text style={[styles.reportLabel, { color: colors.textSecondary }]}>{i18n.t('customers')}</Text>
               <Text style={[styles.reportValue, { color: colors.text }]}>{customer.name}</Text>
             </View>
 
@@ -1103,16 +1120,16 @@ export default function CustomerDetailScreen({ navigation, route }) {
                   <Text style={[styles.reportLabel, { color: colors.textSecondary, marginBottom: 4 }]}>{code}</Text>
                   <View style={styles.reportRow}>
                     <View style={[styles.reportCard, styles.reportCardHalf, { backgroundColor: colors.success + '20' }]}>
-                      <Text style={[styles.reportLabel, { color: colors.success }]}>Total In</Text>
+                      <Text style={[styles.reportLabel, { color: colors.success }]}>{i18n.t('totalIn')}</Text>
                       <Text style={[styles.reportValue, { color: colors.success }]}>{format(tot.in, code)}</Text>
                     </View>
                     <View style={[styles.reportCard, styles.reportCardHalf, { backgroundColor: colors.error + '20' }]}>
-                      <Text style={[styles.reportLabel, { color: colors.error }]}>Total Out</Text>
+                      <Text style={[styles.reportLabel, { color: colors.error }]}>{i18n.t('totalOut')}</Text>
                       <Text style={[styles.reportValue, { color: colors.error }]}>{format(tot.out, code)}</Text>
                     </View>
                   </View>
                   <View style={[styles.reportCard, { backgroundColor: net >= 0 ? colors.accentLight : colors.error + '20', marginBottom: 12 }]}>
-                    <Text style={[styles.reportLabel, { color: net >= 0 ? colors.info : colors.error }]}>Net Balance</Text>
+                    <Text style={[styles.reportLabel, { color: net >= 0 ? colors.info : colors.error }]}>{i18n.t('netBalance')}</Text>
                     <Text style={[styles.reportValueLarge, { color: net >= 0 ? colors.info : colors.error }]}>
                       {formatWithSign(net, code)}
                     </Text>
@@ -1122,13 +1139,13 @@ export default function CustomerDetailScreen({ navigation, route }) {
             })}
 
             <View style={[styles.reportCard, { backgroundColor: colors.backgroundSecondary }]}>
-              <Text style={[styles.reportLabel, { color: colors.textSecondary }]}>Total Entries</Text>
+              <Text style={[styles.reportLabel, { color: colors.textSecondary }]}>{i18n.t('totalEntries')}</Text>
               <Text style={[styles.reportValue, { color: colors.text }]}>{transactions.length}</Text>
             </View>
 
             <TouchableOpacity style={[styles.submitBtn, { backgroundColor: colors.accent }]} onPress={() => { setShowReportsModal(false); handleSharePDF(); }} activeOpacity={0.8}>
               <Ionicons name="share-outline" size={20} color={colors.onAccent} style={{ marginRight: 8 }} />
-              <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>SHARE REPORT</Text>
+              <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>{i18n.t('shareReport').toUpperCase()}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1145,7 +1162,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 12 },
   backBtn: { padding: 8, marginRight: 4 },
   headerCenter: { flex: 1, marginHorizontal: 8, minWidth: 0, maxWidth: '60%' },
-  headerTitle: { fontSize: 17, fontWeight: '600' },
+  headerTitle: { fontSize: 17, fontWeight: '700' },
   headerSubtitle: { fontSize: 12, marginTop: 2 },
   headerActions: { flexDirection: 'row', gap: 4 },
   headerBtn: { padding: 8 },
@@ -1157,15 +1174,15 @@ const styles = StyleSheet.create({
   filterBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, gap: 6 },
   filterText: { fontSize: 13 },
 
-  summaryCard: { margin: 12, padding: 16, borderRadius: 8, borderWidth: 1 },
+  summaryCard: { margin: 12, padding: 16, borderRadius: 14, borderWidth: 1 },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8 },
   summaryLabel: { fontSize: 15, fontWeight: '500' },
-  summaryValue: { fontSize: 18, fontWeight: '700', flexShrink: 0, minWidth: 100, textAlign: 'right' },
-  summaryValueBlue: { fontSize: 16, fontWeight: '600', flexShrink: 0, minWidth: 100, textAlign: 'right' },
-  summaryValueRed: { fontSize: 16, fontWeight: '600', flexShrink: 0, minWidth: 100, textAlign: 'right' },
+  summaryValue: { fontSize: 18, fontWeight: '800', flexShrink: 0, minWidth: 100, textAlign: 'right' },
+  summaryValueBlue: { fontSize: 16, fontWeight: '700', flexShrink: 0, minWidth: 100, textAlign: 'right' },
+  summaryValueRed: { fontSize: 16, fontWeight: '700', flexShrink: 0, minWidth: 100, textAlign: 'right' },
   divider: { height: 1, marginVertical: 8 },
   viewReportsBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingTop: 12, gap: 4 },
-  viewReportsText: { fontSize: 14, fontWeight: '600' },
+  viewReportsText: { fontSize: 14, fontWeight: '700' },
 
   entriesCount: { textAlign: 'center', fontSize: 13, paddingVertical: 12 },
   dateHeader: { fontSize: 13, fontWeight: '500', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
@@ -1173,17 +1190,17 @@ const styles = StyleSheet.create({
   transactionItem: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1 },
   transactionLeft: { flex: 1, gap: 6 },
   badgeRow: { flexDirection: 'row' },
-  typeBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 4 },
+  typeBadge: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
   typeBadgeText: { fontSize: 12, fontWeight: '600' },
   transactionDesc: { fontSize: 13 },
   entryBy: { fontSize: 12, fontWeight: '500' },
   transactionRight: { alignItems: 'flex-end', gap: 4, minWidth: 100 },
-  transactionAmount: { fontSize: 16, fontWeight: '600', flexShrink: 0, textAlign: 'right' },
+  transactionAmount: { fontSize: 16, fontWeight: '700', flexShrink: 0, textAlign: 'right' },
   balanceAfter: { fontSize: 12, flexShrink: 0, textAlign: 'right' },
 
-  empty: { alignItems: 'center', paddingVertical: 60, gap: 8 },
-  emptyText: { fontSize: 15, fontWeight: '500' },
-  emptySubtext: { fontSize: 13 },
+  empty: { alignItems: 'center', paddingVertical: 60, gap: 12 },
+  emptyText: { fontSize: 16, fontWeight: '600' },
+  emptySubtext: { fontSize: 13, textAlign: 'center', maxWidth: 240 },
 
   bottomActionsWrapper: { 
     position: 'absolute', 
@@ -1199,15 +1216,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, 
     gap: 12,
   },
-  cashInBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 8, gap: 6 },
-  cashOutBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 8, gap: 6 },
-  cashBtnText: { fontSize: 14, fontWeight: '700' },
+  cashInBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 15, borderRadius: 14, gap: 6 },
+  cashOutBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 15, borderRadius: 14, gap: 6 },
+  cashBtnText: { fontSize: 14, fontWeight: '700', letterSpacing: 0.5 },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   modalBackdrop: { flex: 1, minHeight: 0 },
-  modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: Platform.OS === 'ios' ? 40 : 20 },
-  modalHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
-  modalTitle: { fontSize: 20, fontWeight: '600', textAlign: 'center', marginBottom: 20 },
+  modalContent: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 20, paddingBottom: Platform.OS === 'ios' ? 40 : 24 },
+  modalHandle: { width: 36, height: 5, borderRadius: 3, alignSelf: 'center', marginBottom: 20 },
+  modalTitle: { fontSize: 20, fontWeight: '700', textAlign: 'center', marginBottom: 20 },
   
   walletSelectorRow: { marginBottom: 16 },
   walletSelectorLabel: { fontSize: 12, fontWeight: '500', marginBottom: 6 },
@@ -1215,8 +1232,8 @@ const styles = StyleSheet.create({
   walletChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
   walletChipText: { fontSize: 14, fontWeight: '600' },
 
-  typeToggle: { flexDirection: 'row', borderRadius: 8, padding: 4, marginBottom: 24 },
-  typeBtn: { flex: 1, paddingVertical: 12, borderRadius: 6, alignItems: 'center' },
+  typeToggle: { flexDirection: 'row', borderRadius: 12, padding: 4, marginBottom: 24 },
+  typeBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
   typeBtnActive: {},
   typeBtnActiveRed: {},
   typeBtnText2: { fontSize: 14, fontWeight: '600' },
@@ -1226,37 +1243,37 @@ const styles = StyleSheet.create({
   amountInputLarge: { fontSize: 48, fontWeight: '600', minWidth: 100, textAlign: 'center' },
   
   inputLabel: { fontSize: 13, fontWeight: '500', marginBottom: 8, marginLeft: 4 },
-  input: { padding: 14, borderRadius: 8, fontSize: 16, marginBottom: 16 },
-  submitBtn: { flexDirection: 'row', paddingVertical: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  input: { padding: 14, borderRadius: 12, fontSize: 16, marginBottom: 16 },
+  submitBtn: { flexDirection: 'row', paddingVertical: 16, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   submitBtnText: { fontSize: 15, fontWeight: '700' },
 
   editBtnRow: { flexDirection: 'row', gap: 12 },
-  editDeleteBtn: { width: 56, height: 56, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  editSaveBtn: { flex: 1, paddingVertical: 16, borderRadius: 8, alignItems: 'center' },
+  editDeleteBtn: { width: 56, height: 56, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  editSaveBtn: { flex: 1, paddingVertical: 16, borderRadius: 14, alignItems: 'center' },
 
-  menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'flex-start', alignItems: 'flex-end', paddingRight: 16 },
-  menuContent: { borderRadius: 12, padding: 8, minWidth: 180, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 5 },
+  menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-start', alignItems: 'flex-end', paddingRight: 16 },
+  menuContent: { borderRadius: 14, padding: 8, minWidth: 180, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8 },
   menuItem: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12 },
   menuText: { fontSize: 15, fontWeight: '500' },
   menuDivider: { height: 1, marginVertical: 4 },
 
-  dateOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderRadius: 8, marginBottom: 8 },
+  dateOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderRadius: 12, marginBottom: 8 },
   dateOptionText: { fontSize: 16, fontWeight: '500' },
 
-  reportCard: { padding: 16, borderRadius: 8, marginBottom: 12 },
+  reportCard: { padding: 16, borderRadius: 14, marginBottom: 12 },
   reportCardHalf: { flex: 1 },
   reportRow: { flexDirection: 'row', gap: 12 },
   reportLabel: { fontSize: 12, fontWeight: '500', marginBottom: 4 },
-  reportValue: { fontSize: 18, fontWeight: '700' },
-  reportValueLarge: { fontSize: 28, fontWeight: '700' },
+  reportValue: { fontSize: 18, fontWeight: '800' },
+  reportValueLarge: { fontSize: 28, fontWeight: '800' },
 
   deleteWarning: { fontSize: 15, textAlign: 'center', marginBottom: 20, lineHeight: 22 },
   deleteInstruction: { fontSize: 14, fontWeight: '500', marginBottom: 8 },
   customerNameDisplay: { fontSize: 18, fontWeight: '700', textAlign: 'center', marginBottom: 16, paddingVertical: 8 },
   deleteButtonRow: { flexDirection: 'row', gap: 12, marginTop: 8 },
-  cancelDeleteBtn: { flex: 1, paddingVertical: 16, borderRadius: 8, alignItems: 'center' },
+  cancelDeleteBtn: { flex: 1, paddingVertical: 16, borderRadius: 14, alignItems: 'center' },
   cancelDeleteText: { fontSize: 15, fontWeight: '600' },
-  confirmDeleteBtn: { flex: 1, flexDirection: 'row', paddingVertical: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  confirmDeleteBtn: { flex: 1, flexDirection: 'row', paddingVertical: 16, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
 
   entryDeleteCard: { padding: 16, borderRadius: 12, borderWidth: 1, marginBottom: 8 },
   entryDeleteRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },

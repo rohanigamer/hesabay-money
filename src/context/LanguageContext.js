@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { Storage } from '../utils/Storage';
 import { setLanguage as setI18nLanguage, getLanguage as getI18nLanguage } from '../utils/i18n';
+import { setCurrencyLocale } from '../utils/Currency';
 
 const LanguageContext = createContext();
 
@@ -17,6 +18,7 @@ export const LanguageProvider = ({ children }) => {
       const savedLang = await Storage.getLanguage();
       const lang = savedLang || 'en';
       setLanguage(lang);
+      setCurrencyLocale(lang);
       await setI18nLanguage(lang);
     } catch (error) {
       console.error('Error loading language:', error);
@@ -27,6 +29,7 @@ export const LanguageProvider = ({ children }) => {
 
   const changeLanguage = async (lang) => {
     try {
+      setCurrencyLocale(lang);
       await setI18nLanguage(lang);
       setLanguage(lang);
     } catch (e) {

@@ -1,6 +1,7 @@
 import React, { createContext, useMemo, useState, useEffect } from 'react';
-import { useColorScheme } from 'react-native';
+import { Platform, useColorScheme } from 'react-native';
 import { Storage } from '../utils/Storage';
+import * as NavigationBar from 'expo-navigation-bar';
 
 export const ThemeContext = createContext();
 
@@ -37,7 +38,19 @@ export const ThemeProvider = ({ children }) => {
     if (theme === 'device') {
       activeTheme = systemTheme || 'light';
     }
-    setColors(getColors(activeTheme));
+    const newColors = getColors(activeTheme);
+    setColors(newColors);
+
+    // Set Android system navigation bar to transparent so modals extend behind it
+    if (Platform.OS === 'android') {
+      try {
+        NavigationBar.setPositionAsync('absolute');
+        NavigationBar.setBackgroundColorAsync('transparent');
+        NavigationBar.setButtonStyleAsync(activeTheme === 'dark' ? 'light' : 'dark');
+      } catch (e) {
+        // Ignore on unsupported platforms
+      }
+    }
   };
 
   const changeTheme = async (newTheme) => {
@@ -76,82 +89,104 @@ const getColors = (theme) => {
     return {
       ...base,
       isDark: false,
-      // Modern light: soft neutral background
+      // Premium light: warm whites with depth
       background: '#FFFFFF',
-      backgroundSecondary: '#F5F6F8',
-      backgroundTertiary: '#EBECF0',
+      backgroundSecondary: '#F8F9FB',
+      backgroundTertiary: '#F0F1F5',
 
       surface: '#FFFFFF',
+      surfaceElevated: '#FFFFFF',
       card: '#FFFFFF',
 
-      text: '#111827',
-      textSecondary: '#6B7280',
-      textTertiary: '#9CA3AF',
+      text: '#0F172A',
+      textSecondary: '#64748B',
+      textTertiary: '#94A3B8',
 
-      // Primary accent - modern indigo
+      // Primary accent — vibrant indigo-violet
       accent: '#6366F1',
+      accentHover: '#4F46E5',
       accentLight: '#EEF2FF',
+      accentMuted: 'rgba(99, 102, 241, 0.08)',
       onAccent: '#FFFFFF',
-      onSurface: '#111827',
+      onSurface: '#0F172A',
 
       info: '#3B82F6',
+      infoLight: '#EFF6FF',
       gradientStart: '#FFFFFF',
       gradientEnd: '#F5F3FF',
 
-      border: '#E5E7EB',
-      borderLight: '#F3F4F6',
+      border: '#E2E8F0',
+      borderLight: '#F1F5F9',
 
-      shadow: 'rgba(0, 0, 0, 0.06)',
-      shadowStrong: 'rgba(0, 0, 0, 0.12)',
+      shadow: 'rgba(15, 23, 42, 0.06)',
+      shadowStrong: 'rgba(15, 23, 42, 0.12)',
+      shadowColor: '#6366F1',
 
       radius: { sm: 10, md: 14, lg: 18, xl: 24, full: 9999 },
 
       success: '#10B981',
+      successLight: '#ECFDF5',
       onSuccess: '#FFFFFF',
       error: '#EF4444',
+      errorLight: '#FEF2F2',
       onError: '#FFFFFF',
       warning: '#F59E0B',
+      warningLight: '#FFFBEB',
       onWarning: '#000000',
+
+      // Avatar palette for customer initials
+      avatarColors: ['#6366F1', '#8B5CF6', '#EC4899', '#F43F5E', '#14B8A6', '#0EA5E9', '#F97316', '#84CC16'],
     };
   }
 
-  // Dark theme - deep slate, not pure black
+  // Dark theme — rich deep surfaces, not pure black
   return {
     ...base,
     isDark: true,
-    background: '#0F0F12',
-    backgroundSecondary: '#18181B',
-    backgroundTertiary: '#27272A',
+    background: '#0C0C10',
+    backgroundSecondary: '#141418',
+    backgroundTertiary: '#1E1E24',
 
-    surface: '#18181B',
-    card: '#1F1F23',
+    surface: '#1A1A20',
+    surfaceElevated: '#222228',
+    card: '#1A1A20',
 
-    text: '#FAFAFA',
-    textSecondary: '#A1A1AA',
-    textTertiary: '#71717A',
+    text: '#F8FAFC',
+    textSecondary: '#94A3B8',
+    textTertiary: '#64748B',
 
     accent: '#818CF8',
-    accentLight: '#312E81',
+    accentHover: '#A5B4FC',
+    accentLight: '#1E1B4B',
+    accentMuted: 'rgba(129, 140, 248, 0.12)',
     onAccent: '#FFFFFF',
-    onSurface: '#FAFAFA',
+    onSurface: '#F8FAFC',
 
     info: '#60A5FA',
-    gradientStart: '#0F0F12',
+    infoLight: '#1E3A5F',
+    gradientStart: '#0C0C10',
     gradientEnd: '#1E1B4B',
 
-    border: '#3F3F46',
-    borderLight: '#27272A',
+    border: '#2D2D35',
+    borderLight: '#1E1E24',
 
-    shadow: 'rgba(0, 0, 0, 0.4)',
-    shadowStrong: 'rgba(0, 0, 0, 0.6)',
+    shadow: 'rgba(0, 0, 0, 0.5)',
+    shadowStrong: 'rgba(0, 0, 0, 0.7)',
+    shadowColor: '#818CF8',
 
     radius: { sm: 10, md: 14, lg: 18, xl: 24, full: 9999 },
 
     success: '#34D399',
+    successLight: '#064E3B',
     onSuccess: '#000000',
-    error: '#F87171',
+    error: '#FB7185',
+    errorLight: '#4C0519',
     onError: '#000000',
     warning: '#FBBF24',
+    warningLight: '#451A03',
     onWarning: '#000000',
+
+    // Avatar palette for customer initials
+    avatarColors: ['#818CF8', '#A78BFA', '#F472B6', '#FB7185', '#2DD4BF', '#38BDF8', '#FB923C', '#A3E635'],
   };
 };

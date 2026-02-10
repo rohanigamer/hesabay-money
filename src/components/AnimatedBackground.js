@@ -14,8 +14,8 @@ export default function AnimatedBackground({ children }) {
     shift.setValue(0);
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(shift, { toValue: 1, duration: 12000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(shift, { toValue: 0, duration: 12000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(shift, { toValue: 1, duration: 18000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(shift, { toValue: 0, duration: 18000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
       ])
     );
     loop.start();
@@ -36,8 +36,8 @@ export default function AnimatedBackground({ children }) {
           {
             opacity: isDark ? 0.4 : 0.6,
             transform: [
-              { translateX: shift.interpolate({ inputRange: [0, 1], outputRange: [-30, 30] }) },
-              { translateY: shift.interpolate({ inputRange: [0, 1], outputRange: [-15, 15] }) },
+              { translateX: shift.interpolate({ inputRange: [0, 1], outputRange: [-20, 20] }) },
+              { translateY: shift.interpolate({ inputRange: [0, 1], outputRange: [-10, 10] }) },
             ],
           },
         ]}

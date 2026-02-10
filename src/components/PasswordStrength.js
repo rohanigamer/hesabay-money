@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import i18n from '../utils/i18n';
 
 // Password strength calculator
 const calculateStrength = (password, colors) => {
@@ -20,13 +21,13 @@ const calculateStrength = (password, colors) => {
   
   // Determine strength level
   if (score <= 2) {
-    return { level: 1, label: 'Weak', color: colors?.error || '#FF3B30' };
+    return { level: 1, label: i18n.t('weak'), color: colors?.error || '#FF3B30' };
   } else if (score <= 4) {
-    return { level: 2, label: 'Fair', color: colors?.warning || '#FF9500' };
+    return { level: 2, label: i18n.t('fair'), color: colors?.warning || '#FF9500' };
   } else if (score <= 5) {
-    return { level: 3, label: 'Good', color: colors?.success || '#34C759' };
+    return { level: 3, label: i18n.t('good'), color: colors?.success || '#34C759' };
   } else {
-    return { level: 4, label: 'Strong', color: colors?.accent || '#007AFF' };
+    return { level: 4, label: i18n.t('strong'), color: colors?.accent || '#007AFF' };
   }
 };
 
@@ -73,12 +74,12 @@ const styles = StyleSheet.create({
   },
   bar: {
     flex: 1,
-    height: 4,
-    borderRadius: 2,
+    height: 5,
+    borderRadius: 3,
   },
   label: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     marginLeft: 12,
     minWidth: 50,
   },

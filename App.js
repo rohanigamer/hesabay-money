@@ -279,18 +279,19 @@ const styles = StyleSheet.create({
   logoBox: {
     width: 80,
     height: 80,
-    borderRadius: 20,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
   },
   logoText: {
     fontSize: 40,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   appTitle: {
     fontSize: 24,
-    fontWeight: '600',
+    fontWeight: '800',
+    letterSpacing: -0.3,
   },
   loadingText: {
     fontSize: 14,

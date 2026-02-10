@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ThemeContext } from '../context/ThemeContext';
 import { useCurrency } from '../context/CurrencyContext';
 import { Storage } from '../utils/Storage';
+import KeyboardSpacer from '../components/KeyboardSpacer';
 import BottomNavigation from '../components/BottomNavigation';
 import GlassCard from '../components/GlassCard';
 import OfflineBanner from '../components/OfflineBanner';
@@ -100,7 +101,7 @@ export default function CustomersScreen({ navigation }) {
 
   const handleAdd = async () => {
     if (!formData.name.trim()) {
-      toast({ type: 'warning', title: 'Missing name', message: 'Please enter a customer name.' });
+      toast({ type: 'warning', title: i18n.t('missingName'), message: i18n.t('missingNameMsg') });
       return;
     }
     if (addSubmitting) return;
@@ -111,13 +112,13 @@ export default function CustomersScreen({ navigation }) {
         setFormData({ name: '', number: '' });
         setShowAddModal(false);
         await loadCustomers();
-        toast({ type: 'success', title: 'Added', message: 'Customer added.' });
+        toast({ type: 'success', title: i18n.t('added'), message: i18n.t('customerAdded') });
       } else {
-        toast({ type: 'error', title: 'Error', message: 'Could not add customer.' });
+        toast({ type: 'error', title: i18n.t('error'), message: i18n.t('couldNotAddCustomer') });
       }
     } catch (e) {
       console.error('handleAdd:', e);
-      toast({ type: 'error', title: 'Error', message: e?.message || 'Could not add customer.' });
+      toast({ type: 'error', title: i18n.t('error'), message: e?.message || i18n.t('couldNotAddCustomer') });
     } finally {
       setAddSubmitting(false);
     }
@@ -132,13 +133,13 @@ export default function CustomersScreen({ navigation }) {
         setSelectedCustomer(null);
         setShowEditModal(false);
         await loadCustomers();
-        toast({ type: 'success', title: 'Updated', message: 'Customer updated.' });
+        toast({ type: 'success', title: i18n.t('updated'), message: i18n.t('customerUpdated') });
       } else {
-        toast({ type: 'error', title: 'Error', message: 'Could not update customer.' });
+        toast({ type: 'error', title: i18n.t('error'), message: i18n.t('couldNotUpdateCustomer') });
       }
     } catch (e) {
       console.error('handleEdit:', e);
-      toast({ type: 'error', title: 'Error', message: e?.message || 'Could not update customer.' });
+      toast({ type: 'error', title: i18n.t('error'), message: e?.message || i18n.t('couldNotUpdateCustomer') });
     }
   };
 
@@ -163,7 +164,7 @@ export default function CustomersScreen({ navigation }) {
   const confirmDelete = async () => {
     if (!selectedCustomer) return;
     if (deleteConfirmText.trim().toLowerCase() !== selectedCustomer.name.trim().toLowerCase()) {
-      toast({ type: 'error', title: 'Name does not match', message: 'Type the exact customer name to confirm deletion.' });
+      toast({ type: 'error', title: i18n.t('nameDoesNotMatch'), message: i18n.t('typeExactNameToConfirm') });
       return;
     }
     try {
@@ -173,13 +174,13 @@ export default function CustomersScreen({ navigation }) {
         setDeleteConfirmText('');
         setSelectedCustomer(null);
         await loadCustomers();
-        toast({ type: 'success', title: 'Deleted', message: 'Customer removed.' });
+        toast({ type: 'success', title: i18n.t('deleted'), message: i18n.t('customerRemoved') });
       } else {
-        toast({ type: 'error', title: 'Error', message: 'Could not delete customer.' });
+        toast({ type: 'error', title: i18n.t('error'), message: i18n.t('couldNotDeleteCustomer') });
       }
     } catch (e) {
       console.error('confirmDelete:', e);
-      toast({ type: 'error', title: 'Error', message: e?.message || 'Could not delete customer.' });
+      toast({ type: 'error', title: i18n.t('error'), message: e?.message || i18n.t('couldNotDeleteCustomer') });
     }
   };
 
@@ -199,6 +200,7 @@ export default function CustomersScreen({ navigation }) {
         ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} colors={[colors.accent]} />}
       >
         {/* Header - button outside Animated.View so modal open works on Android */}
@@ -264,8 +266,8 @@ export default function CustomersScreen({ navigation }) {
                   onPress={() => navigation.navigate('CustomerDetail', { customerId: customer.id })}
                   activeOpacity={0.6}
                 >
-                  <View style={[styles.avatar, { backgroundColor: colors.accent }]}>
-                    <Text style={[styles.avatarText, { color: colors.onAccent }]}>{customer.name.charAt(0).toUpperCase()}</Text>
+                  <View style={[styles.avatar, { backgroundColor: (colors.avatarColors || [colors.accent])[customer.name.charCodeAt(0) % (colors.avatarColors || [colors.accent]).length] }]}>
+                    <Text style={[styles.avatarText, { color: '#FFFFFF' }]}>{customer.name.charAt(0).toUpperCase()}</Text>
                   </View>
                   <View style={styles.customerInfo}>
                     <Text style={[styles.customerName, { color: colors.text }]}>{customer.name}</Text>
@@ -304,11 +306,11 @@ export default function CustomersScreen({ navigation }) {
       )}
 
       {/* Add Modal */}
-      <Modal visible={showAddModal} animationType="slide" transparent onRequestClose={() => setShowAddModal(false)}>
+      <Modal visible={showAddModal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setShowAddModal(false)}>
         <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.modalOverlay}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+          keyboardVerticalOffset={0}
         >
           <TouchableOpacity style={[styles.modalBackdrop, { zIndex: 0 }]} onPress={() => { Keyboard.dismiss(); setShowAddModal(false); }} activeOpacity={1} />
           <View style={[styles.modalContent, { backgroundColor: colors.background, zIndex: 1 }]} pointerEvents="auto">
@@ -352,28 +354,28 @@ export default function CustomersScreen({ navigation }) {
       </Modal>
 
       {/* Menu Modal */}
-      <Modal visible={showMenuModal} animationType="fade" transparent onRequestClose={() => setShowMenuModal(false)}>
-        <TouchableOpacity style={styles.menuOverlay} onPress={() => setShowMenuModal(false)} activeOpacity={1}>
+      <Modal visible={showMenuModal} animationType="fade" transparent statusBarTranslucent onRequestClose={() => setShowMenuModal(false)}>
+        <TouchableOpacity style={styles.menuOverlay} onPress={() => { Keyboard.dismiss(); setShowMenuModal(false); }} activeOpacity={1}>
           <View style={[styles.menuContent, { backgroundColor: colors.background, shadowColor: colors.shadow }]}>
             <TouchableOpacity style={styles.menuItem} onPress={openEdit} activeOpacity={0.7}>
               <Ionicons name="create-outline" size={22} color={colors.text} />
-              <Text style={[styles.menuText, { color: colors.text }]}>Edit Customer</Text>
+              <Text style={[styles.menuText, { color: colors.text }]}>{i18n.t('editCustomer')}</Text>
             </TouchableOpacity>
             <View style={[styles.menuDivider, { backgroundColor: colors.border }]} />
             <TouchableOpacity style={styles.menuItem} onPress={openDeleteConfirm} activeOpacity={0.7}>
               <Ionicons name="trash-outline" size={22} color={colors.error} />
-              <Text style={[styles.menuText, { color: colors.error }]}>Delete Customer</Text>
+              <Text style={[styles.menuText, { color: colors.error }]}>{i18n.t('deleteCustomer')}</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
       </Modal>
 
       {/* Edit Modal */}
-      <Modal visible={showEditModal} animationType="slide" transparent onRequestClose={() => setShowEditModal(false)}>
+      <Modal visible={showEditModal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setShowEditModal(false)}>
         <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.modalOverlay}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+          keyboardVerticalOffset={0}
         >
           <TouchableOpacity style={[styles.modalBackdrop, { zIndex: 0 }]} onPress={() => { Keyboard.dismiss(); setShowEditModal(false); }} activeOpacity={1} />
           <View style={[styles.modalContent, { backgroundColor: colors.background, zIndex: 1 }]} pointerEvents="auto">
@@ -407,23 +409,24 @@ export default function CustomersScreen({ navigation }) {
               <Pressable style={[styles.submitBtn, { backgroundColor: colors.accent }]} onPress={handleEdit}>
                 <Text style={[styles.submitBtnText, { color: colors.onAccent }]}>{i18n.t('save')}</Text>
               </Pressable>
+              <KeyboardSpacer />
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
       {/* Delete Confirmation Modal */}
-      <Modal visible={showDeleteConfirmModal} animationType="slide" transparent onRequestClose={() => setShowDeleteConfirmModal(false)}>
+      <Modal visible={showDeleteConfirmModal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setShowDeleteConfirmModal(false)}>
         <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.modalOverlay}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+          keyboardVerticalOffset={0}
         >
           <TouchableOpacity style={styles.modalBackdrop} onPress={() => { Keyboard.dismiss(); setShowDeleteConfirmModal(false); setDeleteConfirmText(''); }} activeOpacity={1} />
           <View style={[styles.modalContent, { backgroundColor: colors.background }]} pointerEvents="auto">
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Ionicons name="warning" size={48} color={colors.error} style={{ alignSelf: 'center', marginBottom: 16 }} />
-            <Text style={[styles.modalTitle, { color: colors.error }]}>Delete Customer</Text>
+            <Text style={[styles.modalTitle, { color: colors.error }]}>{i18n.t('deleteCustomer')}</Text>
             <ScrollView 
               style={{ width: '100%', maxHeight: '85%' }}
               contentContainerStyle={{ paddingBottom: 80 }}
@@ -434,10 +437,10 @@ export default function CustomersScreen({ navigation }) {
               {selectedCustomer && (
                 <>
                   <Text style={[styles.deleteWarning, { color: colors.textSecondary }]}>
-                    This will permanently delete "{selectedCustomer.name}" and all their entries. This action cannot be undone.
+                    {i18n.t('deleteCustomerConfirm')}
                   </Text>
                   <Text style={[styles.deleteInstruction, { color: colors.text }]}>
-                    Type the customer name to confirm:
+                    {i18n.t('typeExactNameToConfirm')}
                   </Text>
                   <Text style={[styles.customerNameDisplay, { color: colors.accent }]}>
                     {selectedCustomer.name}
@@ -459,7 +462,7 @@ export default function CustomersScreen({ navigation }) {
                       onPress={() => { setShowDeleteConfirmModal(false); setDeleteConfirmText(''); }}
                       activeOpacity={0.8}
                     >
-                      <Text style={[styles.cancelDeleteText, { color: colors.text }]}>Cancel</Text>
+                      <Text style={[styles.cancelDeleteText, { color: colors.text }]}>{i18n.t('cancel')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.confirmDeleteBtn, { 
@@ -470,17 +473,20 @@ export default function CustomersScreen({ navigation }) {
                       disabled={deleteConfirmText.trim().toLowerCase() !== selectedCustomer.name.trim().toLowerCase()}
                       activeOpacity={0.8}
                     >
-                      <Text style={[styles.submitBtnText, { color: colors.onError }]}>DELETE PERMANENTLY</Text>
+                      <Text style={[styles.submitBtnText, { color: colors.onError }]}>{i18n.t('delete').toUpperCase()}</Text>
                     </TouchableOpacity>
                   </View>
                 </>
               )}
+              <KeyboardSpacer />
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
-      <BottomNavigation navigation={navigation} />
+      {!showAddModal && !showEditModal && !showDeleteConfirmModal && !showMenuModal && (
+        <BottomNavigation navigation={navigation} />
+      )}
     </View>
   );
 }
@@ -489,34 +495,34 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { padding: 16 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  title: { fontSize: 34, fontWeight: '700', letterSpacing: -0.5 },
-  addBtn: { width: 32, height: 32, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  searchBar: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 0.5, marginBottom: 20, gap: 8 },
-  searchInput: { flex: 1, fontSize: 16 },
+  title: { fontSize: 30, fontWeight: '800', letterSpacing: -0.5 },
+  addBtn: { width: 36, height: 36, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  searchBar: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 18, gap: 8 },
+  searchInput: { flex: 1, fontSize: 15 },
   empty: { alignItems: 'center', paddingVertical: 60, gap: 12 },
-  emptyText: { fontSize: 15 },
+  emptyText: { fontSize: 16, fontWeight: '600' },
   listCard: { overflow: 'hidden' },
   customerItem: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12 },
-  avatar: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  avatarText: { fontSize: 18, fontWeight: '600' },
+  avatar: { width: 44, height: 44, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  avatarText: { fontSize: 17, fontWeight: '700' },
   customerInfo: { flex: 1 },
-  customerName: { fontSize: 16, fontWeight: '500', marginBottom: 2 },
+  customerName: { fontSize: 16, fontWeight: '600', marginBottom: 2 },
   customerNumber: { fontSize: 13 },
   customerRight: { alignItems: 'flex-end', gap: 4 },
   customerBalances: { alignItems: 'flex-end', gap: 2 },
-  customerBalanceLine: { fontSize: 14, fontWeight: '600', flexShrink: 0, textAlign: 'right' },
-  customerBalance: { fontSize: 15, fontWeight: '600', flexShrink: 0, minWidth: 80, textAlign: 'right' },
+  customerBalanceLine: { fontSize: 14, fontWeight: '700', flexShrink: 0, textAlign: 'right' },
+  customerBalance: { fontSize: 15, fontWeight: '700', flexShrink: 0, minWidth: 80, textAlign: 'right' },
   
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'flex-end' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   modalBackdrop: { flex: 1, minHeight: 0 },
-  modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: Platform.OS === 'ios' ? 40 : 20 },
-  modalHandle: { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
+  modalContent: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 20, paddingBottom: Platform.OS === 'ios' ? 40 : 24 },
+  modalHandle: { width: 36, height: 5, borderRadius: 3, alignSelf: 'center', marginBottom: 16 },
   modalTitle: { fontSize: 20, fontWeight: '600', marginBottom: 20, textAlign: 'center' },
   input: { padding: 14, borderRadius: 12, fontSize: 16, marginBottom: 12 },
-  submitBtn: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
-  submitBtnText: { fontSize: 16, fontWeight: '600' },
+  submitBtn: { paddingVertical: 16, borderRadius: 14, alignItems: 'center', marginTop: 8 },
+  submitBtnText: { fontSize: 16, fontWeight: '700' },
 
-  menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' },
+  menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', alignItems: 'center' },
   menuContent: { borderRadius: 12, padding: 8, minWidth: 180, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 5 },
   menuItem: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12 },
   menuText: { fontSize: 15, fontWeight: '500' },
@@ -526,7 +532,7 @@ const styles = StyleSheet.create({
   deleteInstruction: { fontSize: 14, fontWeight: '500', marginBottom: 8 },
   customerNameDisplay: { fontSize: 18, fontWeight: '700', textAlign: 'center', marginBottom: 16, paddingVertical: 8 },
   deleteButtonRow: { flexDirection: 'row', gap: 12, marginTop: 8 },
-  cancelDeleteBtn: { flex: 1, paddingVertical: 16, borderRadius: 8, alignItems: 'center' },
+  cancelDeleteBtn: { flex: 1, paddingVertical: 16, borderRadius: 14, alignItems: 'center' },
   cancelDeleteText: { fontSize: 15, fontWeight: '600' },
-  confirmDeleteBtn: { flex: 1, paddingVertical: 16, borderRadius: 8, alignItems: 'center' },
+  confirmDeleteBtn: { flex: 1, paddingVertical: 16, borderRadius: 14, alignItems: 'center' },
 });

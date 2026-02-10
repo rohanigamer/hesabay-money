@@ -164,6 +164,18 @@ export const CURRENCIES = [
 /** Default app currency when none is set (e.g. first launch). */
 export const DEFAULT_CURRENCY = 'USD';
 
+// Locale for number formatting — updated when language changes
+let _numberLocale = 'en-US';
+const LANG_TO_LOCALE = {
+  en: 'en-US', fa: 'fa-IR', ps: 'ps-AF', da: 'da-AF',
+  ar: 'ar-SA', tr: 'tr-TR', ur: 'ur-PK', hi: 'hi-IN',
+  zh: 'zh-CN', es: 'es-ES', fr: 'fr-FR', de: 'de-DE',
+  ru: 'ru-RU', pt: 'pt-BR', ja: 'ja-JP', ko: 'ko-KR',
+};
+export const setCurrencyLocale = (langCode) => {
+  _numberLocale = LANG_TO_LOCALE[langCode] || 'en-US';
+};
+
 export const getCurrencySymbol = (currencyCode) => {
   const currency = CURRENCIES.find(c => c.code === currencyCode);
   return currency ? currency.symbol : '$';
@@ -172,12 +184,12 @@ export const getCurrencySymbol = (currencyCode) => {
 export const formatCurrency = (amount, currencyCode = DEFAULT_CURRENCY) => {
   const symbol = getCurrencySymbol(currencyCode);
   const num = parseFloat(amount) || 0;
-  return `${symbol}${Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${symbol}${Math.abs(num).toLocaleString(_numberLocale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
 export const formatCurrencyWithSign = (amount, currencyCode = DEFAULT_CURRENCY) => {
   const symbol = getCurrencySymbol(currencyCode);
   const num = parseFloat(amount) || 0;
   const sign = num < 0 ? '-' : '';
-  return `${sign}${symbol}${Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${sign}${symbol}${Math.abs(num).toLocaleString(_numberLocale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };

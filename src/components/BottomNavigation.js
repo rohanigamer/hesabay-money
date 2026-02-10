@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useContext } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Animated, Easing } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,10 +8,10 @@ import i18n from '../utils/i18n';
 import { BOTTOM_NAV_HEIGHT } from '../constants/layout';
 
 const navigationItemDefs = [
-  { id: 'Transaction', labelKey: 'transaction', icon: 'repeat', iconOutline: 'repeat-outline' },
+  { id: 'Transaction', labelKey: 'transaction', icon: 'wallet', iconOutline: 'wallet-outline' },
   { id: 'Customers', labelKey: 'customers', icon: 'people', iconOutline: 'people-outline' },
-  { id: 'Calculation', labelKey: 'calculation', icon: 'apps', iconOutline: 'apps-outline' },
-  { id: 'Settings', labelKey: 'settings', icon: 'cog', iconOutline: 'cog-outline' },
+  { id: 'Calculation', labelKey: 'calculation', icon: 'stats-chart', iconOutline: 'stats-chart-outline' },
+  { id: 'Settings', labelKey: 'settings', icon: 'settings', iconOutline: 'settings-outline' },
 ];
 
 export default function BottomNavigation({ navigation }) {
@@ -33,11 +33,19 @@ export default function BottomNavigation({ navigation }) {
     }, {})
   ).current;
 
+  const indicatorAnims = useRef(
+    navigationItemDefs.reduce((acc, item) => {
+      acc[item.id] = new Animated.Value(item.id === currentRoute ? 1 : 0);
+      return acc;
+    }, {})
+  ).current;
+
   useEffect(() => {
     navigationItemDefs.forEach((item) => {
-      Animated.timing(scaleAnims[item.id], {
-        toValue: 1,
-        duration: 200,
+      Animated.spring(indicatorAnims[item.id], {
+        toValue: item.id === currentRoute ? 1 : 0,
+        tension: 100,
+        friction: 12,
         useNativeDriver: true,
       }).start();
     });
@@ -45,18 +53,19 @@ export default function BottomNavigation({ navigation }) {
 
   const handleNavigation = (routeName) => {
     if (currentRoute !== routeName) {
-      Animated.sequence([
-        Animated.timing(scaleAnims[routeName], {
-          toValue: 0.85,
-          duration: 100,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnims[routeName], {
+      Animated.spring(scaleAnims[routeName], {
+        toValue: 0.88,
+        tension: 200,
+        friction: 10,
+        useNativeDriver: true,
+      }).start(() => {
+        Animated.spring(scaleAnims[routeName], {
           toValue: 1,
-          duration: 100,
+          tension: 120,
+          friction: 8,
           useNativeDriver: true,
-        }),
-      ]).start();
+        }).start();
+      });
       navigation.navigate(routeName);
     }
   };
@@ -81,16 +90,22 @@ export default function BottomNavigation({ navigation }) {
                 styles.iconContainer, 
                 { 
                   transform: [{ scale: scaleAnims[item.id] }],
-                  opacity: scaleAnims[item.id].interpolate({
-                    inputRange: [0.85, 1],
-                    outputRange: [0.6, 1],
-                  }),
                 }
               ]}
             >
-              {isActive && (
-                <View style={[styles.activeIndicator, { backgroundColor: colors.accentLight }]} />
-              )}
+              <Animated.View style={[
+                styles.activeIndicator, 
+                { 
+                  backgroundColor: colors.accentMuted || colors.accentLight,
+                  opacity: indicatorAnims[item.id],
+                  transform: [{ 
+                    scaleX: indicatorAnims[item.id].interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.5, 1],
+                    })
+                  }],
+                },
+              ]} />
               <Ionicons
                 name={isActive ? item.icon : item.iconOutline}
                 size={24}
@@ -126,6 +141,13 @@ export default function BottomNavigation({ navigation }) {
           borderTopColor: colors.border,
           height: BOTTOM_NAV_HEIGHT + insets.bottom,
           paddingBottom: Math.max(insets.bottom, Platform.OS === 'ios' ? 12 : 10),
+          ...(Platform.OS !== 'android' && {
+            shadowColor: colors.shadow,
+            shadowOffset: { width: 0, height: -4 },
+            shadowOpacity: 0.08,
+            shadowRadius: 12,
+          }),
+          ...(Platform.OS === 'android' && { elevation: 8 }),
         },
       ]}
     >
@@ -140,11 +162,11 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   navContent: {
     flexDirection: 'row',
-    paddingTop: 8,
+    paddingTop: 6,
   },
   navItem: {
     flex: 1,
@@ -152,21 +174,23 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   iconContainer: {
-    marginBottom: 2,
+    marginBottom: 3,
     position: 'relative',
     justifyContent: 'center',
     alignItems: 'center',
+    width: 56,
+    height: 32,
   },
   activeIndicator: {
     position: 'absolute',
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    opacity: 0.25,
+    width: 56,
+    height: 32,
+    borderRadius: 16,
+    opacity: 1,
   },
   label: {
     fontSize: 11,
     fontWeight: '600',
-    letterSpacing: 0.2,
+    letterSpacing: 0.1,
   },
 });

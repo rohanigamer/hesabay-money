@@ -3,6 +3,7 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { firebaseConfig, getFirebaseRestUrl, getSecureTokenUrl } from '../config/firebase';
+import i18n from '../utils/i18n';
 
 const AUTH_STORAGE_KEY = '@firebase_auth_user';
 const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000; // Refresh 5 min before expiry
@@ -291,23 +292,23 @@ class FirebaseAuthREST {
   }
 
   formatError(error) {
-    const message = error.message || 'An error occurred';
+    const message = error.message || i18n.t('somethingWentWrong');
     
     // Map Firebase REST API error messages to standard error codes
     if (message.includes('EMAIL_NOT_FOUND') || message.includes('INVALID_PASSWORD')) {
-      return { code: 'auth/invalid-credential', message: 'Invalid email or password' };
+      return { code: 'auth/invalid-credential', message: i18n.t('loginFailed') };
     }
     if (message.includes('EMAIL_EXISTS')) {
-      return { code: 'auth/email-already-in-use', message: 'Email already in use' };
+      return { code: 'auth/email-already-in-use', message: i18n.t('invalidEmail') };
     }
     if (message.includes('TOO_MANY_ATTEMPTS_TRY_LATER')) {
-      return { code: 'auth/too-many-requests', message: 'Too many attempts. Try again later.' };
+      return { code: 'auth/too-many-requests', message: i18n.t('tryAgain') };
     }
     if (message.includes('INVALID_EMAIL')) {
-      return { code: 'auth/invalid-email', message: 'Invalid email address' };
+      return { code: 'auth/invalid-email', message: i18n.t('invalidEmailMsg') };
     }
     if (message.includes('WEAK_PASSWORD')) {
-      return { code: 'auth/weak-password', message: 'Password should be at least 6 characters' };
+      return { code: 'auth/weak-password', message: i18n.t('weakPasswordMsg') };
     }
     
     return { code: 'auth/unknown', message };

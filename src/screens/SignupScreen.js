@@ -44,27 +44,27 @@ export default function SignupScreen({ navigation }) {
   const handleSignup = async () => {
     // Validation
     if (!name.trim()) {
-      toast({ type: 'warning', title: 'Missing name', message: 'Please enter your full name.' });
+      toast({ type: 'warning', title: i18n.t('missingName'), message: i18n.t('missingNameMsg') });
       return;
     }
     if (!email.trim()) {
-      toast({ type: 'warning', title: 'Missing email', message: 'Please enter your email address.' });
+      toast({ type: 'warning', title: i18n.t('missingEmail'), message: i18n.t('missingEmailMsg') });
       return;
     }
     if (!validateEmail(email.trim())) {
-      toast({ type: 'warning', title: 'Invalid email', message: 'Please enter a valid email address.' });
+      toast({ type: 'warning', title: i18n.t('invalidEmail'), message: i18n.t('invalidEmailMsg') });
       return;
     }
     if (!password) {
-      toast({ type: 'warning', title: 'Missing password', message: 'Please enter a password.' });
+      toast({ type: 'warning', title: i18n.t('missingPassword'), message: i18n.t('missingPasswordMsg') });
       return;
     }
     if (password.length < 6) {
-      toast({ type: 'warning', title: 'Weak password', message: 'Password must be at least 6 characters.' });
+      toast({ type: 'warning', title: i18n.t('weakPassword'), message: i18n.t('weakPasswordMsg') });
       return;
     }
     if (password !== confirmPassword) {
-      toast({ type: 'warning', title: 'Passwords do not match', message: 'Please re-check your password.' });
+      toast({ type: 'warning', title: i18n.t('passwordsDontMatch'), message: i18n.t('passwordsDontMatchMsg') });
       return;
     }
 
@@ -73,14 +73,14 @@ export default function SignupScreen({ navigation }) {
       const result = await signUp(email.trim().toLowerCase(), password, name.trim());
       if (result.success) {
         setStep(2); // Show verification sent screen
-        toast({ type: 'success', title: 'Check your email', message: result.message || 'Verification link sent.' });
+        toast({ type: 'success', title: i18n.t('checkYourEmail'), message: result.message || i18n.t('verificationInstructions') });
       } else {
-        const errorMsg = result.error || 'An error occurred. Please try again.';
-        toast({ type: 'error', title: 'Sign up failed', message: errorMsg });
+        const errorMsg = result.error || i18n.t('somethingWentWrong');
+        toast({ type: 'error', title: i18n.t('signUpFailed'), message: errorMsg });
       }
     } catch (err) {
       console.error('Sign up error:', err);
-      toast({ type: 'error', title: 'Sign up failed', message: err?.message || 'Something went wrong. Try again.' });
+      toast({ type: 'error', title: i18n.t('signUpFailed'), message: err?.message || i18n.t('somethingWentWrong') });
     } finally {
       setLoading(false);
     }
@@ -96,11 +96,11 @@ export default function SignupScreen({ navigation }) {
           routes: [{ name: 'Transaction' }],
         });
       } else if (result.error) {
-        toast({ type: 'error', title: 'Google Sign-In failed', message: result.error });
+        toast({ type: 'error', title: i18n.t('googleSignInFailed'), message: result.error });
       }
     } catch (err) {
       console.error('Google sign-in error:', err);
-      toast({ type: 'error', title: 'Error', message: err?.message || 'Google Sign-In failed.' });
+      toast({ type: 'error', title: i18n.t('error'), message: err?.message || i18n.t('googleSignInFailed') });
     } finally {
       setLoading(false);
     }
@@ -164,8 +164,8 @@ export default function SignupScreen({ navigation }) {
     <AnimatedBackground>
     <KeyboardAvoidingView 
       style={[styles.container, { backgroundColor: 'transparent' }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={0}
     >
       <ScrollView
         contentContainerStyle={[styles.scrollContent, { paddingTop: Math.max(insets.top, 12) + 24, paddingBottom: Math.max(insets.bottom, 24) + 80 }]}
@@ -348,10 +348,10 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { flexGrow: 1, paddingHorizontal: 24, justifyContent: 'center' },
   
-  header: { alignItems: 'center', marginBottom: 30 },
-  iconCircle: { width: 88, height: 88, borderRadius: 44, justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
-  title: { fontSize: 30, fontWeight: '800', marginBottom: 8, letterSpacing: -0.5 },
-  subtitle: { fontSize: 15, textAlign: 'center', maxWidth: 280 },
+  header: { alignItems: 'center', marginBottom: 28 },
+  iconCircle: { width: 80, height: 80, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  title: { fontSize: 28, fontWeight: '800', marginBottom: 8, letterSpacing: -0.5 },
+  subtitle: { fontSize: 15, textAlign: 'center', maxWidth: 280, lineHeight: 22 },
   
   form: { width: '100%' },
   inputGroup: { marginBottom: 20 },
@@ -359,8 +359,8 @@ const styles = StyleSheet.create({
   inputContainer: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 16, gap: 12 },
   input: { flex: 1, fontSize: 16 },
   
-  signupBtn: { paddingVertical: 18, borderRadius: 14, alignItems: 'center', marginTop: 8 },
-  signupBtnText: { fontSize: 16, fontWeight: '600' },
+  signupBtn: { paddingVertical: 16, borderRadius: 14, alignItems: 'center', marginTop: 8 },
+  signupBtnText: { fontSize: 16, fontWeight: '700' },
   
   termsText: { fontSize: 12, textAlign: 'center', marginTop: 16, lineHeight: 18 },
   
@@ -377,13 +377,13 @@ const styles = StyleSheet.create({
 
   // Verification screen
   verificationContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  verificationTitle: { fontSize: 24, fontWeight: '700', marginTop: 24, marginBottom: 12 },
-  verificationText: { fontSize: 15, textAlign: 'center', maxWidth: 300 },
-  verificationEmail: { fontSize: 16, fontWeight: '600', marginTop: 8 },
-  verificationNote: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 24, padding: 16, backgroundColor: 'rgba(128,128,128,0.1)', borderRadius: 12 },
-  noteText: { fontSize: 13, flex: 1 },
-  loginBtn: { paddingVertical: 16, paddingHorizontal: 32, borderRadius: 12, alignItems: 'center', width: '100%' },
-  loginBtnText: { fontSize: 16, fontWeight: '600' },
+  verificationTitle: { fontSize: 24, fontWeight: '800', marginTop: 24, marginBottom: 12 },
+  verificationText: { fontSize: 15, textAlign: 'center', maxWidth: 300, lineHeight: 22 },
+  verificationEmail: { fontSize: 16, fontWeight: '700', marginTop: 8 },
+  verificationNote: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 24, padding: 16, backgroundColor: 'rgba(128,128,128,0.08)', borderRadius: 14 },
+  noteText: { fontSize: 13, flex: 1, lineHeight: 18 },
+  loginBtn: { paddingVertical: 16, paddingHorizontal: 32, borderRadius: 14, alignItems: 'center', width: '100%' },
+  loginBtnText: { fontSize: 16, fontWeight: '700' },
   resendBtn: { marginTop: 16 },
   resendBtnText: { fontSize: 14 },
 });
